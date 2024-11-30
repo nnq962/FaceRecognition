@@ -1,8 +1,8 @@
-from retinaface import RetinaFace
+import torch
 
-import time
-
-start = time.time()
-resp = RetinaFace.detect_faces("photo_test/24person.jpg")
-print("time: ", time.time() - start)
-# print(resp)
+# Kiểm tra xem MPS có khả dụng không
+if torch.backends.mps.is_available():
+    device = torch.device("mps")  # Chọn MPS làm thiết bị
+    print("MPS backend is available")
+else:
+    print("MPS backend is not available")
