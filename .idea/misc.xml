@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="myenv" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="3HINC_FaceRecognition" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="myenv" project-jdk-type="Python SDK" />
 </project>
