@@ -1,10 +1,8 @@
-import oop1
-import oop
+import media_manager
+import yolov9_detector
 
-
-
-media = oop1.MediaManager(source='assets/24person.jpg')
-detector = oop.Yolov9Detector(mediamanager=media)
+media = media_manager.MediaManager(source='0', save_crop=False, nosave=True)
+detector = yolov9_detector.Yolov9Detector(mediamanager=media, device='mps')
 detector.run_inference()
 
 
