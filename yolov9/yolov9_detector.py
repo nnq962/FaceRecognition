@@ -180,6 +180,9 @@ class Yolov9Detector:
                                 xyxy_e = torch.tensor(xyxy).view(-1, 4)
                                 xyxy_e = xyxy_e[0].int().tolist()  # Chuyển sang danh sách số nguyên
                                 result = fer_detector.get_dominant_emotion(fer_detector.analyze_face(imc, [xyxy_e]))[0]
+                            else: 
+                                print("skip emotion detect")
+
 
                         # Add MTCNN
                         # if self.emotion:
