@@ -1,16 +1,48 @@
 import platform
 import torch
+import os
 from pathlib import Path
 from models.common import DetectMultiBackend
 from utils.general import (LOGGER, Profile, check_img_size, check_requirements, colorstr, cv2,
                            increment_path, non_max_suppression, scale_boxes, strip_optimizer, xyxy2xywh)
 from utils.plots import Annotator, colors, save_one_box
 from utils.torch_utils import select_device
-from emotion_detector import get_dominant_emotion, analyze_face
+import gdown
+import emotion_detector # deepface detector
+import fer_detector # FER detector
+from test_mtcnn import get_mtcnn_detector, check_single_face_quality
+from check_bounding_box import is_valid_bounding_box
+detector = get_mtcnn_detector()
+
+def prepare_model(model_id='12Q-13lgEAu4nHb9cGchuipsSQYLc6pJN', model_name="yolov9_model.pt", model_dir="~/Models"):
+    # Mở rộng đường dẫn thư mục (hỗ trợ ~)
+    model_dir = os.path.expanduser(model_dir)
+
+    # Tạo thư mục nếu chưa tồn tại
+    if not os.path.exists(model_dir):
+        print(f"Directory '{model_dir}' does not exist. Creating it...")
+        os.makedirs(model_dir)
+
+    # Đường dẫn đầy đủ đến tệp mô hình
+    model_path = os.path.join(model_dir, model_name)
+
+    # Kiểm tra nếu tệp mô hình chưa tồn tại thì tải
+    if not os.path.exists(model_path):
+        print(f"Model '{model_name}' not found in '{model_dir}'. Downloading...")
+        url = f"https://drive.google.com/uc?id={model_id}"
+        gdown.download(url, model_path, quiet=False)
+        print(f"Model downloaded successfully to '{model_path}'.")
+    else:
+        print(f"Model '{model_name}' already exists in '{model_dir}'.")
+
+    # Trả về đường dẫn mô hình
+    return model_path
+
+_model_path = prepare_model()
 
 class Yolov9Detector:
     def __init__(self,
-                 weights='yolov9_model.pt',
+                 weights=_model_path,
                  data='data/coco128.yaml',
                  device=None,
                  half=False,
@@ -19,7 +51,7 @@ class Yolov9Detector:
                  visualize=False,
                  conf_thres=0.25,  # confidence threshold
                  iou_thres=0.45,  # NMS IOU threshold
-                 max_det=200,  # maximum detections per image
+                 max_det=1000,  # maximum detections per image
                  classes=None,  # filter by class: --class 0, or --class 0 2 3
                  agnostic_nms=False,  # class-agnostic NMS
                  line_thickness=3,  # bounding box thickness (pixels)
@@ -132,19 +164,46 @@ class Yolov9Detector:
 
                         c = None # global
 
+                        # Use deepface detector
+                        # if self.emotion:
+                        #     xyxy_e = torch.tensor(xyxy).view(-1, 4)
+                        #     xyxy_e = xyxy_e[0].int().tolist()  # Chuyển sang danh sách số nguyên
+                        #     x1, y1, x2, y2 = xyxy_e  # Tách tọa độ
+                        #     cropped_face = imc[y1:y2, x1:x2]
+                        #     result = emotion_detector.get_dominant_emotion(emotion_detector.analyze_face(cropped_face))
+
+                        # Use FER detector
+                        if self.emotion:
+                            xywh_e = xyxy2xywh(torch.tensor(xyxy).view(1, 4))
+                            xywh_e = xywh_e[0].int().tolist()
+                            if is_valid_bounding_box(xywh_e, min_size=50):
+                                xyxy_e = torch.tensor(xyxy).view(-1, 4)
+                                xyxy_e = xyxy_e[0].int().tolist()  # Chuyển sang danh sách số nguyên
+                                result = fer_detector.get_dominant_emotion(fer_detector.analyze_face(imc, [xyxy_e]))[0]
+
+                        # Add MTCNN
+                        # if self.emotion:
+                        #     xyxy_e = torch.tensor(xyxy).view(-1, 4)
+                        #     xyxy_e = xyxy_e[0].int().tolist()  # Chuyển sang danh sách số nguyên
+                        #     result_check = check_single_face_quality(detector, imc, xyxy_e)
+                        #     if result_check["is_valid"]:
+                        #         # Nếu khuôn mặt đạt yêu cầu, tiếp tục phân tích cảm xúc
+                        #         result = fer_detector.get_dominant_emotion(
+                        #             fer_detector.analyze_face(imc, [xyxy_e])
+                        #         )[0]
+
                         if self.mediamanager.save_img or self.mediamanager.save_crop or self.mediamanager.view_img:  # Add bbox to image
                             c = int(cls)  # integer class
-                            label = None if self.hide_labels else (self.names[c] if self.hide_conf else f'{self.names[c]} {conf:.2f}')
+                            # label = None if self.hide_labels else (self.names[c] if self.hide_conf else f'{self.names[c]} {conf:.2f}')
+                            label = None if self.hide_labels else (
+                                self.names[c] if self.hide_conf else (
+                                    f'{self.names[c]} {conf:.2f}' if result is None else f'{self.names[c]} {conf:.2f} | {result[0]} {result[1]:.2f}'
+                                )
+                            )
                             annotator.box_label(xyxy, label, color=colors(c, True))
 
                         if self.mediamanager.save_crop:
                             save_one_box(xyxy, imc, file=self.save_dir / 'crops' / self.names[c] / f'{p.stem}.jpg', BGR=True)
-
-                        if self.emotion:
-                            xyxy = torch.tensor(xyxy).view(-1, 4)
-                            x1, y1, x2, y2 = xyxy[0].int().tolist()
-                            cropped_face = imc[y1:y2, x1:x2]
-                            result = get_dominant_emotion(analyze_face(cropped_face))
 
                 # Stream results
                 im0 = annotator.result()
@@ -178,12 +237,7 @@ class Yolov9Detector:
                         self.mediamanager.vid_writer[i].write(im0)
 
             # Print time (inference-only)
-            # LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
-            # Print time (inference-only) và kết quả phát hiện khuôn mặt
-            if len(det):
-                LOGGER.info(f"{s}emotion: {result}, {dt[1].dt * 1E3:.1f}ms")
-            else:
-                LOGGER.info(f"{s}(no detections), {dt[1].dt * 1E3:.1f}ms")
+            LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
 
 
         # Print results

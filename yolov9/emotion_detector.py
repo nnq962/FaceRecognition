@@ -18,4 +18,4 @@ def get_dominant_emotion(result):
 
     # Chuẩn hóa xác suất về khoảng [0, 1]
     normalized_probability = dominant_probability / 100
-    return dominant_emotion, int(normalized_probability * 100) / 100
+    return [dominant_emotion, int(normalized_probability * 100) / 100]
