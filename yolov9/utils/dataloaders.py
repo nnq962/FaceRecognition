@@ -360,11 +360,24 @@ class LoadStreams:
                 assert not is_colab(), '--source 0 webcam unsupported on Colab. Rerun command in a local environment.'
                 assert not is_kaggle(), '--source 0 webcam unsupported on Kaggle. Rerun command in a local environment.'
             cap = cv2.VideoCapture(s)
+
+            # Thiết lập MJPG để đạt FPS cao
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+            # Thiết lập độ phân giải và FPS
+            desired_width = 2560
+            desired_height = 1440
+            desired_fps = 30
+
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, desired_width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, desired_height)
+            cap.set(cv2.CAP_PROP_FPS, desired_fps)
+
             assert cap.isOpened(), f'{st}Failed to open {s}'
             w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             fps = cap.get(cv2.CAP_PROP_FPS)  # warning: may return 0 or nan
             print("FPS:", fps)
+
             self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')  # infinite stream fallback
             self.fps[i] = max((fps if math.isfinite(fps) else 0) % 100, 0) or 30  # 30 FPS fallback
 
