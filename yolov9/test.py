@@ -1,23 +1,34 @@
-import torch
+import cv2
 
+# Mở webcam (0 là webcam mặc định)
+cap = cv2.VideoCapture(0)
 
-def check_mps_support():
-    if torch.backends.mps.is_available():
-        print("MPS backend is available and ready to use with PyTorch!")
-        # Kiểm tra thiết bị MPS
-        device = torch.device("mps")
-        print(f"PyTorch is set to use device: {device}")
+if not cap.isOpened():
+    print("Không thể mở webcam!")
+    exit()
 
-        # Thử tạo một tensor trên MPS
-        try:
-            x = torch.ones((3, 3), device=device)
-            print("Successfully created a tensor on MPS!")
-            print("Tensor:", x)
-        except Exception as e:
-            print("An error occurred while creating a tensor on MPS:", e)
-    else:
-        print("MPS backend is not available on this machine.")
+# Lấy độ phân giải của webcam
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+fps = int(cap.get(cv2.CAP_PROP_FPS))
 
+print(f"Độ phân giải webcam: {width}x{height}")
+print(f"Số khung hình mỗi giây (FPS): {fps}")
 
-# Chạy kiểm tra
-check_mps_support()
+# Hiển thị video từ webcam
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("Không thể nhận khung hình từ webcam!")
+        break
+
+    # Hiển thị video
+    cv2.imshow("Webcam Video", frame)
+
+    # Nhấn 'q' để thoát
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Giải phóng tài nguyên
+cap.release()
+cv2.destroyAllWindows()

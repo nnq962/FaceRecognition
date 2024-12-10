@@ -10,9 +10,7 @@ from utils.torch_utils import select_device
 import gdown
 import emotion_detector # deepface detector
 import fer_detector # FER detector
-from test_mtcnn import get_mtcnn_detector, check_single_face_quality
 from check_bounding_box import is_valid_bounding_box
-detector = get_mtcnn_detector()
 
 def prepare_model(model_id='12Q-13lgEAu4nHb9cGchuipsSQYLc6pJN', model_name="yolov9_model.pt", model_dir="~/Models"):
     # Mở rộng đường dẫn thư mục (hỗ trợ ~)
