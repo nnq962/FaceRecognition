@@ -1,34 +1,36 @@
 import cv2
 
-# Mở webcam (0 là webcam mặc định)
+# Mở video (thay thế 0 bằng đường dẫn video nếu cần)
+video_path = "path/to/video.mp4"
 cap = cv2.VideoCapture(0)
 
 if not cap.isOpened():
-    print("Không thể mở webcam!")
-    exit()
+    print("Không thể mở video!")
+else:
+    # Đặt độ phân giải mong muốn nếu biết trước
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3072)  # Thay thế bằng độ rộng bạn muốn
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1400)  # Thay thế bằng chiều cao bạn muốn
 
-# Lấy độ phân giải của webcam
-width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fps = int(cap.get(cv2.CAP_PROP_FPS))
+    # Lấy lại độ phân giải và FPS
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
 
-print(f"Độ phân giải webcam: {width}x{height}")
-print(f"Số khung hình mỗi giây (FPS): {fps}")
+    print(f"Độ phân giải: {width} x {height}")
+    print(f"FPS: {fps}")
 
-# Hiển thị video từ webcam
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Không thể nhận khung hình từ webcam!")
-        break
+    # Đọc và hiển thị video
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-    # Hiển thị video
-    cv2.imshow("Webcam Video", frame)
+        # Hiển thị video
+        cv2.imshow("Video", frame)
 
-    # Nhấn 'q' để thoát
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        # Nhấn 'q' để thoát
+        if cv2.waitKey(int(1000 / fps)) & 0xFF == ord('q'):
+            break
 
-# Giải phóng tài nguyên
-cap.release()
-cv2.destroyAllWindows()
+    cap.release()
+    cv2.destroyAllWindows()
