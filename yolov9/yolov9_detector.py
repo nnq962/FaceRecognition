@@ -171,13 +171,11 @@ class Yolov9Detector:
                         #     cropped_face = imc[y1:y2, x1:x2]
                         #     result = emotion_detector.get_dominant_emotion(emotion_detector.analyze_face(cropped_face))
 
-                        check_face_orientation(imc)
-
                         # Use FER detector
                         if self.emotion:
                             xywh_e = xyxy2xywh(torch.tensor(xyxy).view(1, 4))
                             xywh_e = xywh_e[0].int().tolist()
-                            if is_valid_bounding_box(xywh_e, min_size=50):
+                            if is_valid_bounding_box(xywh_e, min_size=50) and check_face_orientation(imc):
                                 xyxy_e = torch.tensor(xyxy).view(-1, 4)
                                 xyxy_e = xyxy_e[0].int().tolist()  # Chuyển sang danh sách số nguyên
                                 result = fer_detector.get_dominant_emotion(fer_detector.analyze_face(imc, [xyxy_e]))[0]

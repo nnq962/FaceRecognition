@@ -72,7 +72,6 @@ def draw_axes(img, pitch, yaw, roll, tx, ty, size=50):
 
 face_mesh = mp.solutions.face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
-image = cv2.imread("assets/nnq2.jpeg")
 
 def check_face_orientation(img):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -93,17 +92,9 @@ def check_face_orientation(img):
         yaw_min, yaw_max = -45, 45      # [-45, 45] độ
 
         if pitch_min <= pitch_deg <= pitch_max and yaw_min <= yaw_deg <= yaw_max:
-            text = "Khuôn mặt hợp lệ"
+            return True
         else:
-            text = "Khuôn mặt quá nghiêng"
-
-        print(f"Roll: {roll_deg:.2f} deg, Pitch: {pitch_deg:.2f} deg, Yaw: {yaw_deg:.2f} deg")
-        print(text)
-
-        return text
+            return False
 
     else:
-        print("Không phát hiện khuôn mặt.")
-        return "Không phát hiện khuôn mặt"
-
-check_face_orientation(image)
+        return False
