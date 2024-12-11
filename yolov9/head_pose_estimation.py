@@ -4,10 +4,7 @@ import numpy as np
 import pandas as pd
 import pickle
 
-
-
 model = pickle.load(open('./head_pose_model.pkl', 'rb'))
-
 
 cols = []
 for pos in ['nose_', 'forehead_', 'left_eye_', 'mouth_left_', 'chin_', 'right_eye_', 'mouth_right_']:
@@ -75,60 +72,38 @@ def draw_axes(img, pitch, yaw, roll, tx, ty, size=50):
 
 face_mesh = mp.solutions.face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
-cap = cv2.VideoCapture(0)  # From Camera
+image = cv2.imread("assets/nnq2.jpeg")
 
-while(cap.isOpened()):
+def check_face_orientation(img):
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    face_features = extract_features(img, face_mesh)
+    
+    if len(face_features):
+        face_features_df = pd.DataFrame([face_features], columns=cols)
+        face_features_normalized = normalize(face_features_df)
+        pitch_pred, yaw_pred, roll_pred = model.predict(face_features_normalized.values).ravel()
 
-    # Take each frame
-    ret, img = cap.read()
-    if ret:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = cv2.flip(img, 1)
-        img_h, img_w, img_c = img.shape
-        text = ''
-        
-        
-        face_features = extract_features(img, face_mesh)
-        if len(face_features):
-            face_features_df = pd.DataFrame([face_features], columns=cols)
-            face_features_normalized = normalize(face_features_df)
-            pitch_pred, yaw_pred, roll_pred = model.predict(face_features_normalized.values).ravel()
-            print("Roll: ", np.degrees(roll_pred))
-            print("Pitch: ", np.degrees(pitch_pred))
-            print("Yaw: ", np.degrees(yaw_pred))
-            print("================================================================")
-            nose_x = face_features_df['nose_x'].values * img_w
-            nose_y = face_features_df['nose_y'].values * img_h
-            img = draw_axes(img, pitch_pred, yaw_pred, roll_pred, nose_x, nose_y)
-                        
-            if pitch_pred > 0.3:
-                text = 'Top'
-                if yaw_pred > 0.3:
-                    text = 'Top Left'
-                elif yaw_pred < -0.3:
-                    text = 'Top Right'
-            elif pitch_pred < -0.3:
-                text = 'Bottom'
-                if yaw_pred > 0.3:
-                    text = 'Bottom Left'
-                elif yaw_pred < -0.3:
-                    text = 'Bottom Right'
-            elif yaw_pred > 0.3:
-                text = 'Left'
-            elif yaw_pred < -0.3:
-                text = 'Right'
-            else:
-                text = 'Forward'
-                
-        cv2.putText(img, text, (25, 75), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+        # Chuyển đổi từ radian sang độ
+        pitch_deg = np.degrees(pitch_pred)
+        yaw_deg = np.degrees(yaw_pred)
+        roll_deg = np.degrees(roll_pred)
 
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        cv2.imshow('img', img)
-        k = cv2.waitKey(1) & 0xFF
-        if k == ord("q"):
-            break
+        # Kiểm tra các giới hạn nghiêng của khuôn mặt (đơn vị độ)
+        pitch_min, pitch_max = -30, 30  # [-30, 30] độ
+        yaw_min, yaw_max = -45, 45      # [-45, 45] độ
+
+        if pitch_min <= pitch_deg <= pitch_max and yaw_min <= yaw_deg <= yaw_max:
+            text = "Khuôn mặt hợp lệ"
+        else:
+            text = "Khuôn mặt quá nghiêng"
+
+        print(f"Roll: {roll_deg:.2f} deg, Pitch: {pitch_deg:.2f} deg, Yaw: {yaw_deg:.2f} deg")
+        print(text)
+
+        return text
+
     else:
-        break
+        print("Không phát hiện khuôn mặt.")
+        return "Không phát hiện khuôn mặt"
 
-cv2.destroyAllWindows()
-cap.release()
+check_face_orientation(image)

@@ -11,6 +11,7 @@ import gdown
 import emotion_detector # deepface detector
 import fer_detector # FER detector
 from check_bounding_box import is_valid_bounding_box
+from head_pose_estimation import check_face_orientation
 
 def prepare_model(model_id='12Q-13lgEAu4nHb9cGchuipsSQYLc6pJN', model_name="yolov9_model.pt", model_dir="~/Models"):
     # Mở rộng đường dẫn thư mục (hỗ trợ ~)
@@ -169,6 +170,8 @@ class Yolov9Detector:
                         #     x1, y1, x2, y2 = xyxy_e  # Tách tọa độ
                         #     cropped_face = imc[y1:y2, x1:x2]
                         #     result = emotion_detector.get_dominant_emotion(emotion_detector.analyze_face(cropped_face))
+
+                        check_face_orientation(imc)
 
                         # Use FER detector
                         if self.emotion:
