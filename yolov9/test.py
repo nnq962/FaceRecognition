@@ -1,134 +1,165 @@
-import mediapipe as mp
-import cv2
+from insightface.app.common import Face
+from insightface.model_zoo import model_zoo
+import os
 import numpy as np
-import pandas as pd
-import pickle
+import tqdm
+import cv2
+import glob
+from collections import defaultdict
 
 
 
-model = pickle.load(open('./head_pose_model.pkl', 'rb'))
+det_model_path = 'buffalo_s/det_500m.onnx'
+rec_model_path = 'buffalo_s/w600k_mbf.onnx'
 
+BASE_DIR = '/Users/quyetnguyen/Models'
 
-cols = []
-for pos in ['nose_', 'forehead_', 'left_eye_', 'mouth_left_', 'chin_', 'right_eye_', 'mouth_right_']:
-    for dim in ('x', 'y'):
-        cols.append(pos+dim)
+det_model = model_zoo.get_model('det_10g.onnx')
+rec_model = model_zoo.get_model('w600k_r50.onnx')
 
+det_model.prepare(ctx_id=0, input_size=(640, 640), det_thres=0.5)
 
-def extract_features(img, face_mesh):
-    NOSE = 1
-    FOREHEAD = 10
-    LEFT_EYE = 33
-    MOUTH_LEFT = 61
-    CHIN = 199
-    RIGHT_EYE = 263
-    MOUTH_RIGHT = 291
+known_names, unknown_names = [], []
+known_embeddings, unknown_embeddings = [], []
 
-    result = face_mesh.process(img)
-    face_features = []
+# players = os.listdir(f'{BASE_DIR}/data/raw')
+# for player in tqdm(players):
+#     player_embeddings, player_names = [], []
+
+#     img_paths = glob(f'{BASE_DIR}/data/raw/{player}/*')
+#     for img_path in img_paths:
+#         img = cv2.imread(img_path)
+#         if img is None: continue
+
+#         bboxes, kpss = det_model.detect(img, max_num=0, metric='defualt')
+#         if len(bboxes) != 1: continue
+
+#         bbox = bboxes[0, :4]
+#         det_score = bboxes[0, 4]
+#         kps = kpss[0]
+#         face = Face(bbox=bbox, kps=kps, det_score=det_score)
+
+#         rec_model.get(img, face)
+#         player_embeddings.append(face.normed_embedding)
+#         player_names.append(player)
+#         if len(player_embeddings) == 10: break
     
-    if result.multi_face_landmarks != None:
-        for face_landmarks in result.multi_face_landmarks:
-            for idx, lm in enumerate(face_landmarks.landmark):
-                if idx in [FOREHEAD, NOSE, MOUTH_LEFT, MOUTH_RIGHT, CHIN, LEFT_EYE, RIGHT_EYE]:
-                    face_features.append(lm.x)
-                    face_features.append(lm.y)
+#     player_embeddings = np.stack(player_embeddings, axis=0)
+#     known_embeddings.append(player_embeddings[0:5])
+#     unknown_embeddings.append(player_embeddings[5:10])
+#     known_names += player_names[0:5]
+#     unknown_names += player_names[5:10]
 
-    return face_features
+# known_embeddings = np.concatenate(known_embeddings, axis=0)
+# unknown_embeddings = np.concatenate(unknown_embeddings, axis=0)
 
-def normalize(poses_df):
-    normalized_df = poses_df.copy()
+
+def search_flatten(known_embeddings, known_names, unknown_embeddings, threshold=0.5):
+    pred_names = []
+    for emb  in unknown_embeddings:
+        scores = np.dot(emb, known_embeddings.T)
+        scores = np.clip(scores, 0., 1.)
+
+        idx = np.argmax(scores)
+        score = scores[idx]
+        if score > threshold:
+            pred_names.append(known_names[idx])
+        else:
+            pred_names.append(None)
     
-    for dim in ['x', 'y']:
-        # Centerning around the nose 
-        for feature in ['forehead_'+dim, 'nose_'+dim, 'mouth_left_'+dim, 'mouth_right_'+dim, 'left_eye_'+dim, 'chin_'+dim, 'right_eye_'+dim]:
-            normalized_df[feature] = poses_df[feature] - poses_df['nose_'+dim]
-        
-        
-        # Scaling
-        diff = normalized_df['mouth_right_'+dim] - normalized_df['left_eye_'+dim]
-        for feature in ['forehead_'+dim, 'nose_'+dim, 'mouth_left_'+dim, 'mouth_right_'+dim, 'left_eye_'+dim, 'chin_'+dim, 'right_eye_'+dim]:
-            normalized_df[feature] = normalized_df[feature] / diff
+    return pred_names
+
+
+
+def get_averages(names, scores):
+    d = defaultdict(list)
+    for n, s in zip(names, scores):
+        d[n].append(s)
+
+    averages = {}
+    for n, s in d.items():
+        averages[n] = np.mean(s)
     
-    return normalized_df
+    return averages
 
+def search_average(known_embeddings, known_names, unknown_embeddings, threshold=0.5):
+    pred_names = []
+    for emb in unknown_embeddings:
+        scores = np.dot(emb, known_embeddings.T)
+        scores = np.clip(scores, 0., 1.)
 
-def draw_axes(img, pitch, yaw, roll, tx, ty, size=50):
-    yaw = -yaw
-    rotation_matrix = cv2.Rodrigues(np.array([pitch, yaw, roll]))[0].astype(np.float64)
-    axes_points = np.array([
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0]
-    ], dtype=np.float64)
-    axes_points = rotation_matrix @ axes_points
-    axes_points = (axes_points[:2, :] * size).astype(int)
-    axes_points[0, :] = axes_points[0, :] + tx
-    axes_points[1, :] = axes_points[1, :] + ty
+        averages = get_averages(known_names, scores)
+        pred = sorted(averages, key=lambda x: averages[x], reverse=True)[0]
+        score = averages[pred]
+
+        if score > threshold:
+            pred_names.append(pred)
+        else:
+            pred_names.append(None)
     
-    new_img = img.copy()
-    cv2.line(new_img, tuple(axes_points[:, 3].ravel()), tuple(axes_points[:, 0].ravel()), (255, 0, 0), 3)    
-    cv2.line(new_img, tuple(axes_points[:, 3].ravel()), tuple(axes_points[:, 1].ravel()), (0, 255, 0), 3)    
-    cv2.line(new_img, tuple(axes_points[:, 3].ravel()), tuple(axes_points[:, 2].ravel()), (0, 0, 255), 3)
-    return new_img
+    return pred_names
+
+def evaluate(true_names, pred_names):
+    coverage = np.mean([n is not None for n in pred_names]) * 100.
+
+    is_corrects = []
+    for t, p in zip(true_names, pred_names):
+        if p is None: continue
+        is_corrects.append(t == p)
+    
+    if not is_corrects:
+        is_corrects.append(False)
+
+    accuracy = np.mean(is_corrects) * 100.
+    return accuracy, coverage
+
+def verify_faces(face_img1, face_img2, threshold=0.5):
+    """
+    Verify two pre-cropped face images
+    Args:
+        face_img1: First cropped face image
+        face_img2: Second cropped face image
+        threshold: Similarity threshold
+    Returns:
+        tuple: (is_same, similarity_score, message)
+    """
+    if face_img1 is None or face_img2 is None:
+        return False, 0.0, "Error reading images"
+
+    # Detect faces để lấy bbox và keypoints
+    bboxes1, kpss1 = det_model.detect(face_img1, max_num=1)
+    bboxes2, kpss2 = det_model.detect(face_img2, max_num=1)
+    
+    if len(bboxes1) == 0 or len(bboxes2) == 0:
+        return False, 0.0, "No face detected"
+
+    # Tạo đối tượng Face với đầy đủ thông tin
+    face1 = Face(bbox=bboxes1[0,:4], kps=kpss1[0], det_score=bboxes1[0,4])
+    face2 = Face(bbox=bboxes2[0,:4], kps=kpss2[0], det_score=bboxes2[0,4])
+
+    # Trích xuất embedding
+    rec_model.get(face_img1, face1)
+    rec_model.get(face_img2, face2)
+
+    # Tính similarity score
+    sim_score = np.dot(face1.normed_embedding, face2.normed_embedding)
+    sim_score = np.clip(sim_score, 0., 1.)
+
+    # So sánh với ngưỡng
+    is_same = sim_score > threshold
+
+    return is_same, sim_score, "Success"
+
+# Ví dụ sử dụng:
+face_img1 = cv2.imread("photo_test/nnq1.jpg")
+face_img1 = face_img1[158:448, 199:416]  # Cắt với [y1:y2, x1:x2]
+
+face_img2 = cv2.imread("photo_test/image_1.jpg")
+face_img2 = face_img2[259:729, 367:752]  # Cắt với [y1:y2, x1:x2]
+
+is_same, score, message = verify_faces(face_img1, face_img2, threshold=0.5)
+print(f"Verification result: {is_same}")
+print(f"Similarity score: {score:.3f}")
+print(f"Message: {message}")
 
 
-face_mesh = mp.solutions.face_mesh.FaceMesh(min_detection_confidence=0.5, min_tracking_confidence=0.5)
-
-cap = cv2.VideoCapture(0)  # From Camera
-
-while(cap.isOpened()):
-
-    # Take each frame
-    ret, img = cap.read()
-    if ret:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = cv2.flip(img, 1)
-        img_h, img_w, img_c = img.shape
-        text = ''
-        
-        
-        face_features = extract_features(img, face_mesh)
-        if len(face_features):
-            face_features_df = pd.DataFrame([face_features], columns=cols)
-            face_features_normalized = normalize(face_features_df)
-            pitch_pred, yaw_pred, roll_pred = model.predict(face_features_normalized.values).ravel()
-            print("Roll: ", np.degrees(roll_pred))
-            print("Pitch: ", np.degrees(pitch_pred))
-            print("Yaw: ", np.degrees(yaw_pred))
-            print("================================================================")
-            nose_x = face_features_df['nose_x'].values * img_w
-            nose_y = face_features_df['nose_y'].values * img_h
-            img = draw_axes(img, pitch_pred, yaw_pred, roll_pred, nose_x, nose_y)
-                        
-            if pitch_pred > 0.3:
-                text = 'Top'
-                if yaw_pred > 0.3:
-                    text = 'Top Left'
-                elif yaw_pred < -0.3:
-                    text = 'Top Right'
-            elif pitch_pred < -0.3:
-                text = 'Bottom'
-                if yaw_pred > 0.3:
-                    text = 'Bottom Left'
-                elif yaw_pred < -0.3:
-                    text = 'Bottom Right'
-            elif yaw_pred > 0.3:
-                text = 'Left'
-            elif yaw_pred < -0.3:
-                text = 'Right'
-            else:
-                text = 'Forward'
-                
-        cv2.putText(img, text, (25, 75), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        cv2.imshow('img', img)
-        k = cv2.waitKey(1) & 0xFF
-        if k == ord("q"):
-            break
-    else:
-        break
-
-cv2.destroyAllWindows()
-cap.release()
