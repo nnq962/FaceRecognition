@@ -9,13 +9,13 @@ from collections import defaultdict
 
 
 
-det_model_path = 'buffalo_s/det_500m.onnx'
-rec_model_path = 'buffalo_s/w600k_mbf.onnx'
+det_model_path = os.path.expanduser("~/Models/det_10g.onnx")
+rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
 
 BASE_DIR = '/Users/quyetnguyen/Models'
 
-det_model = model_zoo.get_model('det_10g.onnx')
-rec_model = model_zoo.get_model('w600k_r50.onnx')
+det_model = model_zoo.get_model(det_model_path)
+rec_model = model_zoo.get_model(rec_model_path)
 
 det_model.prepare(ctx_id=0, input_size=(640, 640), det_thres=0.5)
 
@@ -151,15 +151,19 @@ def verify_faces(face_img1, face_img2, threshold=0.5):
     return is_same, sim_score, "Success"
 
 # Ví dụ sử dụng:
-face_img1 = cv2.imread("photo_test/nnq1.jpg")
-face_img1 = face_img1[158:448, 199:416]  # Cắt với [y1:y2, x1:x2]
+# face_img1 = cv2.imread("photo_test/nnq1.jpg")
+# face_img1 = face_img1[158:448, 199:416]  # Cắt với [y1:y2, x1:x2]
 
-face_img2 = cv2.imread("photo_test/image_1.jpg")
-face_img2 = face_img2[259:729, 367:752]  # Cắt với [y1:y2, x1:x2]
+# face_img2 = cv2.imread("photo_test/image_1.jpg")
+# face_img2 = face_img2[259:729, 367:752]  # Cắt với [y1:y2, x1:x2]
 
-is_same, score, message = verify_faces(face_img1, face_img2, threshold=0.5)
-print(f"Verification result: {is_same}")
-print(f"Similarity score: {score:.3f}")
-print(f"Message: {message}")
+# is_same, score, message = verify_faces(face_img1, face_img2, threshold=0.5)
+# print(f"Verification result: {is_same}")
+# print(f"Similarity score: {score:.3f}")
+# print(f"Message: {message}")
 
+img_test = cv2.imread("photo_test/nnq1.jpg")
 
+bboxes1, kpss1 = det_model.detect(img_test)
+
+print(bboxes1)

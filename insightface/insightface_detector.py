@@ -4,6 +4,11 @@ from insightface.app.common import Face
 from insightface.model_zoo import model_zoo
 import os
 
+import platform
+from pathlib import Path
+from utils.plots import Annotator, colors, save_one_box
+
+
 det_model_path = os.path.expanduser("~/Models/det_10g.onnx")
 rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
 
@@ -20,7 +25,13 @@ class InsightFaceDetector:
         self.det_model = None
         self.rec_model = None
         self.media_manager = media_manager
-        self.dataset = self.media_manager.get_dataloader() 
+        self.dataset = self.media_manager.get_dataloader()
+        self.save_dir = self.media_manager.get_save_directory()
+
+        self.names = {0: 'face'}
+        self.hide_labels = False
+        self.hide_conf = False
+        
 
         self.load_model()
 
@@ -32,28 +43,38 @@ class InsightFaceDetector:
         self.rec_model = model_zoo.get_model(rec_model_path)
         self.rec_model.prepare(ctx_id=0)
 
-    def get_face_detect(self, img):
+    def get_face_detect(self, imgs):
         """
-        Detect faces in the input image
+        Detect faces in multiple input images
         Args:
-            img: Input image (BGR format)
+            imgs: List of input images [img1, img2, ...] (BGR format)
         Returns:
-            List of tuples, each containing (bbox, confidence, keypoints)
-            - bbox: numpy array [x1, y1, x2, y2]
+            List of results for each image, where each result has format:
+            [
+                [bbox_array, confidence, keypoints_array],
+                [bbox_array, confidence, keypoints_array],
+                ...
+            ]
+            - bbox_array: numpy array [x1, y1, x2, y2]
             - confidence: float value
-            - keypoints: numpy array of facial landmarks
+            - keypoints_array: numpy array of facial landmarks
         """
-        bboxes, kpss = self.det_model.detect(img)
-        if bboxes is None:
-            return []
+        if not isinstance(imgs, list):
+            imgs = [imgs]
         
-        results = []
-        for bbox, kps in zip(bboxes, kpss):
-            bbox_coords = bbox[:4]  # [x1, y1, x2, y2]
-            confidence = bbox[4]
+        all_results = []
+        
+        for img in imgs:
+            bboxes, kpss = self.det_model.detect(img)
             
-            results.append((bbox_coords, confidence, kps))
-        return results
+            if not len(bboxes):  # thay thế cho: if bboxes is None or bboxes.size == 0
+                all_results.append([])
+                continue
+            
+            results = [[box[:4], box[4], kp] for box, kp in zip(bboxes, kpss)]
+            all_results.append(results)
+        
+        return all_results
 
     def get_face_embedding(self, img, face):
         """
@@ -104,138 +125,66 @@ class InsightFaceDetector:
     
     def run_inference(self):
         """
-        Run face detection on video stream and display results with stats
+        Run inference on images/video and display results
         """
-
         for path, im, im0s, vid_cap, s in self.dataset:
             
             # Inference
             pred = self.get_face_detect(im0s)
 
             # Process predictions
-            det = None # global
-            result = None # global
-
+            windows = []
+            
             for i, det in enumerate(pred):  # per image
-                seen += 1
-                if self.webcam:  # batch_size >= 1
-                    p, im0, frame = path[i], im0s[i].copy(), self.dataset.count
+                if self.media_manager.webcam:  
+                    p, im0 = path[i], im0s[i].copy()
                     s += f'{i}: '
                 else:
-                    p, im0, frame = path, im0s.copy(), getattr(self.dataset, 'frame', 0)
+                    p, im0 = path, im0s.copy()
 
-                p = Path(p)  # to Path
-                save_path = str(self.save_dir / p.name)  # im.jpg
-                txt_path = str(self.save_dir / 'labels' / p.stem) + ('' if self.dataset.mode == 'image' else f'_{frame}')  # im.txt
-                s += '%gx%g ' % im.shape[2:]  # print string
-                gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-                imc = im0.copy() if self.mediamanager.save_crop else im0  # for save_crop
-                annotator = Annotator(im0, line_width=self.line_thickness, example=str(self.names))
                 if len(det):
-                    # Rescale boxes from img_size to im0 size
-                    det[:, :4] = scale_boxes(im.shape[2:], det[:, :4], im0.shape).round()
+                    # Draw boxes
+                    for bbox, conf, kps in det:  # bbox là array chứa [x_min, y_min, x_max, y_max]
+                        # Chuyển bbox thành integer
+                        x1, y1, x2, y2 = bbox.astype(int)
+                        
+                        # Draw bbox
+                        color = (0, int(255 * conf), int(255 * (1 - conf)))
+                        cv2.rectangle(im0, (x1, y1), (x2, y2), color, 2)
+                        
+                        # Add label with confidence
+                        if not self.hide_labels:
+                            label = f'face {conf:.2f}' if not self.hide_conf else 'face'
+                            cv2.putText(im0, label, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 
+                                      0.6, color, 2)
 
-                    # Print results
-                    for c in det[:, 5].unique():
-                        n = (det[:, 5] == c).sum()  # detections per class
-                        s += f"{n} {self.names[int(c)]}{'s' * (n > 1)}, "  # add to string
-
-                    # Write results
-                    for *xyxy, conf, cls in reversed(det):
-                        if self.mediamanager.save_txt:  # Write to file
-                            xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(
-                                -1).tolist()  # normalized xywh
-                            line = (cls, *xywh, conf) if self.mediamanager.save_conf else (cls, *xywh)  # label format
-                            with open(f'{txt_path}.txt', 'a') as f:
-                                f.write(('%g ' * len(line)).rstrip() % line + '\n')
-
-                        c = None # global
-
-                        # Use deepface detector
-                        # if self.emotion:
-                        #     xyxy_e = torch.tensor(xyxy).view(-1, 4)
-                        #     xyxy_e = xyxy_e[0].int().tolist()  # Chuyển sang danh sách số nguyên
-                        #     x1, y1, x2, y2 = xyxy_e  # Tách tọa độ
-                        #     cropped_face = imc[y1:y2, x1:x2]
-                        #     result = emotion_detector.get_dominant_emotion(emotion_detector.analyze_face(cropped_face))
-
-                        # Use FER detector
-                        if self.emotion:
-                            xywh_e = xyxy2xywh(torch.tensor(xyxy).view(1, 4))
-                            xywh_e = xywh_e[0].int().tolist()
-                            if is_valid_bounding_box(xywh_e, min_size=50) and check_face_orientation(imc):
-                                xyxy_e = torch.tensor(xyxy).view(-1, 4)
-                                xyxy_e = xyxy_e[0].int().tolist()  # Chuyển sang danh sách số nguyên
-                                result = fer_detector.get_dominant_emotion(fer_detector.analyze_face(imc, [xyxy_e]))[0]
-                            else: 
-                                print("skip emotion detect")
-
-
-                        # Add MTCNN
-                        # if self.emotion:
-                        #     xyxy_e = torch.tensor(xyxy).view(-1, 4)
-                        #     xyxy_e = xyxy_e[0].int().tolist()  # Chuyển sang danh sách số nguyên
-                        #     result_check = check_single_face_quality(detector, imc, xyxy_e)
-                        #     if result_check["is_valid"]:
-                        #         # Nếu khuôn mặt đạt yêu cầu, tiếp tục phân tích cảm xúc
-                        #         result = fer_detector.get_dominant_emotion(
-                        #             fer_detector.analyze_face(imc, [xyxy_e])
-                        #         )[0]
-
-                        if self.mediamanager.save_img or self.mediamanager.save_crop or self.mediamanager.view_img:  # Add bbox to image
-                            c = int(cls)  # integer class
-                            # label = None if self.hide_labels else (self.names[c] if self.hide_conf else f'{self.names[c]} {conf:.2f}')
-                            label = None if self.hide_labels else (
-                                self.names[c] if self.hide_conf else (
-                                    f'{self.names[c]} {conf:.2f}' if result is None else f'{self.names[c]} {conf:.2f} | {result[0]} {result[1]:.2f}'
-                                )
-                            )
-                            annotator.box_label(xyxy, label, color=colors(c, True))
-
-                        if self.mediamanager.save_crop:
-                            save_one_box(xyxy, imc, file=self.save_dir / 'crops' / self.names[c] / f'{p.stem}.jpg', BGR=True)
-
-                # Stream results
-                im0 = annotator.result()
-                if self.mediamanager.view_img:
+                        # Draw keypoints
+                        if kps is not None:
+                            for point in kps.astype(np.int32):
+                                cv2.circle(im0, tuple(point), 3, color, -1)
+                
+                # Show image
+                if self.media_manager.view_img:
                     if platform.system() == 'Linux' and p not in windows:
                         windows.append(p)
-                        cv2.namedWindow(str(p),
-                                        cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
+                        cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  
                         cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
                     cv2.imshow(str(p), im0)
-                    cv2.waitKey(1)  # 1 millisecond
+                    cv2.waitKey(1)
 
-                # Save results (image with detections)
-                if self.mediamanager.save_img:
+                # Save results
+                if self.media_manager.save_img:
                     if self.dataset.mode == 'image':
-                        cv2.imwrite(save_path, im0)
-                    else:  # 'video' or 'stream'
-                        if self.mediamanager.vid_path[i] != save_path:  # new video
-                            self.mediamanager.vid_path[i] = save_path
-                            if isinstance(self.mediamanager.vid_writer[i], cv2.VideoWriter):
-                                self.mediamanager.vid_writer[i].release()  # release previous video writer
-                            if vid_cap:  # video
+                        cv2.imwrite(str(self.save_dir / Path(p).name), im0)
+                    else:  # video
+                        if vid_cap:
+                            if not hasattr(self, 'vid_writer'):
                                 fps = vid_cap.get(cv2.CAP_PROP_FPS)
                                 w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                                 h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            else:  # stream
-                                fps, w, h = 30, im0.shape[1], im0.shape[0]
-                            save_path = str(
-                                Path(save_path).with_suffix('.mp4'))  # force *.mp4 suffix on results videos
-                            self.mediamanager.vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
-                        self.mediamanager.vid_writer[i].write(im0)
+                                self.vid_writer = cv2.VideoWriter(str(self.save_dir), 
+                                                                cv2.VideoWriter_fourcc(*'mp4v'), 
+                                                                fps, (w, h))
+                            self.vid_writer.write(im0)
 
-            # Print time (inference-only)
-            LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}{dt[1].dt * 1E3:.1f}ms")
-
-
-        # Print results
-        t = tuple(x.t / seen * 1E3 for x in dt)  # speeds per image
-        LOGGER.info(
-            f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *self.imgsz)}' % t)
-        if self.mediamanager.save_txt or self.mediamanager.save_img:
-            s = f"\n{len(list(self.save_dir.glob('labels/*.txt')))} labels saved to {self.save_dir / 'labels'}" if self.mediamanager.save_txt else ''
-            LOGGER.info(f"Results saved to {colorstr('bold', self.save_dir)}{s}")
-        if self.update:
-            strip_optimizer(self.weights[0])  # update model (to fix SourceChangeWarning)
+       
