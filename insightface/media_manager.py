@@ -16,7 +16,11 @@ class MediaManager:
                  save_txt=False,  # save results to *.txt
                  save_conf=False,  # save confidences in --save-txt labels
                  save_crop=False,  # save cropped prediction boxes
-                 ):
+                 line_thickness=3,
+                 face_recognition=False,
+                 hide_labels=False,
+                 hide_conf=False,
+                 face_emotion=False):
         """
         Khởi tạo MediaManager với thông tin về nguồn đầu vào và cấu hình thư mục lưu kết quả.
         """
@@ -31,6 +35,11 @@ class MediaManager:
         self.view_img = view_img # show results
         self.save_conf = save_conf # save confidences in --save-txt labels
         self.save_crop = save_crop # Lưu ảnh đã cắt mặt
+        self.line_thickness = line_thickness
+        self.face_recognition = face_recognition
+        self.hide_labels = hide_labels
+        self.hide_conf = hide_conf
+        self.face_emotion = face_emotion
 
         # Thuộc tính sẽ được khởi tạo bởi các phương thức
         self.save_dir = None
@@ -42,7 +51,8 @@ class MediaManager:
         self.save_img = None
 
         self.prepare_dataloader()
-        self.prepare_directories()
+        if not self.nosave:  # Chỉ tạo thư mục khi không có nosave
+            self.prepare_directories()
 
     def prepare_directories(self):
         """

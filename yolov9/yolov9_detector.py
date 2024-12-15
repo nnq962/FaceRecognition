@@ -202,7 +202,6 @@ class Yolov9Detector:
                                     f'{self.names[c]} {conf:.2f}' if result is None else f'{self.names[c]} {conf:.2f} | {result[0]} {result[1]:.2f}'
                                 )
                             )
-                            print("xyxy:", xyxy)
                             annotator.box_label(xyxy, label, color=colors(c, True))
 
                         if self.mediamanager.save_crop:

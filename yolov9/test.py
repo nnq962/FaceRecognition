@@ -54,65 +54,6 @@ known_embeddings, unknown_embeddings = [], []
 # unknown_embeddings = np.concatenate(unknown_embeddings, axis=0)
 
 
-def search_flatten(known_embeddings, known_names, unknown_embeddings, threshold=0.5):
-    pred_names = []
-    for emb  in unknown_embeddings:
-        scores = np.dot(emb, known_embeddings.T)
-        scores = np.clip(scores, 0., 1.)
-
-        idx = np.argmax(scores)
-        score = scores[idx]
-        if score > threshold:
-            pred_names.append(known_names[idx])
-        else:
-            pred_names.append(None)
-    
-    return pred_names
-
-
-
-def get_averages(names, scores):
-    d = defaultdict(list)
-    for n, s in zip(names, scores):
-        d[n].append(s)
-
-    averages = {}
-    for n, s in d.items():
-        averages[n] = np.mean(s)
-    
-    return averages
-
-def search_average(known_embeddings, known_names, unknown_embeddings, threshold=0.5):
-    pred_names = []
-    for emb in unknown_embeddings:
-        scores = np.dot(emb, known_embeddings.T)
-        scores = np.clip(scores, 0., 1.)
-
-        averages = get_averages(known_names, scores)
-        pred = sorted(averages, key=lambda x: averages[x], reverse=True)[0]
-        score = averages[pred]
-
-        if score > threshold:
-            pred_names.append(pred)
-        else:
-            pred_names.append(None)
-    
-    return pred_names
-
-def evaluate(true_names, pred_names):
-    coverage = np.mean([n is not None for n in pred_names]) * 100.
-
-    is_corrects = []
-    for t, p in zip(true_names, pred_names):
-        if p is None: continue
-        is_corrects.append(t == p)
-    
-    if not is_corrects:
-        is_corrects.append(False)
-
-    accuracy = np.mean(is_corrects) * 100.
-    return accuracy, coverage
-
 def verify_faces(face_img1, face_img2, threshold=0.5):
     """
     Verify two pre-cropped face images
@@ -128,6 +69,7 @@ def verify_faces(face_img1, face_img2, threshold=0.5):
 
     # Detect faces để lấy bbox và keypoints
     bboxes1, kpss1 = det_model.detect(face_img1, max_num=1)
+    print(bboxes1, kpss1)
     bboxes2, kpss2 = det_model.detect(face_img2, max_num=1)
     
     if len(bboxes1) == 0 or len(bboxes2) == 0:
@@ -142,7 +84,8 @@ def verify_faces(face_img1, face_img2, threshold=0.5):
     rec_model.get(face_img2, face2)
 
     # Tính similarity score
-    sim_score = np.dot(face1.normed_embedding, face2.normed_embedding)
+    print("embedding1:", face1.normed_embedding)
+    sim_score = np.dot(face1.normed_embedding, face2.normed_embedding.T)
     sim_score = np.clip(sim_score, 0., 1.)
 
     # So sánh với ngưỡng
@@ -151,19 +94,13 @@ def verify_faces(face_img1, face_img2, threshold=0.5):
     return is_same, sim_score, "Success"
 
 # Ví dụ sử dụng:
-# face_img1 = cv2.imread("photo_test/nnq1.jpg")
-# face_img1 = face_img1[158:448, 199:416]  # Cắt với [y1:y2, x1:x2]
+face_img1 = cv2.imread("photo_test/nnq1.jpg")
 
-# face_img2 = cv2.imread("photo_test/image_1.jpg")
-# face_img2 = face_img2[259:729, 367:752]  # Cắt với [y1:y2, x1:x2]
+face_img2 = cv2.imread("photo_test/image_1.jpg")
 
-# is_same, score, message = verify_faces(face_img1, face_img2, threshold=0.5)
-# print(f"Verification result: {is_same}")
-# print(f"Similarity score: {score:.3f}")
-# print(f"Message: {message}")
+is_same, score, message = verify_faces(face_img1, face_img2, threshold=0.5)
+print(f"Verification result: {is_same}")
+print(f"Similarity score: {score:.3f}")
+print(f"Message: {message}")
 
-img_test = cv2.imread("photo_test/nnq1.jpg")
-
-bboxes1, kpss1 = det_model.detect(img_test)
-
-print(bboxes1)
+print(np.get_printoptions())
