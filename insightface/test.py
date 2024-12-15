@@ -1,35 +1,56 @@
-import faiss
-import numpy as np
 import cv2
-import pickle
+import numpy as np
 from insightface_detector import InsightFaceDetector
+from media_manager import MediaManager
 
-detector = InsightFaceDetector()
+def expand_image(image, padding_size=50, padding_color=(0, 0, 0)):
+    """
+    Mở rộng toàn bộ ảnh bằng cách thêm viền xung quanh.
 
-# Load FAISS index
-index = faiss.read_index("face_index.faiss")
+    Args:
+        image (numpy.ndarray): Ảnh cần mở rộng.
+        padding_size (int): Kích thước viền (số pixel) cần thêm ở mỗi cạnh.
+        padding_color (tuple): Màu của viền (BGR format, default là màu đen).
 
-# Load ánh xạ
-with open("index_to_id.pkl", "rb") as f:
-    index_to_id = pickle.load(f)
+    Returns:
+        numpy.ndarray: Ảnh đã được mở rộng.
+    """
+    # Thêm padding bằng OpenCV
+    expanded_image = cv2.copyMakeBorder(
+        image,
+        top=padding_size,
+        bottom=padding_size,
+        left=padding_size,
+        right=padding_size,
+        borderType=cv2.BORDER_CONSTANT,
+        value=padding_color
+    )
+    return expanded_image
 
-# Tìm kiếm khuôn mặt
-query_img = cv2.imread("photo_test/suprise.png")  # Đọc ảnh query
-result = detector.get_face_detect(query_img)[0][0]  # Phát hiện khuôn mặt
-query_embedding = detector.get_face_embedding(query_img, result[0], result[1], result[2])
+# Khởi tạo media manager và detector
+media_manager = MediaManager(source='datatest/nnq1.jpg', nosave=False, face_recognition=True, face_emotion=True)
+detector = InsightFaceDetector(media_manager=media_manager)
 
-# Thực hiện tìm kiếm
-D, I = index.search(np.array([query_embedding]).astype('float32'), k=5)  # Tìm 5 kết quả gần nhất
+# Đọc ảnh debug_sharpen
+img = cv2.imread("debug_sharpen.jpg")
+if img is None:
+    raise FileNotFoundError("Ảnh 'debug_sharpen.jpg' không tồn tại hoặc không thể đọc được.")
 
-threshold = 0.5  # Đặt ngưỡng độ tương đồng
-found_match = False  # Biến theo dõi xem có kết quả khớp hay không
+# Thêm padding cho ảnh
+padding_size = 125  # Kích thước viền cần thêm
+expanded_img = expand_image(img, padding_size=padding_size, padding_color=(0, 0, 0))
 
-for i, idx in enumerate(I[0]):
-    similarity = D[0][i]
-    if similarity >= threshold:
-        person_id, image_name = index_to_id[idx]
-        print(f"Match {i+1}: ID={person_id}, Image={image_name}, Similarity={similarity:.4f}")
-        found_match = True
+# Lưu ảnh đã mở rộng để kiểm tra
+# cv2.imwrite("debug_sharpen_expanded.jpg", expanded_img)
 
-if not found_match:
-    print("No confident match found. Query does not belong to the database.")
+# Phát hiện khuôn mặt trên ảnh mở rộng
+rs = detector.get_face_detect(expanded_img)
+
+# Hiển thị kết quả
+print("Detection result after expanding image:", rs)
+
+# Hiển thị ảnh trước và sau khi mở rộng
+# cv2.imshow("Original Image", img)
+cv2.imshow("Expanded Image", expanded_img)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
