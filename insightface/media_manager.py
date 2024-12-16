@@ -20,7 +20,8 @@ class MediaManager:
                  face_recognition=False,
                  hide_labels=False,
                  hide_conf=False,
-                 face_emotion=False):
+                 face_emotion=False,
+                 check_small_face=False):
         """
         Khởi tạo MediaManager với thông tin về nguồn đầu vào và cấu hình thư mục lưu kết quả.
         """
@@ -40,6 +41,7 @@ class MediaManager:
         self.hide_labels = hide_labels
         self.hide_conf = hide_conf
         self.face_emotion = face_emotion
+        self.check_small_face = check_small_face
 
         # Thuộc tính sẽ được khởi tạo bởi các phương thức
         self.save_dir = None

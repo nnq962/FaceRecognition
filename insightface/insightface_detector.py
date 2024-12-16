@@ -280,7 +280,7 @@ class InsightFaceDetector:
 
                     # Write results
                     for bbox, kps, conf in det:                        
-                        if self.gfpgan_model.is_small_face(bbox=bbox, min_size=300):
+                        if self.gfpgan_model.is_small_face(bbox=bbox, min_size=50) and self.media_manager.check_small_face:
                             crop_im0 = crop_image(image=im0, bbox=bbox)
                             sharpen_im0 = self.gfpgan_model.inference(crop_im0)
                             padding_size = int(max(sharpen_im0.shape[0], sharpen_im0.shape[1]) * 0.3)
