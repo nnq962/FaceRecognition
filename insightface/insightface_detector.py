@@ -5,108 +5,16 @@ from insightface.model_zoo import model_zoo
 import os
 import platform
 from pathlib import Path
-from utils.plots import Annotator, colors, save_one_box
+from utils.plots import Annotator, save_one_box
 from utils.general import LOGGER, Profile
 import torch
 import pickle
 import faiss
-import fer_detector
+from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-import gdown
-
-def prepare_models(model_urls, save_dir="~/Models"):
-    """
-    Kiểm tra và tải xuống các mô hình từ Google Drive nếu chưa tồn tại.
-
-    Args:
-        model_urls (dict): Từ điển chứa tên mô hình và URL Google Drive tương ứng.
-                           Ví dụ: {"model1": "https://drive.google.com/uc?id=FILE_ID", ...}
-    """
-    # Chuẩn bị đường dẫn thư mục lưu trữ
-    save_dir = os.path.expanduser(save_dir)
-    os.makedirs(save_dir, exist_ok=True)
-
-    for model_name, model_url in model_urls.items():
-        # Đường dẫn lưu mô hình
-        model_path = Path(save_dir) / model_name
-        
-        if model_path.exists():
-            print(f"Model '{model_name}' already exists at '{model_path}'.")
-        else:
-            print(f"Downloading model '{model_name}' from '{model_url}' to '{model_path}'...")
-            try:
-                # Tải mô hình từ Google Drive
-                gdown.download(model_url, str(model_path), quiet=False)
-                print(f"Model '{model_name}' downloaded successfully!")
-            except Exception as e:
-                print(f"Failed to download model '{model_name}': {e}")
-
-def crop_image(image, bbox):
-    """
-    Crop một vùng ảnh dựa trên bounding box.
-
-    Args:
-        image (numpy.ndarray): Ảnh đầu vào (đọc từ cv2.imread).
-        bbox (numpy.ndarray or list): Bounding box 1D dạng float [x1, y1, x2, y2].
-
-    Returns:
-        numpy.ndarray: Ảnh đã crop.
-    """
-    if not isinstance(image, np.ndarray):
-        raise ValueError("Input image must be a numpy array.")
-    
-    if not isinstance(bbox, (np.ndarray, list)) or len(bbox) != 4:
-        raise ValueError("Bounding box must be a list or numpy array with 4 elements [x1, y1, x2, y2].")
-    
-    # Lấy tọa độ bounding box, chuyển thành số nguyên
-    x1, y1, x2, y2 = map(int, bbox)
-
-    # Đảm bảo tọa độ nằm trong phạm vi ảnh
-    x1 = max(0, x1)
-    y1 = max(0, y1)
-    x2 = min(image.shape[1], x2)
-    y2 = min(image.shape[0], y2)
-
-    # Crop ảnh
-    cropped_image = image[y1:y2, x1:x2]
-
-    return cropped_image
-
-def expand_image(image, padding_size=50, padding_color=(0, 0, 0)):
-    """
-    Mở rộng toàn bộ ảnh bằng cách thêm viền xung quanh.
-
-    Args:
-        image (numpy.ndarray): Ảnh cần mở rộng.
-        padding_size (int): Kích thước viền (số pixel) cần thêm ở mỗi cạnh.
-        padding_color (tuple): Màu của viền (BGR format, default là màu đen).
-
-    Returns:
-        numpy.ndarray: Ảnh đã được mở rộng.
-    """
-    # Thêm padding bằng OpenCV
-    expanded_image = cv2.copyMakeBorder(
-        image,
-        top=padding_size,
-        bottom=padding_size,
-        left=padding_size,
-        right=padding_size,
-        borderType=cv2.BORDER_CONSTANT,
-        value=padding_color
-    )
-    return expanded_image
-
-model_urls = {
-    "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
-    "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2",
-    "GFPGANv1.3.pth": "https://drive.google.com/uc?id=1zmW9g7vaRWuFSUKIS9ShCmP-6WU6Xxan",
-    "detection_Resnet50_Final.pth": "https://drive.google.com/uc?id=1jP3-UU8LhBvG8ArZQNl6kpDUfH_Xan9m",
-    "parsing_parsenet.pth": "https://drive.google.com/uc?id=1ZFqra3Vs4i5fB6B8LkyBo_WQXaPRn77y"
-}
-
-prepare_models(model_urls=model_urls)
+from insightface_utils import crop_image, expand_image, is_small_face
 
 class InsightFaceDetector:
     """
@@ -120,13 +28,16 @@ class InsightFaceDetector:
         self.rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
         self.det_model = None
         self.rec_model = None
-        self.gfpgan_model = GFPGANInference(upscale=2)
         self.media_manager = media_manager
 
         if self.media_manager is not None:
             self.dataset = self.media_manager.get_dataloader()
             self.save_dir = self.media_manager.get_save_directory()
-        
+            if self.media_manager.face_emotion:
+                self.fer_class = FERUtils(gpu_memory_limit=2048)
+            if self.media_manager.check_small_face:
+                self.gfpgan_model = GFPGANInference(upscale=2)
+
         self.load_model()
 
     def load_model(self):
@@ -236,7 +147,7 @@ class InsightFaceDetector:
                 similarity_percent = int(result[0]['similarity'] * 100)
                 label = f"{result[0]['id']} {similarity_percent}%"
                 if self.media_manager.face_emotion:
-                    emotion = fer_detector.get_dominant_emotion(fer_detector.analyze_face(img, bbox))[0]
+                    emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(img, bbox))[0]
                     emotion_label = f"{emotion[0].capitalize()} {int(emotion[1] * 100)}%"
                     label += f" | {emotion_label}"
                 return label
@@ -280,7 +191,7 @@ class InsightFaceDetector:
 
                     # Write results
                     for bbox, kps, conf in det:                        
-                        if self.gfpgan_model.is_small_face(bbox=bbox, min_size=50) and self.media_manager.check_small_face:
+                        if is_small_face(bbox=bbox, min_size=50) and self.media_manager.check_small_face:
                             crop_im0 = crop_image(image=im0, bbox=bbox)
                             sharpen_im0 = self.gfpgan_model.inference(crop_im0)
                             padding_size = int(max(sharpen_im0.shape[0], sharpen_im0.shape[1]) * 0.3)

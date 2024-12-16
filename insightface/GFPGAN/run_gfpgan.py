@@ -64,25 +64,4 @@ class GFPGANInference:
             save_restore_path = os.path.join(output_dir, 'restored_faces', save_face_name)
             imwrite(restored_face, save_restore_path)
 
-    @staticmethod
-    def is_small_face(bbox, min_size=50):
-        """
-        Kiểm tra xem khuôn mặt có kích thước nhỏ hơn ngưỡng cho phép hay không.
-
-        Args:
-            bbox (list or numpy.ndarray): Bounding box 1D ở dạng [x1, y1, x2, y2].
-            min_size (int): Ngưỡng tối thiểu cho chiều rộng hoặc chiều cao (default: 50).
-
-        Returns:
-            bool: True nếu khuôn mặt là nhỏ, False nếu ngược lại.
-        """
-        if not isinstance(bbox, (list, np.ndarray)) or len(bbox) != 4:
-            raise ValueError(f"Expected bbox to be a list or numpy array of length 4, got {type(bbox)} with shape {len(bbox)}")
-
-        x1, y1, x2, y2 = bbox
-        width = x2 - x1
-        height = y2 - y1
-
-        return width < min_size or height < min_size
-
 
