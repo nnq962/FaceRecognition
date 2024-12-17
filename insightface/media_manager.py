@@ -68,7 +68,7 @@ class MediaManager:
         Xử lý nguồn đầu vào và tạo dataloader tương ứng.
         """
         # Xác định loại nguồn đầu vào
-        self.save_img = not self.nosave and not self.source.endswith('.txt')  # save inference images
+        self.save_img = not self.nosave
         is_file = Path(self.source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
         is_url = self.source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
         self.webcam = self.source.isnumeric() or self.source.endswith('.txt') or (is_url and not is_file)

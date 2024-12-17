@@ -1,43 +1,61 @@
-from insightface.model_zoo import model_zoo
+import cv2
 
-def load_models(det_model_path, rec_model_path, det_ctx_id=0, rec_ctx_id=0, input_size=(640, 640)):
+def record_webcam(output_path="output.mp4", fps=30, resolution=(640, 480), duration=10):
     """
-    Load detection and recognition models.
+    Open the webcam, display the video stream, and save it to an MP4 file.
 
     Args:
-        det_model_path (str): Đường dẫn tới mô hình phát hiện khuôn mặt.
-        rec_model_path (str): Đường dẫn tới mô hình nhận diện khuôn mặt.
-        det_ctx_id (int): Context ID cho GPU của mô hình phát hiện (mặc định: 0).
-        rec_ctx_id (int): Context ID cho GPU của mô hình nhận diện (mặc định: 0).
-        input_size (tuple): Kích thước đầu vào của mô hình phát hiện (mặc định: (640, 640)).
-
-    Returns:
-        tuple: (det_model, rec_model)
-            - det_model: Mô hình phát hiện khuôn mặt.
-            - rec_model: Mô hình nhận diện khuôn mặt.
+        output_path (str): Path to save the video file.
+        fps (int): Frames per second of the saved video.
+        resolution (tuple): Resolution of the video (width, height).
+        duration (int): Duration to record the video in seconds.
     """
-    # Load detection model
-    print("Loading detection model...")
-    det_model = model_zoo.get_model(det_model_path)
-    det_model.prepare(ctx_id=det_ctx_id, input_size=input_size)
-    print("Detection model loaded successfully.")
+    # Open the default webcam (index 0)
+    cap = cv2.VideoCapture(0)
 
-    # Load recognition model
-    print("Loading recognition model...")
-    rec_model = model_zoo.get_model(rec_model_path)
-    rec_model.prepare(ctx_id=rec_ctx_id)
-    print("Recognition model loaded successfully.")
+    # Set resolution
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
 
-    return det_model, rec_model
+    # Define the codec and create a VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Codec for MP4
+    out = cv2.VideoWriter(output_path, fourcc, fps, resolution)
 
+    if not cap.isOpened():
+        print("Error: Could not open webcam.")
+        return
 
-# Đường dẫn tới các mô hình
-det_model_path = "~/Models/det_10g.onnx"
-rec_model_path = "~/Models/w600k_r50.onnx"
+    print(f"Recording video to '{output_path}' at {fps} FPS for {duration} seconds...")
+    frame_count = 0
+    total_frames = fps * duration  # Total number of frames to record
 
-# Gọi hàm để tải mô hình
-det_model, rec_model = load_models(det_model_path, rec_model_path)
+    while cap.isOpened():
+        ret, frame = cap.read()  # Read a frame from the webcam
+        if not ret:
+            print("Error: Failed to capture frame.")
+            break
 
-# Kiểm tra mô hình
-print(det_model)
-print(rec_model)
+        # Write the frame to the output file
+        out.write(frame)
+
+        # Display the frame in a window
+        cv2.imshow("Webcam Recording", frame)
+
+        # Stop recording after the specified duration
+        frame_count += 1
+        if frame_count >= total_frames:
+            print("Recording completed.")
+            break
+
+        # Press 'q' to stop recording early
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            print("Recording stopped by user.")
+            break
+
+    # Release resources
+    cap.release()
+    out.release()
+    cv2.destroyAllWindows()
+
+# Call the function
+record_webcam(output_path="recorded_video.mp4", fps=30, resolution=(640, 480), duration=10)
