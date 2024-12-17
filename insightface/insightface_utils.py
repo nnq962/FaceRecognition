@@ -3,6 +3,8 @@ import gdown
 from pathlib import Path
 import numpy as np
 import cv2
+import pickle
+import faiss
 
 def prepare_models(model_urls, save_dir="~/Models"):
     """
@@ -105,6 +107,48 @@ def is_small_face(bbox, min_size=50):
     height = y2 - y1
 
     return width < min_size or height < min_size
+
+def search_id(embedding, index_path="database/face_index.faiss", mapping_path="database/index_to_id.pkl", top_k=1, threshold=0.5):
+    """
+    Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một embedding, có ngưỡng độ tương đồng.
+
+    Args:
+        embedding (numpy.ndarray): Embedding đã chuẩn hóa (shape: (512,)).
+        index_path (str): Đường dẫn tới FAISS index file.
+        mapping_path (str): Đường dẫn tới file ánh xạ index -> ID.
+        top_k (int): Số lượng kết quả gần nhất cần trả về.
+        threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
+
+    Returns:
+        list of dict: Danh sách kết quả bao gồm ID, tên ảnh và độ tương đồng.
+    """
+    # Load FAISS index
+    index = faiss.read_index(index_path)
+
+    # Load ánh xạ index -> ID
+    with open(mapping_path, "rb") as f:
+        index_to_id = pickle.load(f)
+
+    # Đảm bảo embedding là 2D để phù hợp với FAISS input
+    query_embedding = np.array([embedding]).astype('float32')
+
+    # Tìm kiếm với FAISS
+    D, I = index.search(query_embedding, k=top_k)  # D: Độ tương đồng, I: Chỉ số
+
+    results = []
+    for i in range(top_k):
+        idx = I[0][i]  # Chỉ số trong FAISS index
+        similarity = D[0][i]
+        if idx < 0 or similarity < threshold:  # Bỏ qua nếu không tìm thấy hoặc không đạt ngưỡng
+            continue
+        id_mapping = index_to_id[idx]
+        results.append({
+            "id": id_mapping["id"],
+            "image": id_mapping["image"],
+            "similarity": similarity
+        })
+
+    return results
 
 model_urls = {
     "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",

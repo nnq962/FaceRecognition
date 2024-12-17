@@ -8,13 +8,12 @@ from pathlib import Path
 from utils.plots import Annotator, save_one_box
 from utils.general import LOGGER, Profile
 import torch
-import pickle
-import faiss
 from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-from insightface_utils import crop_image, expand_image, is_small_face
+from insightface_utils import crop_image, expand_image, is_small_face, search_id
+
 
 class InsightFaceDetector:
     """
@@ -86,49 +85,6 @@ class InsightFaceDetector:
         self.rec_model.get(img, face)
         return face.normed_embedding
     
-    @staticmethod
-    def search_id(embedding, index_path="database/face_index.faiss", mapping_path="database/index_to_id.pkl", top_k=1, threshold=0.5):
-        """
-        Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một embedding, có ngưỡng độ tương đồng.
-
-        Args:
-            embedding (numpy.ndarray): Embedding đã chuẩn hóa (shape: (512,)).
-            index_path (str): Đường dẫn tới FAISS index file.
-            mapping_path (str): Đường dẫn tới file ánh xạ index -> ID.
-            top_k (int): Số lượng kết quả gần nhất cần trả về.
-            threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
-
-        Returns:
-            list of dict: Danh sách kết quả bao gồm ID, tên ảnh và độ tương đồng.
-        """
-        # Load FAISS index
-        index = faiss.read_index(index_path)
-
-        # Load ánh xạ index -> ID
-        with open(mapping_path, "rb") as f:
-            index_to_id = pickle.load(f)
-
-        # Đảm bảo embedding là 2D để phù hợp với FAISS input
-        query_embedding = np.array([embedding]).astype('float32')
-
-        # Tìm kiếm với FAISS
-        D, I = index.search(query_embedding, k=top_k)  # D: Độ tương đồng, I: Chỉ số
-
-        results = []
-        for i in range(top_k):
-            idx = I[0][i]  # Chỉ số trong FAISS index
-            similarity = D[0][i]
-            if idx < 0 or similarity < threshold:  # Bỏ qua nếu không tìm thấy hoặc không đạt ngưỡng
-                continue
-            id_mapping = index_to_id[idx]
-            results.append({
-                "id": id_mapping["id"],
-                "image": id_mapping["image"],
-                "similarity": similarity
-            })
-
-        return results
-    
     def process_face(self, img, bbox, kps=None, conf=None):
         """
         Xử lý nhận diện và phân tích cảm xúc cho một khuôn mặt.
@@ -140,9 +96,12 @@ class InsightFaceDetector:
         Returns:
             str or None: Nhãn kết quả (ID và cảm xúc) hoặc None.
         """
+        if conf is None or conf < 0.7:
+            return None
+
         if self.media_manager.face_recognition:
             embedding = self.get_face_embedding(img=img, bb=bbox, kps=kps, conf=conf)
-            result = self.search_id(embedding=embedding, top_k=1, threshold=0.4)
+            result = search_id(embedding=embedding, top_k=1, threshold=0.4)
             if result:
                 similarity_percent = int(result[0]['similarity'] * 100)
                 label = f"{result[0]['id']} {similarity_percent}%"
@@ -248,15 +207,14 @@ class InsightFaceDetector:
                             self.media_manager.vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                         self.media_manager.vid_writer[i].write(im0)
             
-            
-            # # Total processing time for a single frame (inference + processing)
-            # frame_time = (dt[0].dt + dt[1].dt) * 1E3  # Frame processing time in milliseconds
-            # # Calculate instantaneous FPS for the current frame
-            # fps_instant = 1000 / frame_time if frame_time > 0 else float('inf')
-            # # Print processing time (inference + processing) and instantaneous FPS
-            # LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}"
-            #             f"Inference: {dt[0].dt * 1E3:.1f}ms, Processing: {dt[1].dt * 1E3:.1f}ms, "
-            #             f"FPS: {fps_instant:.2f}")
+            # Total processing time for a single frame (inference + processing)
+            frame_time = (dt[0].dt + dt[1].dt) * 1E3  # Frame processing time in milliseconds
+            # Calculate instantaneous FPS for the current frame
+            fps_instant = 1000 / frame_time if frame_time > 0 else float('inf')
+            # Print processing time (inference + processing) and instantaneous FPS
+            LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}"
+                        f"Inference: {dt[0].dt * 1E3:.1f}ms, Processing: {dt[1].dt * 1E3:.1f}ms, "
+                        f"FPS: {fps_instant:.2f}")
 
         # Ensure release after all frames processed
         for writer in self.media_manager.vid_writer:
