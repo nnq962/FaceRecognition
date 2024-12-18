@@ -1,4 +1,4 @@
-# **3HINC_FaceRecognition**
+# **FaceRecognition**
 
 A powerful face recognition and emotion detection system built with state-of-the-art models and tools. This project enables real-time video processing, streaming to RTSP endpoints, and advanced face analysis using Python and popular libraries like PyTorch and OpenCV.
 
