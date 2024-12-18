@@ -1,6 +1,26 @@
 from pathlib import Path
 from utils.general import increment_path, check_file, check_imshow
 from utils.dataloaders import LoadImages, LoadStreams, LoadScreenshots, IMG_FORMATS, VID_FORMATS
+import subprocess
+
+
+def ffmpeg2rtsp(rtsp_url, width, height, fps):
+    command = [
+        'ffmpeg',
+        '-y',  # Ghi đè nếu cần
+        '-f', 'rawvideo',  # Định dạng video đầu vào
+        '-vcodec', 'rawvideo',
+        '-pix_fmt', 'bgr24',  # OpenCV sử dụng định dạng BGR24
+        '-s', f'{width}x{height}',  # Kích thước video
+        '-r', str(fps),  # Tốc độ khung hình
+        '-i', '-',  # Đọc từ stdin
+        '-c:v', 'libx264',
+        '-preset', 'ultrafast',
+        '-tune', 'zerolatency',
+        '-f', 'rtsp',  # Định dạng stream RTSP
+        rtsp_url  # URL đích
+    ]
+    return subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
 class MediaManager:
@@ -21,7 +41,8 @@ class MediaManager:
                  hide_labels=False,
                  hide_conf=False,
                  face_emotion=False,
-                 check_small_face=False):
+                 check_small_face=False,
+                 streaming=False):
         """
         Khởi tạo MediaManager với thông tin về nguồn đầu vào và cấu hình thư mục lưu kết quả.
         """
@@ -42,6 +63,7 @@ class MediaManager:
         self.hide_conf = hide_conf
         self.face_emotion = face_emotion
         self.check_small_face = check_small_face
+        self.streaming = streaming  
 
         # Thuộc tính sẽ được khởi tạo bởi các phương thức
         self.save_dir = None
@@ -103,5 +125,62 @@ class MediaManager:
         Trả về đường dẫn thư mục lưu kết quả.
         """
         return self.save_dir
+    
+    def init_stream(self):
+        """
+        Tạo các tiến trình FFmpeg dựa theo số lượng batch_size (số webcam).
+        """
+        if not self.streaming:
+            print("Streaming is disabled.")
+            return
 
+        if not self.webcam:
+            print("Source is not a webcam; streaming not supported for this source.")
+            return
 
+        self.ffmpeg_procs = []  # Danh sách lưu các tiến trình FFmpeg cho từng webcam
+
+        # Duyệt qua từng webcam (self.dataset)
+        for i in range(self.batch_size):
+            rtsp_url = f"rtsp://localhost:8554/stream{i + 1}"
+
+            # Lấy thông số cho từng webcam từ dataset
+            frame = self.dataset.imgs[i]  # Frame mẫu từ webcam i
+            height, width = frame.shape[:2]
+            fps = self.dataset.fps[i] if hasattr(self.dataset, 'fps') else 30  # Lấy FPS nếu có, mặc định là 30
+
+            print(f"Webcam {i + 1} - Width: {width}, Height: {height}, FPS: {fps}")
+            print(f"Initializing stream {i + 1} at {rtsp_url}...")
+
+            # Khởi tạo tiến trình FFmpeg
+            ffmpeg_proc = ffmpeg2rtsp(rtsp_url, width, height, fps)
+            self.ffmpeg_procs.append(ffmpeg_proc)
+
+        print(f"{len(self.ffmpeg_procs)} streaming processes initialized.")
+
+    def push_frame_to_stream(self, index, frame):
+        """
+        Đẩy một frame vào tiến trình FFmpeg tương ứng.
+
+        Args:
+            index (int): Chỉ số của tiến trình FFmpeg (stream index).
+            frame (numpy.ndarray): Frame cần đẩy vào tiến trình.
+        """
+        if not hasattr(self, 'ffmpeg_procs') or not self.ffmpeg_procs:
+            print("No FFmpeg processes initialized. Call init_stream first.")
+            return
+
+        if index >= len(self.ffmpeg_procs):
+            raise ValueError(f"Stream index {index} out of range. Total streams: {len(self.ffmpeg_procs)}.")
+
+        proc = self.ffmpeg_procs[index]  # Lấy tiến trình FFmpeg tương ứng với chỉ số
+        if proc and proc.stdin:
+            try:
+                proc.stdin.write(frame.tobytes())
+            except BrokenPipeError:
+                print(f"Stream {index + 1} has ended unexpectedly. Restarting process...")
+                # Khởi động lại tiến trình nếu gặp lỗi
+                rtsp_url = f"rtsp://localhost:8554/stream{index + 1}"
+                height, width = frame.shape[:2]
+                fps = 30  # Hoặc lấy từ dataset nếu cần
+                self.ffmpeg_procs[index] = ffmpeg2rtsp(rtsp_url, width, height, fps)

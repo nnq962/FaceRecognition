@@ -36,6 +36,9 @@ class InsightFaceDetector:
                 self.fer_class = FERUtils(gpu_memory_limit=2048)
             if self.media_manager.check_small_face:
                 self.gfpgan_model = GFPGANInference(upscale=2)
+            if self.media_manager.streaming:
+                self.media_manager.init_stream()
+
 
         self.load_model()
 
@@ -206,6 +209,10 @@ class InsightFaceDetector:
                             save_path = str(Path(save_path).with_suffix('.mp4'))  # force *.mp4 suffix on results videos
                             self.media_manager.vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
                         self.media_manager.vid_writer[i].write(im0)
+
+                # Streaming RTSP
+                if self.media_manager.streaming:
+                    self.media_manager.push_frame_to_stream(i, im0)
             
             # Total processing time for a single frame (inference + processing)
             frame_time = (dt[0].dt + dt[1].dt) * 1E3  # Frame processing time in milliseconds
