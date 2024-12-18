@@ -29,7 +29,7 @@ A powerful face recognition and emotion detection system built with state-of-the
 Follow these steps to set up the project:
 
 ### Prerequisites
-- **Python 3.8+**
+- **Python 3.10+**
 - **FFmpeg** installed on your system.
 - **MediaMTX** (optional for RTSP streaming).
 
