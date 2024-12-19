@@ -116,7 +116,7 @@ class InsightFaceDetector:
 
                     # Export to pandas
                     if self.media_manager.export_data:
-                        save_to_pandas(result[0]['id'], similarity_percent, emotion, emotion[1])
+                        save_to_pandas(result[0]['id'], similarity_percent, emotion[0].capitalize(), emotion[1])
                         
                 return label
         return None
