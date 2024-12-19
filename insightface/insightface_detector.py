@@ -219,14 +219,12 @@ class InsightFaceDetector:
                 if self.media_manager.export_data:
                     current_time = time.time()
                     if current_time - start_time > self.media_manager.time_to_save:
-                        result = parse_face_data(label)
-                        if result:  # Nếu kết quả không phải None
-                            name, recognition_prob, emotion, emotion_prob = result
-                            file_name = f"face_data_camera_{i}.csv"
-                            save_to_pandas(name, recognition_prob, emotion, emotion_prob, file_name=file_name)
-                            print(f"✅ Data exported for {name} from Camera {i}")
-                        else:
-                            print(f"⚠️ Skipping data export for Camera {i} due to invalid label.")
+                        if label and isinstance(label, str): 
+                            result = parse_face_data(label)
+                            if result:
+                                name, recognition_prob, emotion, emotion_prob = result
+                                file_name = f"face_data_camera_{i}.csv"
+                                save_to_pandas(name, recognition_prob, emotion, emotion_prob, file_name=file_name)
                         start_time = current_time
 
             # Total processing time for a single frame (inference + processing)

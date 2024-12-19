@@ -198,6 +198,10 @@ def parse_face_data(text):
     Returns:
         tuple: (name, recognition_prob, emotion, emotion_prob) nếu hợp lệ, hoặc None nếu không hợp lệ.
     """
+    # Kiểm tra nếu text không phải là chuỗi
+    if not isinstance(text, str):
+        return None
+
     # Sử dụng regex để trích xuất tên, xác suất nhận diện, cảm xúc và xác suất cảm xúc
     match = re.match(r"(\w+)\s(\d+)%\s\|\s(\w+)\s(\d+)%", text)
     if match:
@@ -207,6 +211,4 @@ def parse_face_data(text):
         emotion_prob = int(match.group(4))  # Xác suất cảm xúc (dạng số nguyên)
         return name, recognition_prob, emotion, emotion_prob
     else:
-        # Trả về None nếu text không đúng định dạng
-        print(f"⚠️ Invalid format: '{text}'. Expected format: '<Name> <Prob>% | <Emotion> <Prob>%'.")
         return None
