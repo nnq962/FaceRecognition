@@ -1,5 +1,4 @@
 import cv2
-import numpy as np
 from insightface.app.common import Face
 from insightface.model_zoo import model_zoo
 import os
@@ -13,8 +12,8 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
 from insightface_utils import crop_image, expand_image, is_small_face, search_id
-from export_data import save_to_pandas
-
+from export_data import save_to_pandas, parse_face_data
+import time
 
 class InsightFaceDetector:
     """
@@ -108,16 +107,11 @@ class InsightFaceDetector:
             result = search_id(embedding=embedding, top_k=1, threshold=0.4)
             if result:
                 similarity_percent = int(result[0]['similarity'] * 100)
-                label = f"{result[0]['id']} {similarity_percent}%"
+                label = f"{result[0]['id'].capitalize()} {similarity_percent}%"
                 if self.media_manager.face_emotion:
                     emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(img, bbox))[0]
                     emotion_label = f"{emotion[0].capitalize()} {int(emotion[1] * 100)}%"
-                    label += f" | {emotion_label}"
-
-                    # Export to pandas
-                    if self.media_manager.export_data:
-                        save_to_pandas(result[0]['id'], similarity_percent, emotion[0].capitalize(), emotion[1])
-                        
+                    label += f" | {emotion_label}"                        
                 return label
         return None
     
@@ -126,7 +120,8 @@ class InsightFaceDetector:
         Run inference on images/video and display results
         """
         windows = []
-        seen, dt = 0, (Profile(), Profile(), Profile()) 
+        seen, dt = 0, (Profile(), Profile(), Profile())
+        start_time = time.time()
 
         for path, _, im0s, vid_cap, s in self.dataset:
             # Inference
@@ -219,7 +214,16 @@ class InsightFaceDetector:
                 # Streaming RTSP
                 if self.media_manager.streaming:
                     self.media_manager.push_frame_to_stream(i, im0)
-            
+
+                # Export data to pandas
+                if self.media_manager.export_data:
+                    current_time = time.time()
+                    if current_time - start_time > self.media_manager.time_to_save:
+                        name, recognition_prob, emotion, emotion_prob = parse_face_data(label)
+                        file_name = f"face_data_camera_{i}.csv"
+                        save_to_pandas(name, recognition_prob, emotion, emotion_prob, file_name=file_name)
+                        start_time = current_time
+
             # Total processing time for a single frame (inference + processing)
             frame_time = (dt[0].dt + dt[1].dt) * 1E3  # Frame processing time in milliseconds
             # Calculate instantaneous FPS for the current frame
