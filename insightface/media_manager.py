@@ -42,7 +42,8 @@ class MediaManager:
                  hide_conf=False,
                  face_emotion=False,
                  check_small_face=False,
-                 streaming=False):
+                 streaming=False,
+                 export_data=False):
         """
         Khởi tạo MediaManager với thông tin về nguồn đầu vào và cấu hình thư mục lưu kết quả.
         """
@@ -63,7 +64,8 @@ class MediaManager:
         self.hide_conf = hide_conf
         self.face_emotion = face_emotion
         self.check_small_face = check_small_face
-        self.streaming = streaming  
+        self.streaming = streaming
+        self.export_data = export_data  # Có export dữ liệu khuôn mặt vào file CSV hay không
 
         # Thuộc tính sẽ được khởi tạo bởi các phương thức
         self.save_dir = None

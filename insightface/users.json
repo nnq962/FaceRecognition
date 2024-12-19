@@ -1,0 +1,15 @@
+{
+    "users": {
+        "lam": {
+            "userid": 1,
+            "password": "312",
+            "departmentid": 4
+        },
+        "quyet": {
+            "userid": 3,
+            "password": "1",
+            "departmentid": 2
+        }
+    },
+    "user_id_counter": 4
+}

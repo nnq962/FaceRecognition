@@ -1,0 +1,20 @@
+{
+    "quyet": {
+        "id": 0,
+        "password": "1",
+        "camera_id": 1,
+        "camera_url": "rtsp://local:8554/stream1"
+    },
+    "lam": {
+        "id": 1,
+        "password": "1",
+        "camera_id": 2,
+        "camera_url": "rtsp://local:8554/stream2"
+    },
+    "hue": {
+        "id": 2,
+        "password": "1",
+        "camera_id": 2,
+        "camera_url": "rtsp://local:8554/stream2"
+    }
+}

@@ -13,6 +13,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
 from insightface_utils import crop_image, expand_image, is_small_face, search_id
+from export_data import save_to_pandas
 
 
 class InsightFaceDetector:
@@ -112,6 +113,11 @@ class InsightFaceDetector:
                     emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(img, bbox))[0]
                     emotion_label = f"{emotion[0].capitalize()} {int(emotion[1] * 100)}%"
                     label += f" | {emotion_label}"
+
+                    # Export to pandas
+                    if self.media_manager.export_data:
+                        save_to_pandas(result[0]['id'], similarity_percent, emotion, emotion[1])
+                        
                 return label
         return None
     
