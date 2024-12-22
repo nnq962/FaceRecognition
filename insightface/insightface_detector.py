@@ -11,9 +11,11 @@ from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-from insightface_utils import crop_image, expand_image, is_small_face, search_id
+from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings
 from export_data import save_to_pandas, parse_face_data
 import time
+import onnxruntime as ort
+ort.set_default_logger_severity(3)
 
 class InsightFaceDetector:
     """
@@ -88,6 +90,37 @@ class InsightFaceDetector:
         self.rec_model.get(img, face)
         return face.normed_embedding
     
+    def get_face_detects(self, imgs):
+        """
+        Detect faces for a list of images.
+
+        Args:
+            imgs (list of numpy.ndarray): List of images loaded using cv2.imread.
+
+        Returns:
+            list: A list of detection results for each image. If no faces are detected in an image,
+                None is added to the list. Each detection result is a tuple:
+                (bounding_boxes, keypoints), where:
+                - bounding_boxes: numpy.ndarray of shape (n_faces, 5) containing [x1, y1, x2, y2, confidence].
+                - keypoints: numpy.ndarray of shape (n_faces, 5, 2) containing facial landmarks.
+                If no faces are detected, (array([], shape=(0, 5), dtype=float32), array([], shape=(0, 5, 2), dtype=float32)) is returned.
+        """
+        if not isinstance(imgs, list):
+            imgs = [imgs]
+
+        all_results = []
+        for img in imgs:
+            result = self.det_model.detect(img)
+            if result[0].shape[0] == 0:
+                all_results.append(None)
+            else:
+                all_results.append(result)
+        return all_results
+
+    def get_face_embeddings(self, cropped_images):
+        embeddings = self.rec_model.get_feat(cropped_images)
+        return normalize_embeddings(embeddings)
+    
     def process_face(self, img, bbox, kps=None, conf=None):
         """
         Xử lý nhận diện và phân tích cảm xúc cho một khuôn mặt.
@@ -125,63 +158,96 @@ class InsightFaceDetector:
 
         for path, _, im0s, vid_cap, s in self.dataset:
             # Inference
-            with dt[0]:  # Thời gian inference
-                pred = self.get_face_detect(im0s)
+            with dt[0]:
+                pred = self.get_face_detects(im0s)
+
+            all_cropped_faces = []
+            metadata = []
+            face_counts = []
 
             # Process predictions
-            result = None # global
-            
-            for i, det in enumerate(pred):  # per image
+            # per image
+            for i, det in enumerate(pred):
+                if self.media_manager.webcam:  
+                    im0 = im0s[i].copy()
+                else:
+                    im0 = im0s.copy()
+
+                if det is None:
+                    face_counts.append(0)
+                    continue
+                
+                bboxes, keypoints = det
+                for bbox, kps in zip(bboxes, keypoints):
+                    metadata.append({
+                        "image_index": i,
+                        "bbox": bbox,
+                        "keypoints": kps
+                    })
+
+                if self.media_manager.face_recognition:
+                    cropped_faces = crop_and_align_faces(im0, bboxes, keypoints, 0.5)
+                    all_cropped_faces.extend(cropped_faces)
+                face_counts.append(len(bboxes))
+
+            ids = []
+            with dt[1]:
+                if self.media_manager.face_recognition and all_cropped_faces:
+                    all_embeddings = self.get_face_embeddings(all_cropped_faces)
+                    ids = search_ids(all_embeddings, top_k=1, threshold=0.5)
+
+            results_per_image = []
+            start_idx = 0
+
+            for count in face_counts:
+                results = [
+                    {
+                        "bbox": meta["bbox"],
+                        "keypoints": meta["keypoints"],
+                        "id": id_info[0]["id"] if id_info else "unknown",
+                        "similarity": id_info[0]["similarity"] if id_info else None
+                    }
+                    for meta, id_info in zip(metadata[start_idx:start_idx + count], ids[start_idx:start_idx + count])
+                ]
+                results_per_image.append(results)
+                start_idx += count
+
+            # per image
+            for img_index, faces in enumerate(results_per_image):
                 seen += 1
                 if self.media_manager.webcam:  
-                    p, im0 = path[i], im0s[i].copy()
-                    s += f'{i}: '
+                    p, im0 = path[img_index], im0s[img_index].copy()
+                    s += f'{img_index}: '
                 else:
                     p, im0 = path, im0s.copy()
-                
+
                 p = Path(p)  # to Path
                 if not self.media_manager.nosave:
-                    save_path = str(self.save_dir / p.name)  # im.jpg
-                s += f'[{im0.shape[1]}x{im0.shape[0]}] '  # width x height của ảnh hiện tại
-                imc = im0.copy() if self.media_manager.save_crop else im0  # for save_crop
-                annotator = Annotator(im0, line_width=self.media_manager.line_thickness) # for draw results
+                    save_path = str(self.save_dir / p.name)
+                s += f'[{im0.shape[1]}x{im0.shape[0]}] '
+                imc = im0.copy() if self.media_manager.save_crop else im0
+                annotator = Annotator(im0, line_width=self.media_manager.line_thickness)
+                
+                if len(faces):
+                    n = len(faces)
+                    s += f"{n} {'face' if n == 1 else 'faces'}, "  # add to string
 
-                with dt[1]:
-                    if len(det):
-                        # Print results
-                        n = len(det)  # số lượng khuôn mặt phát hiện được
-                        s += f"{n} {'face' if n == 1 else 'faces'}, "  # add to string
+                    for face in faces:
+                        bbox = face['bbox']
+                        ID = face['id']
+                        Similarity = f"{face['similarity'] * 100:.2f}%" if face['similarity'] is not None else "N/A"
 
-                        # Write results
-                        for bbox, kps, conf in det:                        
-                            if is_small_face(bbox=bbox, min_size=50) and self.media_manager.check_small_face:
-                                crop_im0 = crop_image(image=im0, bbox=bbox)
-                                sharpen_im0 = self.gfpgan_model.inference(crop_im0)
-                                padding_size = int(max(sharpen_im0.shape[0], sharpen_im0.shape[1]) * 0.3)
-                                sharpen_im0 = expand_image(sharpen_im0, padding_size=180)
-                                re_detect = self.get_face_detect(sharpen_im0)[0][0]
-                                print("re detect:", re_detect)
-                                if re_detect:
-                                    label = self.process_face(img=sharpen_im0, bbox=re_detect[0], kps=re_detect[1], conf=re_detect[2])
-                                    if label is not None:
-                                        label += ' [small]'
-                                    else:
-                                        label = '[small]'
-                                else:
-                                    LOGGER.warning("No face detected after sharpening and padding.")
-                                    label = None    
-                            else:
-                                label = self.process_face(img=im0, bbox=bbox, kps=kps, conf=conf)
+                        label = f"{ID} {Similarity}"
+            
+                        if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
+                            if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
+                                label = None
+                            color = (0, int(255 * bbox[4]), int(255 * (1 - bbox[4])))
+                            annotator.box_label(bbox, label, color=color)
 
-                            if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
-                                if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
-                                    label = None
-                                color = (0, int(255 * conf), int(255 * (1 - conf)))
-                                annotator.box_label(bbox, label, color=color)
-
-                            if self.media_manager.save_crop:
-                                save_one_box(torch.tensor(bbox), imc, file=self.save_dir / 'crops' / f'{p.stem}.jpg',BGR=True)
-
+                        if self.media_manager.save_crop:
+                            save_one_box(torch.tensor(bbox), imc, file=self.save_dir / 'crops' / f'{p.stem}.jpg',BGR=True)
+                
                 # Stream results
                 im0 = annotator.result()
                 if self.media_manager.view_img:
@@ -190,17 +256,17 @@ class InsightFaceDetector:
                         cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
                         cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
                     cv2.imshow(str(p), im0)
-                    cv2.waitKey(1)  # 1 millisecond
-                
+                    cv2.waitKey(1)
+
                 # Save results (image with detections)
                 if self.media_manager.save_img:
                     if self.dataset.mode == 'image':
                         cv2.imwrite(save_path, im0)
                     else:  # 'video' or 'stream'
-                        if self.media_manager.vid_path[i] != save_path:  # new video
-                            self.media_manager.vid_path[i] = save_path
-                            if isinstance(self.media_manager.vid_writer[i], cv2.VideoWriter):
-                                self.media_manager.vid_writer[i].release()  # release previous video writer
+                        if self.media_manager.vid_path[img_index] != save_path:  # new video
+                            self.media_manager.vid_path[img_index] = save_path
+                            if isinstance(self.media_manager.vid_writer[img_index], cv2.VideoWriter):
+                                self.media_manager.vid_writer[img_index].release()  # release previous video writer
                             if vid_cap:  # video
                                 fps = vid_cap.get(cv2.CAP_PROP_FPS)
                                 w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -208,31 +274,19 @@ class InsightFaceDetector:
                             else:  # stream
                                 fps, w, h = 10, im0.shape[1], im0.shape[0]
                             save_path = str(Path(save_path).with_suffix('.mp4'))  # force *.mp4 suffix on results videos
-                            self.media_manager.vid_writer[i] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
-                        self.media_manager.vid_writer[i].write(im0)
+                            self.media_manager.vid_writer[img_index] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+                        self.media_manager.vid_writer[img_index].write(im0)
 
                 # Streaming RTSP
                 if self.media_manager.streaming:
                     self.media_manager.push_frame_to_stream(i, im0)
-
-                # Export data to pandas
-                if self.media_manager.export_data:
-                    current_time = time.time()
-                    if current_time - start_time > self.media_manager.time_to_save:
-                        if label and isinstance(label, str): 
-                            result = parse_face_data(label)
-                            if result:
-                                name, recognition_prob, emotion, emotion_prob = result
-                                file_name = f"face_data_camera_{i}.csv"
-                                save_to_pandas(name, recognition_prob, emotion, emotion_prob, file_name=file_name)
-                        start_time = current_time
-
+            
             # Total processing time for a single frame (inference + processing)
             frame_time = (dt[0].dt + dt[1].dt) * 1E3  # Frame processing time in milliseconds
             # Calculate instantaneous FPS for the current frame
             fps_instant = 1000 / frame_time if frame_time > 0 else float('inf')
             # Print processing time (inference + processing) and instantaneous FPS
-            LOGGER.info(f"{s}{'' if len(det) else '(no detections), '}"
+            LOGGER.info(f"{s}{'' if len(faces) else '(no detections), '}"
                         f"Inference: {dt[0].dt * 1E3:.1f}ms, Processing: {dt[1].dt * 1E3:.1f}ms, "
                         f"FPS: {fps_instant:.2f}")
 
@@ -242,5 +296,5 @@ class InsightFaceDetector:
                 writer.release()
                 print("Video writer released successfully.")
 
-        t = dt[0].t / seen * 1E3  # Thời gian trung bình inference trên mỗi ảnh (ms)
+        t = dt[0].t / seen * 1E3
         LOGGER.info(f'Speed: %.1fms inference per image.' % t)

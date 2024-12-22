@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 
 # Tạo DataFrame toàn cục để lưu dữ liệu khuôn mặt
-face_data = pd.DataFrame(columns=["timestamp", "name", "recognition_prob", "emotion", "emotion_prob"])
+face_data = pd.DataFrame(columns=["Timestamp", "Name", "Recognition_prob", "Mmotion", "Mmotion_prob"])
 
 def save_to_pandas(name, recognition_prob, emotion, emotion_prob, file_name="face_data.csv"):
     """
@@ -21,11 +21,11 @@ def save_to_pandas(name, recognition_prob, emotion, emotion_prob, file_name="fac
     # Thêm dữ liệu mới vào DataFrame
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     new_row = {
-        "timestamp": timestamp,
-        "name": name,
-        "recognition_prob": recognition_prob,
-        "emotion": emotion,
-        "emotion_prob": emotion_prob
+        "Timestamp": timestamp,
+        "Name": name,
+        "Recognition_prob": recognition_prob,
+        "Emotion": emotion,
+        "Emotion_prob": emotion_prob
     }
 
     # Kiểm tra nếu `new_row` không rỗng hoặc toàn bộ NaN

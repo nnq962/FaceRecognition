@@ -69,7 +69,6 @@ def verify_faces(face_img1, face_img2, threshold=0.5):
 
     # Detect faces để lấy bbox và keypoints
     bboxes1, kpss1 = det_model.detect(face_img1, max_num=1)
-    print(bboxes1, kpss1)
     bboxes2, kpss2 = det_model.detect(face_img2, max_num=1)
     
     if len(bboxes1) == 0 or len(bboxes2) == 0:

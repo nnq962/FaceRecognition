@@ -5,6 +5,9 @@ import numpy as np
 import cv2
 import pickle
 import faiss
+faiss.omp_set_num_threads(1)  # Giới hạn FAISS sử dụng 1 luồng
+# TODO: remove this for linux
+from insightface.utils import face_align
 
 def prepare_models(model_urls, save_dir="~/Models"):
     """
@@ -119,19 +122,19 @@ def is_small_face(bbox, min_size=50):
 
     return width < min_size or height < min_size
 
-def search_id(embedding, index_path="database/face_index.faiss", mapping_path="database/index_to_id.pkl", top_k=1, threshold=0.5):
+def search_ids(embeddings, index_path="database/face_index.faiss", mapping_path="database/index_to_id.pkl", top_k=1, threshold=0.5):
     """
-    Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một embedding, có ngưỡng độ tương đồng.
+    Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
 
     Args:
-        embedding (numpy.ndarray): Embedding đã chuẩn hóa (shape: (512,)).
+        embeddings (numpy.ndarray): Mảng các embeddings đã chuẩn hóa (shape: (n_embeddings, 512)).
         index_path (str): Đường dẫn tới FAISS index file.
         mapping_path (str): Đường dẫn tới file ánh xạ index -> ID.
-        top_k (int): Số lượng kết quả gần nhất cần trả về.
+        top_k (int): Số lượng kết quả gần nhất cần trả về cho mỗi embedding.
         threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
 
     Returns:
-        list of dict: Danh sách kết quả bao gồm ID, tên ảnh và độ tương đồng.
+        list of list of dict: Danh sách kết quả cho mỗi embedding, mỗi kết quả bao gồm ID, tên ảnh và độ tương đồng.
     """
     # Load FAISS index
     index = faiss.read_index(index_path)
@@ -140,23 +143,62 @@ def search_id(embedding, index_path="database/face_index.faiss", mapping_path="d
     with open(mapping_path, "rb") as f:
         index_to_id = pickle.load(f)
 
-    # Đảm bảo embedding là 2D để phù hợp với FAISS input
-    query_embedding = np.array([embedding]).astype('float32')
+    # Đảm bảo embeddings là 2D để phù hợp với FAISS input
+    query_embeddings = np.array(embeddings).astype('float32')
 
     # Tìm kiếm với FAISS
-    D, I = index.search(query_embedding, k=top_k)  # D: Độ tương đồng, I: Chỉ số
+    D, I = index.search(query_embeddings, k=top_k)  # D: Độ tương đồng, I: Chỉ số
 
-    results = []
-    for i in range(top_k):
-        idx = I[0][i]  # Chỉ số trong FAISS index
-        similarity = D[0][i]
-        if idx < 0 or similarity < threshold:  # Bỏ qua nếu không tìm thấy hoặc không đạt ngưỡng
-            continue
-        id_mapping = index_to_id[idx]
-        results.append({
-            "id": id_mapping["id"],
-            "image": id_mapping["image"],
-            "similarity": similarity
-        })
+    all_results = []  # Kết quả cho tất cả embeddings
+    for query_idx, (distances, indices) in enumerate(zip(D, I)):
+        query_results = []
+        for i in range(top_k):
+            idx = indices[i]  # Chỉ số trong FAISS index
+            similarity = distances[i]
+            if idx < 0 or similarity < threshold:  # Bỏ qua nếu không tìm thấy hoặc không đạt ngưỡng
+                continue
+            id_mapping = index_to_id[idx]
+            query_results.append({
+                "id": id_mapping["id"],
+                "image": id_mapping["image"],
+                "similarity": similarity
+            })
+        all_results.append(query_results)
 
-    return results
+    return all_results
+
+def crop_and_align_faces(img, bboxes, keypoints, conf_threshold=0.5, image_size=112):
+    """
+    Cắt và chuẩn hóa các khuôn mặt từ ảnh gốc dựa trên bounding boxes và keypoints.
+    
+    Args:
+        img (numpy.ndarray): Ảnh gốc.
+        bboxes (numpy.ndarray): Bounding boxes, mỗi box có định dạng [x1, y1, x2, y2, conf].
+        keypoints (numpy.ndarray): Landmarks (keypoints) của khuôn mặt.
+        conf_threshold (float): Ngưỡng độ tin cậy (confidence) để lọc khuôn mặt.
+        image_size (int): Kích thước ảnh sau khi chuẩn hóa (ví dụ: 112x112).
+        
+    Returns:
+        list: Danh sách các ảnh khuôn mặt đã cắt và chuẩn hóa.
+    """
+    cropped_faces = []
+
+    for bbox, kps in zip(bboxes, keypoints):
+        if bbox[4] >= conf_threshold:
+            cropped_face = face_align.norm_crop(img, landmark=kps, image_size=image_size)
+            cropped_faces.append(cropped_face)
+    
+    return cropped_faces
+
+def normalize_embeddings(embeddings):
+    """
+    Chuẩn hóa danh sách các embedding.
+
+    Args:
+        embeddings (numpy.ndarray): Mảng các embedding (shape: n_faces x embedding_dim).
+
+    Returns:
+        numpy.ndarray: Mảng các embedding đã chuẩn hóa (cùng shape với đầu vào).
+    """
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    return embeddings / np.maximum(norms, 1e-8)  # Tránh chia cho 0
