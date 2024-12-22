@@ -13,3 +13,5 @@ Timestamp,Name,Recognition_prob,Emotion,Emotion_prob
 2024-12-22 18:16:47,putin,59.78,neutral,45.0
 2024-12-22 18:16:55,quyet,72.04,neutral,52.0
 2024-12-22 18:16:55,putin,60.52,neutral,44.0
+2024-12-22 18:30:55,putin,60.52,neutral,44.0
+

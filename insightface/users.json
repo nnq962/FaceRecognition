@@ -2,13 +2,24 @@
     "users": {
         "lam": {
             "userid": 1,
-            "password": "312",
-            "departmentid": 4
+            "password": "1",
+            "departmentid": 1
         },
         "quyet": {
+            "userid": 2,
+            "password": "1",
+            "departmentid": 1,
+            "faces": [
+                "faces/2/nnq1.jpg"
+            ]
+        },
+        "putin": {
             "userid": 3,
             "password": "1",
-            "departmentid": 2
+            "departmentid": 1,
+            "faces": [
+                "faces/3/putin_test.jpg"
+            ]
         }
     },
     "user_id_counter": 4

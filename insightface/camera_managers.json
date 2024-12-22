@@ -1,20 +1,11 @@
 {
-    "quyet": {
-        "id": 0,
-        "password": "1",
-        "camera_id": 1,
-        "camera_url": "rtsp://local:8554/stream1"
+    "camera_managers": {
+        "lam": {
+            "id": 1,
+            "password": "1234",
+            "camera_id": 1,
+            "camera_url": "rtsp://192.168.1.142:8554/stream1"
+        }
     },
-    "lam": {
-        "id": 1,
-        "password": "1",
-        "camera_id": 2,
-        "camera_url": "rtsp://local:8554/stream2"
-    },
-    "hue": {
-        "id": 2,
-        "password": "1",
-        "camera_id": 2,
-        "camera_url": "rtsp://local:8554/stream2"
-    }
+    "camera_user_id_counter": 2
 }

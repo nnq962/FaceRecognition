@@ -1,7 +1,6 @@
 import os
 import pandas as pd
 from datetime import datetime
-import re
 
 # Tạo DataFrame toàn cục để lưu dữ liệu khuôn mặt
 face_data = pd.DataFrame(columns=["Timestamp", "Name", "Recognition_prob", "Emotion", "Emotion_prob"])
@@ -70,11 +69,11 @@ def filter_data(start_time, end_time, name, input_file="face_data.csv", output_f
         return
 
     # Chuyển cột timestamp thành kiểu datetime
-    data['timestamp'] = pd.to_datetime(data['timestamp'])
+    data['Timestamp'] = pd.to_datetime(data['Timestamp'])
 
     # Lấy phạm vi thời gian trong file
-    min_time = data['timestamp'].min()
-    max_time = data['timestamp'].max()
+    min_time = data['Timestamp'].min()
+    max_time = data['Timestamp'].max()
 
     # Thêm giây vào thời gian nếu cần
     if len(start_time.split(":")) == 2:
@@ -97,9 +96,9 @@ def filter_data(start_time, end_time, name, input_file="face_data.csv", output_f
 
     # Lọc dữ liệu
     filtered_data = data[
-        (data['timestamp'] >= start_time) &
-        (data['timestamp'] <= end_time) &
-        (data['name'] == name)
+        (data['Timestamp'] >= start_time) &
+        (data['Timestamp'] <= end_time) &
+        (data['Name'] == name)
     ]
 
     # Kiểm tra nếu không có dữ liệu phù hợp
@@ -121,6 +120,7 @@ def analyze_emotions(start_time, end_time, name, input_file="face_data.csv"):
         name (str): Tên người muốn phân tích.
         input_file (str): Tên file CSV đầu vào.
     """
+    
     # Kiểm tra nếu file CSV đầu vào không tồn tại
     try:
         data = pd.read_csv(input_file)
@@ -134,11 +134,11 @@ def analyze_emotions(start_time, end_time, name, input_file="face_data.csv"):
         return
 
     # Chuyển cột timestamp thành kiểu datetime
-    data['timestamp'] = pd.to_datetime(data['timestamp'])
+    data['Timestamp'] = pd.to_datetime(data['Timestamp'])
 
     # Lấy phạm vi thời gian trong file
-    min_time = data['timestamp'].min()
-    max_time = data['timestamp'].max()
+    min_time = data['Timestamp'].min()
+    max_time = data['Timestamp'].max()
 
     # Thêm giây vào thời gian nếu cần
     if len(start_time.split(":")) == 2:
@@ -161,10 +161,10 @@ def analyze_emotions(start_time, end_time, name, input_file="face_data.csv"):
 
     # Lọc dữ liệu
     filtered_data = data[
-        (data['timestamp'] >= start_time) &
-        (data['timestamp'] <= end_time) &
-        (data['name'] == name) &
-        (data['emotion_prob'] > 60)  # Chỉ lấy cảm xúc có xác suất > 60
+        (data['Timestamp'] >= start_time) &
+        (data['Timestamp'] <= end_time) &
+        (data['Name'] == name) &
+        (data['Emotion_prob'] > 60)  # Chỉ lấy cảm xúc có xác suất > 60
     ]
 
     # Kiểm tra nếu không có dữ liệu phù hợp
@@ -173,7 +173,7 @@ def analyze_emotions(start_time, end_time, name, input_file="face_data.csv"):
         return
 
     # Tính tổng xác suất cho mỗi cảm xúc
-    emotion_summary = filtered_data.groupby('emotion')['emotion_prob'].sum()
+    emotion_summary = filtered_data.groupby('Emotion')['Emotion_prob'].sum()
 
     # Tính tổng tất cả cảm xúc
     total_emotion_prob = emotion_summary.sum()
@@ -189,26 +189,3 @@ def analyze_emotions(start_time, end_time, name, input_file="face_data.csv"):
     dominant_emotion = emotion_percentages.idxmax()
     dominant_percentage = emotion_percentages.max()
     print(f"🧐 Dominant emotion: {dominant_emotion} ({dominant_percentage:.2f}%).")
-
-def parse_face_data(text):
-    """
-    Xử lý chuỗi văn bản và trích xuất thông tin <Tên> <Xác suất> <Cảm xúc> <Xác suất>.
-    Args:
-        text (str): Chuỗi văn bản đầu vào, ví dụ "quyet 66% | Neutral 92%".
-    Returns:
-        tuple: (name, recognition_prob, emotion, emotion_prob) nếu hợp lệ, hoặc None nếu không hợp lệ.
-    """
-    # Kiểm tra nếu text không phải là chuỗi
-    if not isinstance(text, str):
-        return None
-
-    # Sử dụng regex để trích xuất tên, xác suất nhận diện, cảm xúc và xác suất cảm xúc
-    match = re.match(r"(\w+)\s(\d+)%\s\|\s(\w+)\s(\d+)%", text)
-    if match:
-        name = match.group(1)  # Tên
-        recognition_prob = int(match.group(2))  # Xác suất nhận diện (dạng số nguyên)
-        emotion = match.group(3)  # Cảm xúc
-        emotion_prob = int(match.group(4))  # Xác suất cảm xúc (dạng số nguyên)
-        return name, recognition_prob, emotion, emotion_prob
-    else:
-        return None

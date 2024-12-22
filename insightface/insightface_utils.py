@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 import pickle
 import faiss
-faiss.omp_set_num_threads(1)  # Giới hạn FAISS sử dụng 1 luồng
+# faiss.omp_set_num_threads(1)  # Giới hạn FAISS sử dụng 1 luồng
 # TODO: remove this for linux
 from insightface.utils import face_align
 

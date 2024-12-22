@@ -1,159 +1,109 @@
-import getpass
-import os
+from flask import Flask, jsonify, request
 import json
+import os
+
+app = Flask(__name__)
+
+# Đường dẫn tới tệp JSON lưu trữ thông tin camera managers
+JSON_FILE = "camera_managers.json"
 
 # Danh sách các camera có sẵn
 available_cameras = {
-    1: "rtsp://local:8554/stream1",
-    2: "rtsp://local:8554/stream2",
-    3: "rtsp://local:8554/stream3"
+    1: "rtsp://192.168.1.142:8554/stream1",
+    2: "rtsp://192.168.1.142:8554/stream2",
 }
 
-# Dictionary lưu trữ thông tin người quản lý camera
-camera_managers = {}
-data_file = "camera_managers.json"  # File để lưu và tải dữ liệu
-
+# Tải dữ liệu từ JSON
 def load_data():
-    """Load camera manager data from a JSON file."""
-    global camera_managers
-    if os.path.exists(data_file):
-        with open(data_file, "r") as file:
-            camera_managers = json.load(file)
-            print("✅ Camera manager data loaded successfully.")
-    else:
-        print("ℹ️ No existing camera manager data found. Starting fresh.")
+    if os.path.exists(JSON_FILE):
+        with open(JSON_FILE, "r") as file:
+            return json.load(file)
+    return {"camera_managers": {}, "camera_user_id_counter": 1}
 
-def save_data():
-    """Save camera manager data to a JSON file."""
-    with open(data_file, "w") as file:
-        json.dump(camera_managers, file, indent=4)
-    print("✅ Camera manager data saved successfully.")
+# Lưu dữ liệu vào JSON
+def save_data(data):
+    with open(JSON_FILE, "w") as file:
+        json.dump(data, file, indent=4)
 
-# Thêm user_id_counter để tự động tạo ID cho người quản lý camera
-camera_user_id_counter = 0  # Global counter for camera manager IDs
+# Dữ liệu ban đầu
+data = load_data()
 
+@app.route("/camera_managers", methods=["POST"])
 def add_camera_manager():
-    """Add a new camera manager."""
-    global camera_user_id_counter
-    username = input("Enter username: ")
-    if username in camera_managers:
-        print("❌ Username already exists!")
-        return
-    password = getpass.getpass("Enter password: ")
+    """Thêm người quản lý camera mới."""
+    camera_manager_info = request.get_json()
+    username = camera_manager_info.get("username")
+    password = camera_manager_info.get("password")
+    camera_id = camera_manager_info.get("camera_id")
 
-    # Hiển thị danh sách camera có sẵn
-    print("\nAvailable Cameras (Enter the number corresponding to the camera):")
-    for cam_id, cam_url in available_cameras.items():
-        print(f"{cam_id}: {cam_url}")
+    if not username or not password or not camera_id:
+        return jsonify({"error": "Missing username, password, or camera_id"}), 400
 
-    while True:
-        try:
-            camera_id = int(input("Choose a camera by entering its ID: "))
-            if camera_id in available_cameras:
-                break
-            else:
-                print("❌ Invalid camera ID. Please try again.")
-        except ValueError:
-            print("❌ Please enter a valid number.")
+    if username in data["camera_managers"]:
+        return jsonify({"error": "Username already exists"}), 409
 
-    # Tạo ID tự động cho người quản lý camera
-    camera_manager_id = camera_user_id_counter
-    camera_user_id_counter += 1
+    if camera_id not in available_cameras:
+        return jsonify({"error": "Invalid camera_id"}), 400
 
-    camera_managers[username] = {
-        "id": camera_manager_id,
+    # Tạo người quản lý camera mới
+    camera_user_id = data["camera_user_id_counter"]
+    data["camera_user_id_counter"] += 1
+
+    data["camera_managers"][username] = {
+        "id": camera_user_id,
         "password": password,
         "camera_id": camera_id,
-        "camera_url": available_cameras[camera_id]
+        "camera_url": available_cameras[camera_id],
     }
-    print(f"✅ Camera manager '{username}' added successfully with ID: {camera_manager_id}.")
-    save_data()
 
+    save_data(data)
+    return jsonify({"message": "Camera manager added successfully", "camera_manager": data["camera_managers"][username]}), 201
+
+@app.route("/camera_managers", methods=["GET"])
 def view_camera_managers():
-    """View all camera managers."""
-    if not camera_managers:
-        print("No camera managers found.")
-        return
-    print(f"\n{'ID':<5}{'Username':<15}{'Camera ID':<20}{'Camera URL':<30}")
-    print("-" * 70)
-    for username, info in camera_managers.items():
-        print(f"{info['id']:<5}{username:<15}{info['camera_id']:<20}{info['camera_url']:<30}")
+    """Xem danh sách người quản lý camera."""
+    return jsonify(data["camera_managers"])
 
-def update_camera_manager():
-    """Update camera manager information."""
-    username = input("Enter username to update: ")
-    if username not in camera_managers:
-        print("❌ Camera manager not found!")
-        return
-    print(f"Editing camera manager '{username}'. Leave fields empty to keep current values.")
-    
-    password = getpass.getpass("Enter new password (leave empty to keep current): ") or camera_managers[username]['password']
-    
-    # Hiển thị danh sách camera có sẵn
-    print("\nAvailable Cameras:")
-    for cam_id, cam_url in available_cameras.items():
-        print(f"Camera {cam_id}: {cam_url}")
+@app.route("/camera_managers/<username>", methods=["PUT"])
+def update_camera_manager(username):
+    """Cập nhật thông tin người quản lý camera."""
+    if username not in data["camera_managers"]:
+        return jsonify({"error": "Camera manager not found"}), 404
 
-    while True:
-        try:
-            camera_id = input(f"Enter new camera ID (current: {camera_managers[username]['camera_id']}): ")
-            if camera_id == "":
-                camera_id = camera_managers[username]['camera_id']
-                break
-            camera_id = int(camera_id)
-            if camera_id in available_cameras:
-                break
-            else:
-                print("❌ Invalid camera ID. Please try again.")
-        except ValueError:
-            print("❌ Please enter a valid number.")
+    camera_manager_info = request.get_json()
+    password = camera_manager_info.get("password")
+    camera_id = camera_manager_info.get("camera_id")
 
-    camera_managers[username].update({
-        "password": password,
-        "camera_id": camera_id,
-        "camera_url": available_cameras[camera_id]
-    })
-    print(f"✅ Camera manager '{username}' updated successfully.")
-    save_data()
+    if camera_id and camera_id not in available_cameras:
+        return jsonify({"error": "Invalid camera_id"}), 400
 
-def delete_camera_manager():
-    """Delete a camera manager."""
-    username = input("Enter username to delete: ")
-    if username not in camera_managers:
-        print("❌ Camera manager not found!")
-        return
-    password = getpass.getpass("Enter password to confirm: ")
-    if password == camera_managers[username]['password']:
-        del camera_managers[username]
-        print(f"✅ Camera manager '{username}' deleted successfully.")
-        save_data()
-    else:
-        print("❌ Incorrect password. Camera manager not deleted.")
+    if password:
+        data["camera_managers"][username]["password"] = password
+    if camera_id:
+        data["camera_managers"][username]["camera_id"] = camera_id
+        data["camera_managers"][username]["camera_url"] = available_cameras[camera_id]
 
-def main():
-    """Main function to display the menu and handle user input."""
-    load_data()
-    while True:
-        print("\nCamera Manager System")
-        print("1. Add Camera Manager")
-        print("2. View Camera Managers")
-        print("3. Update Camera Manager")
-        print("4. Delete Camera Manager")
-        print("5. Exit")
-        choice = input("Enter your choice: ")
-        if choice == "1":
-            add_camera_manager()
-        elif choice == "2":
-            view_camera_managers()
-        elif choice == "3":
-            update_camera_manager()
-        elif choice == "4":
-            delete_camera_manager()
-        elif choice == "5":
-            print("Exiting Camera Manager System. Goodbye!")
-            break
-        else:
-            print("❌ Invalid choice. Please try again.")
+    save_data(data)
+    return jsonify({"message": "Camera manager updated successfully", "camera_manager": data["camera_managers"][username]}), 200
+
+@app.route("/camera_managers/<username>", methods=["DELETE"])
+def delete_camera_manager(username):
+    """Xóa người quản lý camera."""
+    if username not in data["camera_managers"]:
+        return jsonify({"error": "Camera manager not found"}), 404
+
+    password = request.get_json().get("password")
+    if password != data["camera_managers"][username]["password"]:
+        return jsonify({"error": "Incorrect password"}), 403
+
+    del data["camera_managers"][username]
+    save_data(data)
+    return jsonify({"message": f"Camera manager '{username}' deleted successfully"}), 200
+
+@app.route("/available_cameras", methods=["GET"])
+def get_available_cameras():
+    """Lấy danh sách các camera có sẵn."""
+    return jsonify(available_cameras)
 
 if __name__ == "__main__":
-    main()
+    app.run(debug=True)

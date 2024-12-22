@@ -1,0 +1,18 @@
+{
+    "cameras": [
+        {
+            "id": 1,
+            "name": "Camera 1",
+            "rtsp_url": "rtsp://192.168.1.142:8554/stream1",
+            "location": "Entrance",
+            "description": "Main entrance camera"
+        },
+        {
+            "id": 2,
+            "name": "Camera 2",
+            "rtsp_url": "rtsp://192.168.1.142:8554/stream2",
+            "location": "Parking Lot",
+            "description": "Camera monitoring parking area"
+        }
+    ]
+}
