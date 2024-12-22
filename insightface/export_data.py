@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 
 # Tạo DataFrame toàn cục để lưu dữ liệu khuôn mặt
-face_data = pd.DataFrame(columns=["Timestamp", "Name", "Recognition_prob", "Mmotion", "Mmotion_prob"])
+face_data = pd.DataFrame(columns=["Timestamp", "Name", "Recognition_prob", "Emotion", "Emotion_prob"])
 
 def save_to_pandas(name, recognition_prob, emotion, emotion_prob, file_name="face_data.csv"):
     """

@@ -44,7 +44,8 @@ class MediaManager:
                  check_small_face=False,
                  streaming=False,
                  export_data=False,
-                 time_to_save=5):
+                 time_to_save=5,
+                 show_time_process=False):
         """
         Khởi tạo MediaManager với thông tin về nguồn đầu vào và cấu hình thư mục lưu kết quả.
         """
@@ -67,7 +68,8 @@ class MediaManager:
         self.check_small_face = check_small_face
         self.streaming = streaming
         self.export_data = export_data  # Có export dữ liệu khuôn mặt vào file CSV hay không
-        self.time_to_save = time_to_save 
+        self.time_to_save = time_to_save
+        self.show_time_process = show_time_process
 
         # Thuộc tính sẽ được khởi tạo bởi các phương thức
         self.save_dir = None

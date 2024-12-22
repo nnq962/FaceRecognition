@@ -12,10 +12,11 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
 from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings
-from export_data import save_to_pandas, parse_face_data
+from export_data import save_to_pandas
 import time
 import onnxruntime as ort
 ort.set_default_logger_severity(3)
+import numpy as np
 
 class InsightFaceDetector:
     """
@@ -40,7 +41,6 @@ class InsightFaceDetector:
                 self.gfpgan_model = GFPGANInference(upscale=2)
             if self.media_manager.streaming:
                 self.media_manager.init_stream()
-
 
         self.load_model()
 
@@ -120,34 +120,7 @@ class InsightFaceDetector:
     def get_face_embeddings(self, cropped_images):
         embeddings = self.rec_model.get_feat(cropped_images)
         return normalize_embeddings(embeddings)
-    
-    def process_face(self, img, bbox, kps=None, conf=None):
-        """
-        Xử lý nhận diện và phân tích cảm xúc cho một khuôn mặt.
-        Args:
-            img (numpy.ndarray): Ảnh đầu vào.
-            bbox (numpy.ndarray): Bounding box của khuôn mặt.
-            kps (numpy.ndarray): Keypoints (tùy chọn).
-            conf (float): Độ tin cậy phát hiện (tùy chọn).
-        Returns:
-            str or None: Nhãn kết quả (ID và cảm xúc) hoặc None.
-        """
-        if conf is None or conf < 0.7:
-            return None
 
-        if self.media_manager.face_recognition:
-            embedding = self.get_face_embedding(img=img, bb=bbox, kps=kps, conf=conf)
-            result = search_id(embedding=embedding, top_k=1, threshold=0.4)
-            if result:
-                similarity_percent = int(result[0]['similarity'] * 100)
-                label = f"{result[0]['id'].capitalize()} {similarity_percent}%"
-                if self.media_manager.face_emotion:
-                    emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(img, bbox))[0]
-                    emotion_label = f"{emotion[0].capitalize()} {int(emotion[1] * 100)}%"
-                    label += f" | {emotion_label}"                        
-                return label
-        return None
-    
     def run_inference(self):
         """
         Run inference on images/video and display results
@@ -165,8 +138,7 @@ class InsightFaceDetector:
             metadata = []
             face_counts = []
 
-            # Process predictions
-            # per image
+            # Crop all faces
             for i, det in enumerate(pred):
                 if self.media_manager.webcam:  
                     im0 = im0s[i].copy()
@@ -190,29 +162,72 @@ class InsightFaceDetector:
                     all_cropped_faces.extend(cropped_faces)
                 face_counts.append(len(bboxes))
 
+            # Get all embeddings, emotion analysis
             ids = []
+            emotions = []
             with dt[1]:
                 if self.media_manager.face_recognition and all_cropped_faces:
                     all_embeddings = self.get_face_embeddings(all_cropped_faces)
                     ids = search_ids(all_embeddings, top_k=1, threshold=0.5)
 
+                    if self.media_manager.face_emotion:
+                        for cropped_face, id_info in zip(all_cropped_faces, ids):
+                            if id_info:
+                                bbox_emotion = np.array([0, 0, cropped_face.shape[1], cropped_face.shape[0]], dtype=np.int32)
+                                # TODO: change bbox_emotion [0, 0, 112, 112]
+                                emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(cropped_face, bbox_emotion))[0]
+                                emotions.append(emotion)
+                            else:
+                                emotions.append(None)
+
+            # Return result
             results_per_image = []
             start_idx = 0
-
             for count in face_counts:
+                if self.media_manager.face_recognition and ids:
+                    ids_for_image = ids[start_idx:start_idx + count]
+                else:
+                    ids_for_image = [None] * count
+
+                if self.media_manager.face_emotion and emotions:
+                    emotions_for_image = emotions[start_idx:start_idx + count]
+                else:
+                    emotions_for_image = [None] * count
+
                 results = [
                     {
                         "bbox": meta["bbox"],
                         "keypoints": meta["keypoints"],
                         "id": id_info[0]["id"] if id_info else "unknown",
-                        "similarity": id_info[0]["similarity"] if id_info else None
+                        "similarity": f"{id_info[0]['similarity'] * 100:.2f}%" if id_info else "N/A",
+                        "emotion": f"{emotion[0]} {emotion[1] * 100:.2f}%" if emotion else "unknown"
                     }
-                    for meta, id_info in zip(metadata[start_idx:start_idx + count], ids[start_idx:start_idx + count])
+                    for meta, id_info, emotion in zip(
+                        metadata[start_idx:start_idx + count],
+                        ids_for_image,
+                        emotions_for_image
+                    )
                 ]
+
                 results_per_image.append(results)
                 start_idx += count
 
-            # per image
+            # Export data to CSV file
+            if self.media_manager.export_data:
+                current_time = time.time()
+                if current_time - start_time > self.media_manager.time_to_save:
+                    for img_index, faces in enumerate(results_per_image):
+                        file_name = f"data_export/face_data_camera_{img_index}.csv"
+                        for face in faces:
+                            if face["id"] != "unknown":
+                                name = face["id"]
+                                recognition_prob = float(face["similarity"].replace("%", "")) if face["similarity"] != "N/A" else None
+                                emotion = face["emotion"].split(" ")[0] if face["emotion"] else "unknown"
+                                emotion_prob = float(face["emotion"].split(" ")[1][:-1]) if face["emotion"] and "%" in face["emotion"] else None
+                                save_to_pandas(name, recognition_prob, emotion, emotion_prob, file_name)
+                    start_time = current_time
+                
+            # Display results
             for img_index, faces in enumerate(results_per_image):
                 seen += 1
                 if self.media_manager.webcam:  
@@ -234,10 +249,11 @@ class InsightFaceDetector:
 
                     for face in faces:
                         bbox = face['bbox']
-                        ID = face['id']
-                        Similarity = f"{face['similarity'] * 100:.2f}%" if face['similarity'] is not None else "N/A"
+                        id = face["id"]
+                        similarity = face["similarity"]
+                        emotion = face["emotion"]
 
-                        label = f"{ID} {Similarity}"
+                        label = f"{id} {similarity} | {emotion}"
             
                         if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
                             if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
@@ -280,15 +296,16 @@ class InsightFaceDetector:
                 # Streaming RTSP
                 if self.media_manager.streaming:
                     self.media_manager.push_frame_to_stream(i, im0)
-            
-            # Total processing time for a single frame (inference + processing)
-            frame_time = (dt[0].dt + dt[1].dt) * 1E3  # Frame processing time in milliseconds
-            # Calculate instantaneous FPS for the current frame
-            fps_instant = 1000 / frame_time if frame_time > 0 else float('inf')
-            # Print processing time (inference + processing) and instantaneous FPS
-            LOGGER.info(f"{s}{'' if len(faces) else '(no detections), '}"
-                        f"Inference: {dt[0].dt * 1E3:.1f}ms, Processing: {dt[1].dt * 1E3:.1f}ms, "
-                        f"FPS: {fps_instant:.2f}")
+
+            if self.media_manager.show_time_process:
+                # Total processing time for a single frame (inference + processing)
+                frame_time = (dt[0].dt + dt[1].dt) * 1E3  # Frame processing time in milliseconds
+                # Calculate instantaneous FPS for the current frame
+                fps_instant = 1000 / frame_time if frame_time > 0 else float('inf')
+                # Print processing time (inference + processing) and instantaneous FPS
+                LOGGER.info(f"{s}{'' if len(faces) else '(no detections), '}"
+                            f"Inference: {dt[0].dt * 1E3:.1f}ms, Processing: {dt[1].dt * 1E3:.1f}ms, "
+                            f"FPS: {fps_instant:.2f}")
 
         # Ensure release after all frames processed
         for writer in self.media_manager.vid_writer:

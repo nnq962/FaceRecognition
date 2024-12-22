@@ -1,0 +1,18 @@
+Timestamp,Name,Recognition_prob,Emotion,Emotion_prob
+2024-12-22 18:15:22,quyet,55.82,neutral,48.0
+2024-12-22 18:15:22,quyet,57.97,neutral,42.0
+2024-12-22 18:15:30,quyet,56.43,sad,48.0
+2024-12-22 18:15:38,quyet,57.66,sad,44.0
+2024-12-22 18:15:47,quyet,65.48,neutral,69.0
+2024-12-22 18:15:55,quyet,68.82,neutral,81.0
+2024-12-22 18:16:04,quyet,70.47,neutral,89.0
+2024-12-22 18:16:12,quyet,71.2,neutral,79.0
+2024-12-22 18:16:21,quyet,69.78,neutral,57.0
+2024-12-22 18:16:21,putin,77.58,neutral,73.0
+2024-12-22 18:16:30,quyet,69.49,neutral,56.0
+2024-12-22 18:16:38,quyet,71.17,neutral,51.0
+2024-12-22 18:16:38,putin,71.67,neutral,82.0
+2024-12-22 18:16:47,quyet,71.74,neutral,50.0
+2024-12-22 18:16:47,putin,75.11,neutral,79.0
+2024-12-22 18:16:55,putin,76.89,neutral,81.0
+2024-12-22 18:16:55,quyet,73.71,neutral,51.0

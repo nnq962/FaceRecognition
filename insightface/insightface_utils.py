@@ -122,7 +122,7 @@ def is_small_face(bbox, min_size=50):
 
     return width < min_size or height < min_size
 
-def search_ids(embeddings, index_path="database/face_index.faiss", mapping_path="database/index_to_id.pkl", top_k=1, threshold=0.5):
+def search_ids(embeddings, index_path="data_base/face_index.faiss", mapping_path="data_base/index_to_id.pkl", top_k=1, threshold=0.5):
     """
     Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
 
