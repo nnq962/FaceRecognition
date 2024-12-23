@@ -364,8 +364,8 @@ class LoadStreams:
             # Thiết lập MJPG để đạt FPS cao
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
             # Thiết lập độ phân giải và FPS
-            desired_width = 640
-            desired_height = 480
+            desired_width = 2560
+            desired_height = 1440
             desired_fps = 30
 
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, desired_width)

@@ -158,11 +158,11 @@ class InsightFaceDetector:
                     })
 
                 if self.media_manager.face_recognition:
-                    cropped_faces = crop_and_align_faces(im0, bboxes, keypoints, 0.5)
+                    cropped_faces = crop_and_align_faces(im0, bboxes, keypoints, 0.7)
                     all_cropped_faces.extend(cropped_faces)
                 face_counts.append(len(bboxes))
 
-            # Get all embeddings, emotion analysis
+            # Search ids, emotion analysis
             ids = []
             emotions = []
             with dt[1]:
@@ -171,14 +171,18 @@ class InsightFaceDetector:
                     ids = search_ids(all_embeddings, top_k=1, threshold=0.5)
 
                     if self.media_manager.face_emotion:
-                        for cropped_face, id_info in zip(all_cropped_faces, ids):
-                            if id_info:
-                                bbox_emotion = np.array([0, 0, cropped_face.shape[1], cropped_face.shape[0]], dtype=np.int32)
-                                # TODO: change bbox_emotion [0, 0, 112, 112]
-                                emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(cropped_face, bbox_emotion))[0]
-                                emotions.append(emotion)
-                            else:
-                                emotions.append(None)
+                        start_idx = 0
+                        for img_index, im0 in enumerate(im0s):
+                            metadata_for_image = [meta for meta in metadata if meta["image_index"] == img_index]
+                            ids_for_image = ids[start_idx:start_idx + len(metadata_for_image)] if self.media_manager.face_recognition else []
+                            for meta, id_info in zip(metadata_for_image, ids_for_image):
+                                bbox = np.array(meta["bbox"][:4], dtype=int)
+                                if id_info:
+                                    emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(im0, bbox))[0]
+                                    emotions.append(emotion)
+                                else:
+                                    emotions.append(None)
+                            start_idx += len(metadata_for_image)
 
             # Return result
             results_per_image = []
@@ -236,8 +240,8 @@ class InsightFaceDetector:
                 else:
                     p, im0 = path, im0s.copy()
 
-                p = Path(p)  # to Path
-                if not self.media_manager.nosave:
+                p = Path(p)
+                if self.media_manager.save:
                     save_path = str(self.save_dir / p.name)
                 s += f'[{im0.shape[1]}x{im0.shape[0]}] '
                 imc = im0.copy() if self.media_manager.save_crop else im0
@@ -245,7 +249,7 @@ class InsightFaceDetector:
                 
                 if len(faces):
                     n = len(faces)
-                    s += f"{n} {'face' if n == 1 else 'faces'}, "  # add to string
+                    s += f"{n} {'face' if n == 1 else 'faces'}, "
 
                     for face in faces:
                         bbox = face['bbox']

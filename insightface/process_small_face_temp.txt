@@ -1,0 +1,40 @@
+            # Process embeddings, emotion analysis
+            ids = []
+            emotions = []
+            with dt[1]:
+                if self.media_manager.face_recognition and all_cropped_faces:
+                    all_embeddings = self.get_face_embeddings(all_cropped_faces)
+                    ids = search_ids(all_embeddings, top_k=1, threshold=0.5)
+
+                    if self.media_manager.face_emotion:
+                        start_idx = 0
+                        for img_index, im0 in enumerate(im0s):
+                            metadata_for_image = [meta for meta in metadata if meta["image_index"] == img_index]
+                            ids_for_image = ids[start_idx:start_idx + len(metadata_for_image)] if self.media_manager.face_recognition else []
+                            for meta, id_info in zip(metadata_for_image, ids_for_image):
+                                bbox = np.array(meta["bbox"][:4], dtype=int)
+
+                                if is_small_face(bbox, min_size=50) and not id_info and self.media_manager.check_small_face:
+                                    small_face_crop = crop_image(im0, bbox)  # Cắt ảnh khuôn mặt
+                                    enhanced_face = self.gfpgan_model.inference(small_face_crop)  # Làm nét
+                                    padding_size = int(max(enhanced_face.shape[0], enhanced_face.shape[1]) * 0.3)
+                                    enhanced_face = expand_image(enhanced_face, padding_size=padding_size)
+
+                                    
+                                    enhanced_bbox, enhanced_kpss = self.det_model.detect(enhanced_face)  # Detect lại bbox
+
+                                    if enhanced_bbox.shape[0] > 0:
+                                        enhanced_bbox = enhanced_bbox[0][:4]  # Chọn bbox đầu tiên
+                                        enhanced_embedding = self.get_face_embedding(enhanced_face, enhanced_bbox, enhanced_kpss[0], conf=1.0)
+                                        id_info = search_ids([enhanced_embedding], top_k=1, threshold=0.5)[0]
+                                    else:
+                                        id_info = None  # Không tìm thấy khuôn mặt sau khi làm nét
+
+                                # Phân tích cảm xúc
+                                if id_info:
+                                    emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(im0, bbox))[0]
+                                    emotions.append(emotion)
+                                else:
+                                    emotions.append(None)
+                            
+                            start_idx += len(metadata_for_image)

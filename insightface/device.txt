@@ -1,3 +1,2 @@
-0
-1
+rtsp://admin:L2620AE7@192.168.1.71:554/cam/realmonitor?channel=1&subtype=0
 rtsp://admin:L2620AE7@192.168.1.71:554/cam/realmonitor?channel=1&subtype=0

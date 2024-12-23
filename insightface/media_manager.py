@@ -30,7 +30,7 @@ class MediaManager:
                  name='exp',
                  imgsz=(640, 640),
                  exist_ok=False,
-                 nosave=False,
+                 save=False,
                  vid_stride=1,
                  view_img=True,  # show results
                  save_txt=False,  # save results to *.txt
@@ -55,7 +55,7 @@ class MediaManager:
         self.imgsz = imgsz  # Kích thước ảnh (h, w)
         self.exist_ok = exist_ok  # Cho phép ghi đè thư mục cũ
         self.save_txt = save_txt  # Có lưu kết quả vào file txt hay không
-        self.nosave = nosave  # Có lưu kết quả ảnh/video hay không
+        self.save = save  # Có lưu kết quả ảnh/video hay không
         self.vid_stride = vid_stride  # Video frame-rate stride
         self.view_img = view_img # show results
         self.save_conf = save_conf # save confidences in --save-txt labels
@@ -81,7 +81,7 @@ class MediaManager:
         self.save_img = None
 
         self.prepare_dataloader()
-        if not self.nosave:  # Chỉ tạo thư mục khi không có nosave
+        if self.save:
             self.prepare_directories()
 
     def prepare_directories(self):
@@ -96,7 +96,7 @@ class MediaManager:
         Xử lý nguồn đầu vào và tạo dataloader tương ứng.
         """
         # Xác định loại nguồn đầu vào
-        self.save_img = not self.nosave
+        self.save_img = self.save
         is_file = Path(self.source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
         is_url = self.source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
         self.webcam = self.source.isnumeric() or self.source.endswith('.txt') or (is_url and not is_file)
