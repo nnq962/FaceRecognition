@@ -1,5 +1,34 @@
-# Sử dụng CUDA 12.6 cho Ubuntu 22.04 làm base image
-FROM nvidia/cuda:12.6.3-base-ubuntu22.04
+# Định nghĩa image cơ bản và kiến trúc
+ARG IMAGE_NAME
+FROM ${IMAGE_NAME}:12.6.3-runtime-ubuntu22.04 as base
+
+# Tùy chỉnh cho kiến trúc amd64
+FROM base as base-amd64
+ENV NV_CUDNN_VERSION 9.5.1.17-1
+ENV NV_CUDNN_PACKAGE_NAME libcudnn9-cuda-12
+ENV NV_CUDNN_PACKAGE libcudnn9-cuda-12=${NV_CUDNN_VERSION}
+
+# Tùy chỉnh cho kiến trúc arm64
+FROM base as base-arm64
+ENV NV_CUDNN_VERSION 9.5.1.17-1
+ENV NV_CUDNN_PACKAGE_NAME libcudnn9-cuda-12
+ENV NV_CUDNN_PACKAGE libcudnn9-cuda-12=${NV_CUDNN_VERSION}
+
+# Lựa chọn kiến trúc phù hợp
+FROM base-${TARGETARCH}
+
+# Định nghĩa biến kiến trúc
+ARG TARGETARCH
+
+# Metadata
+LABEL maintainer="NVIDIA CORPORATION <cudatools@nvidia.com>"
+LABEL com.nvidia.cudnn.version="${NV_CUDNN_VERSION}"
+
+# Cài đặt cuDNN
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ${NV_CUDNN_PACKAGE} \
+    && apt-mark hold ${NV_CUDNN_PACKAGE_NAME} \
+    && rm -rf /var/lib/apt/lists/*
 
 # Cài đặt các dependencies hệ thống cần thiết
 RUN apt-get update && apt-get install -y \
@@ -72,4 +101,4 @@ ENV DISPLAY=:0
 ENV QT_XCB_GL_INTEGRATION=none
 
 # Thiết lập CMD để chạy Flask app, hỗ trợ truyền tham số qua argparse
-ENTRYPOINT ["python3", "main.py"]
+ENTRYPOINT ["python3", "main_docker.py"]

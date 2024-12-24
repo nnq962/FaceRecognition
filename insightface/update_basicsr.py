@@ -1,8 +1,7 @@
 import os
 
-def update_import():
+def update_import(file_path="/usr/local/lib/python3.10/dist-packages/basicsr/data/degradations.py"):
     # Đường dẫn tới tệp cần chỉnh sửa
-    file_path = "/usr/local/lib/python3.10/dist-packages/basicsr/data/degradations.py"
 
     # Nội dung cũ và nội dung thay thế
     old_import = "from torchvision.transforms.functional_tensor import rgb_to_grayscale"
