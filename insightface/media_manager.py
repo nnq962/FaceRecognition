@@ -22,6 +22,38 @@ def ffmpeg2rtsp(rtsp_url, width, height, fps):
     ]
     return subprocess.Popen(command, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
 
+def generate_collection_names(source):
+    """
+    Tạo danh sách tên collection dựa trên đầu vào source.
+
+    Parameters:
+        source (str): Đầu vào, có thể là số, đường dẫn RTSP, hoặc tệp chứa danh sách.
+
+    Returns:
+        list: Danh sách tên collection.
+    """
+    # Kiểm tra loại nguồn
+    is_url = source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
+    is_webcam = source.isnumeric() or source.lower().startswith('screen')  # Webcam
+
+    collections = []
+
+    # Nếu là tệp chứa danh sách
+    if source.endswith(".txt"):
+        with open(source, "r") as file:
+            lines = file.readlines()
+            for index, line in enumerate(lines):
+                line = line.strip()  # Loại bỏ ký tự xuống dòng
+                if line.isnumeric():  # Nếu là webcam (số 0, 1, ...)
+                    collections.append(f"webcam_{line}")
+                elif line.lower().startswith("rtsp://"):  # Nếu là đường dẫn RTSP
+                    collections.append(f"rtspcamera_{index}")
+    elif is_webcam:  # Nếu là webcam
+        collections.append(f"webcam_{source}")
+    elif is_url:  # Nếu là URL RTSP
+        collections.append(f"rtspcamera_0")
+
+    return collections
 
 class MediaManager:
     def __init__(self,
@@ -70,6 +102,7 @@ class MediaManager:
         self.export_data = export_data  # Có export dữ liệu khuôn mặt vào file CSV hay không
         self.time_to_save = time_to_save
         self.show_time_process = show_time_process
+        self.collection_names = generate_collection_names(source=self.source)
 
         # Thuộc tính sẽ được khởi tạo bởi các phương thức
         self.save_dir = None
@@ -81,7 +114,7 @@ class MediaManager:
         self.save_img = None
 
         self.prepare_dataloader()
-        if self.save:
+        if self.save or self.save_crop:
             self.prepare_directories()
 
     def prepare_directories(self):

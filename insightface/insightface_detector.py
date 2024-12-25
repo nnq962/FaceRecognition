@@ -12,11 +12,12 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
 from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings
-from export_data import save_to_pandas
+from mongo_utils import save_data_to_mongo
 import time
 import onnxruntime as ort
 ort.set_default_logger_severity(3)
 import numpy as np
+from datetime import datetime
 
 class InsightFaceDetector:
     """
@@ -161,6 +162,11 @@ class InsightFaceDetector:
                     cropped_faces = crop_and_align_faces(im0, bboxes, keypoints, 0.7)
                     all_cropped_faces.extend(cropped_faces)
                 face_counts.append(len(bboxes))
+            
+            # for crop in all_cropped_faces:
+            #     print(len(all_cropped_faces))
+            #     print(is_real_face(img=crop, threshold=0.65))
+            # print("================================")
 
             # Search ids, emotion analysis
             ids = []
@@ -216,19 +222,32 @@ class InsightFaceDetector:
                 results_per_image.append(results)
                 start_idx += count
 
-            # Export data to CSV file
+            # Export data to MongoDB
             if self.media_manager.export_data:
                 current_time = time.time()
                 if current_time - start_time > self.media_manager.time_to_save:
                     for img_index, faces in enumerate(results_per_image):
-                        file_name = f"data_export/face_data_camera_{img_index}.csv"
+                        data_to_save = []
+                        collection = self.media_manager.collection_names[img_index]
                         for face in faces:
                             if face["id"] != "unknown":
                                 name = face["id"]
                                 recognition_prob = float(face["similarity"].replace("%", "")) if face["similarity"] != "N/A" else None
                                 emotion = face["emotion"].split(" ")[0] if face["emotion"] else "unknown"
                                 emotion_prob = float(face["emotion"].split(" ")[1][:-1]) if face["emotion"] and "%" in face["emotion"] else None
-                                save_to_pandas(name, recognition_prob, emotion, emotion_prob, file_name)
+
+                                time_save = datetime.now()
+                                data_to_save.append({
+                                    "timestamp": time_save.strftime("%Y-%m-%d %H:%M:%S"),
+                                    "id": name,
+                                    "similarity": recognition_prob,
+                                    "emotion": emotion,
+                                    "emotion_prob": emotion_prob
+                                })
+
+                        if data_to_save:
+                            save_data_to_mongo(data_to_save, collection_name=collection)
+
                     start_time = current_time
                 
             # Display results
@@ -241,7 +260,7 @@ class InsightFaceDetector:
                     p, im0 = path, im0s.copy()
 
                 p = Path(p)
-                if self.media_manager.save:
+                if self.media_manager.save or self.media_manager.save_crop:
                     save_path = str(self.save_dir / p.name)
                 s += f'[{im0.shape[1]}x{im0.shape[0]}] '
                 imc = im0.copy() if self.media_manager.save_crop else im0
@@ -266,7 +285,7 @@ class InsightFaceDetector:
                             annotator.box_label(bbox, label, color=color)
 
                         if self.media_manager.save_crop:
-                            save_one_box(torch.tensor(bbox), imc, file=self.save_dir / 'crops' / f'{p.stem}.jpg',BGR=True)
+                            save_one_box(torch.tensor(bbox[:4]), imc, file=self.save_dir / 'crops' / f'{p.stem}.jpg',BGR=True)
                 
                 # Stream results
                 im0 = annotator.result()

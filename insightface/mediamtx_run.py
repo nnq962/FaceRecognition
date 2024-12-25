@@ -65,3 +65,5 @@ class MediaMTXController:
         except Exception as e:
             print(f"Đã xảy ra lỗi khi dừng mediamtx: {e}")
 
+controller = MediaMTXController()
+controller.start()
