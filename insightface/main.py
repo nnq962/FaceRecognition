@@ -1,9 +1,32 @@
 import argparse
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
+from get_ip_address_camera import get_ip_from_mac, generate_rtsp_urls
+
+mac_credentials = {
+    "a8:31:62:a3:30:cf": ("admin", "L2620AE7"),
+    "a8:31:62:a3:30:c7": ("admin", "L2A3A7AC"),
+}
+
+mac_addresses = list(mac_credentials.keys())
+mac_to_ip = get_ip_from_mac(mac_addresses)
+rtsp_urls = generate_rtsp_urls(mac_to_ip, mac_credentials)
+
+def process_source_argument(source, rtsp_urls):
+    if source.isdigit():
+        return int(source)
+    elif source.startswith("rtsp_camera_"):
+        try:
+            index = int(source.split("_")[-1]) - 1
+            return rtsp_urls[index]
+        except (ValueError, IndexError):
+            raise ValueError(f"Invalid camera name: {source}")
+    elif source == "all_rtsp_camera":
+        return rtsp_urls
+    else:
+        raise ValueError(f"Invalid source: {source}")
 
 parser = argparse.ArgumentParser(description="Run face detection and analysis.")
-
 parser.add_argument("--source", type=str, required=True, help="Source for the media (e.g., '0' for webcam or a video file path).")
 parser.add_argument("--save", action="store_true", help="Enable saving processed media.")
 parser.add_argument("--face_recognition", action="store_true", help="Enable face recognition.")
@@ -16,8 +39,15 @@ parser.add_argument("--show_time_process", action="store_true", help="Enable dis
 
 args = parser.parse_args()
 
+try:
+    processed_source = process_source_argument(args.source, rtsp_urls)
+    print(f"Processed source: {processed_source}")
+except ValueError as e:
+    print(f"Error: {e}")
+    exit(1)
+
 media_manager = MediaManager(
-    source=args.source,
+    source=processed_source,
     save=args.save,
     face_recognition=args.face_recognition,
     face_emotion=args.face_emotion,

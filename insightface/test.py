@@ -1,37 +1,35 @@
-from pathlib import Path
-from utils.dataloaders import LoadImages, LoadStreams, LoadScreenshots, IMG_FORMATS, VID_FORMATS
+import argparse
 
+def parse_arguments(rtsp_urls):
+    parser = argparse.ArgumentParser(description="Script to handle sources")
+    parser.add_argument("--source", required=True, help="Specify the source (e.g., 0, 1, rtsp_camera_1, or all_rtsp_camera)")
 
-def generate_collection_names(source):
-    """
-    Tạo danh sách tên collection dựa trên đầu vào source.
+    args = parser.parse_args()
 
-    Parameters:
-        source (str): Đầu vào, có thể là số, đường dẫn RTSP, hoặc tệp chứa danh sách.
+    # Xử lý giá trị của `--source`
+    source = args.source
+    if source.isdigit():  # Nếu là số
+        return int(source)  # Trả về số
+    elif source.startswith("rtsp_camera_"):  # Nếu là tên camera
+        try:
+            index = int(source.split("_")[-1]) - 1  # Lấy số từ tên camera, trừ 1 để có index
+            return rtsp_urls[index]  # Trả về URL tương ứng
+        except (ValueError, IndexError):
+            raise ValueError(f"Invalid camera name: {source}")
+    elif source == "all_rtsp_camera":  # Nếu là `all_rtsp_camera`
+        return rtsp_urls  # Trả về toàn bộ danh sách URLs
+    else:
+        raise ValueError(f"Invalid source: {source}")
 
-    Returns:
-        list: Danh sách tên collection.
-    """
-    # Kiểm tra loại nguồn
-    is_url = source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
-    is_webcam = source.isnumeric() or source.lower().startswith('screen')  # Webcam
+# Ví dụ danh sách RTSP URLs
+rtsp_urls = [
+    "rtsp://admin:L2620AE7@192.168.1.123:554/cam/realmonitor?channel=1&subtype=0",
+    "rtsp://admin:L2A3A7AC@192.168.1.125:554/cam/realmonitor?channel=1&subtype=0",
+]
 
-    collections = []
-
-    # Nếu là tệp chứa danh sách
-    if source.endswith(".txt"):
-        with open(source, "r") as file:
-            lines = file.readlines()
-            for index, line in enumerate(lines):
-                line = line.strip()  # Loại bỏ ký tự xuống dòng
-                if line.isnumeric():  # Nếu là webcam (số 0, 1, ...)
-                    collections.append(f"webcam_{line}")
-                elif line.lower().startswith("rtsp://"):  # Nếu là đường dẫn RTSP
-                    collections.append(f"rtspcamera_{index}")
-    elif is_webcam:  # Nếu là webcam
-        collections.append(f"webcam_{source}")
-    elif is_url:  # Nếu là URL RTSP
-        collections.append(f"rtspcamera_0")
-
-    return collections
-
+# Chạy hàm parse_arguments
+try:
+    selected_source = parse_arguments(rtsp_urls)
+    print(f"Selected source: {selected_source}")
+except ValueError as e:
+    print(f"Error: {e}")

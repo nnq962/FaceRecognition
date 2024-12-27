@@ -228,7 +228,7 @@ class InsightFaceDetector:
                 if current_time - start_time > self.media_manager.time_to_save:
                     for img_index, faces in enumerate(results_per_image):
                         data_to_save = []
-                        collection = self.media_manager.collection_names[img_index]
+                        camera_name = self.media_manager.camera_names[img_index]
                         for face in faces:
                             if face["id"] != "unknown":
                                 name = face["id"]
@@ -242,11 +242,12 @@ class InsightFaceDetector:
                                     "id": name,
                                     "similarity": recognition_prob,
                                     "emotion": emotion,
-                                    "emotion_prob": emotion_prob
+                                    "emotion_prob": emotion_prob,
+                                    "camera_name": camera_name
                                 })
 
                         if data_to_save:
-                            save_data_to_mongo(data_to_save, collection_name=collection)
+                            save_data_to_mongo(data_to_save, collection_name="test")
 
                     start_time = current_time
                 
@@ -318,7 +319,7 @@ class InsightFaceDetector:
 
                 # Streaming RTSP
                 if self.media_manager.streaming:
-                    self.media_manager.push_frame_to_stream(i, im0)
+                    self.media_manager.push_frame_to_stream(img_index, im0)
 
             if self.media_manager.show_time_process:
                 # Total processing time for a single frame (inference + processing)
