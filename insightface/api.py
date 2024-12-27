@@ -4,12 +4,16 @@ from datetime import datetime
 import os
 import io
 import csv
+import shutil
+from insightface_detector import InsightFaceDetector
+from build_database import update_embeddings_for_all_users, create_faiss_index_with_mongo_id_cosine
 
 app = Flask(__name__)
+detector = InsightFaceDetector()
 
 # Kết nối tới MongoDB
-client = MongoClient("mongodb://localhost:27017/")  # Thay đổi nếu cần
-db = client["my_database"]  # Thay bằng tên database của bạn
+client = MongoClient("mongodb://localhost:27017/") 
+db = client["my_database"] 
 users_collection = db["camera_users"]
 managers_collection = db["camera_managers"]
 camera_collection = db["camera_information"]
@@ -47,10 +51,54 @@ def add_user():
 # API: Lấy danh sách users
 @app.route('/get_users', methods=['GET'])
 def get_users():
-    users = list(users_collection.find({}, {"_id": 1, "full_name": 1, "username": 1, "department_id": 1}))
+    users = list(users_collection.find())
     return jsonify(users)
 
 # ----------------------------------------------------------------
+@app.route('/delete_image', methods=['DELETE'])
+def delete_image():
+    data = request.json
+
+    # Kiểm tra đầu vào
+    required_fields = ["username", "password", "image_path"]
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    username = data["username"]
+    password = data["password"]
+    image_name = data["image_path"]  # Tên ảnh
+
+    # Kiểm tra user có tồn tại và mật khẩu đúng không
+    user = users_collection.find_one({"username": username, "password": password})
+    if not user:
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    user_id = user["_id"]
+    user_dir = f"data_set/{user_id}"
+    image_path = os.path.join(user_dir, image_name)  # Tạo đường dẫn đầy đủ
+
+    # Kiểm tra xem ảnh có tồn tại trong MongoDB không
+    image_record = users_collection.find_one({"_id": user_id, "images.path": image_path})
+    if not image_record:
+        return jsonify({"error": "Image not found in the database"}), 404
+
+    # Xóa thông tin ảnh trong MongoDB
+    users_collection.update_one(
+        {"_id": user_id},
+        {"$pull": {"images": {"path": image_path}}}
+    )
+
+    # Xóa ảnh vật lý trong thư mục
+    try:
+        if os.path.exists(image_path):
+            os.remove(image_path)
+            return jsonify({"message": "Image deleted successfully"}), 200
+        else:
+            return jsonify({"error": "Image file not found in the directory"}), 404
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete image: {str(e)}"}), 500
+# ----------------------------------------------------------------
+
 # Tạo API thêm ảnh cho user
 @app.route('/add_image', methods=['POST'])
 def add_image():
@@ -80,20 +128,32 @@ def add_image():
         if os.path.exists(image_path):  # Kiểm tra đường dẫn ảnh có tồn tại
             file_name = os.path.basename(image_path)
             new_path = os.path.join(user_dir, file_name)
-            os.rename(image_path, new_path)  # Chuyển ảnh vào thư mục đích
+
+            # Kiểm tra xem ảnh đã tồn tại trong thư mục đích chưa
+            if os.path.exists(new_path):
+                return jsonify({"error": "Image already exists in the destination"}), 409
+
+            # Sao chép ảnh
+            shutil.copy(image_path, new_path)
 
             # Cập nhật đường dẫn ảnh trong MongoDB
             users_collection.update_one(
                 {"_id": user_id},
-                {"$push": {"images": new_path}}  # Thêm đường dẫn ảnh vào trường 'images'
+                {"$push": {"images": {"path": new_path}}}            
             )
+
+            # Gọi các hàm chỉ khi việc thêm ảnh thành công
+            try:
+                update_embeddings_for_all_users(detector=detector)
+                create_faiss_index_with_mongo_id_cosine()
+            except Exception as e:
+                return jsonify({"error": f"Failed to update embeddings or FAISS index: {str(e)}"}), 500
 
             return jsonify({"message": "Image added successfully", "image_path": new_path}), 200
         else:
             return jsonify({"error": "Image file not found"}), 404
     except Exception as e:
-        return jsonify({"error": f"Failed to add image: {str(e)}"}), 500
-    
+        return jsonify({"error": f"Failed to add image: {str(e)}"}), 50
 # ----------------------------------------------------------------
 @app.route('/delete_user', methods=['DELETE'])
 def delete_user():

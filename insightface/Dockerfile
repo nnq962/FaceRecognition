@@ -1,9 +1,6 @@
 # 1. Sử dụng base image của NVIDIA có sẵn CUDA 12.2 và cuDNN 8 trên Ubuntu 22.04
 FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04
 
-# 2. Đặt biến môi trường để tránh yêu cầu nhập tay khi cài đặt gói
-ENV DEBIAN_FRONTEND=noninteractive
-
 # 3. Cài đặt các dependencies cần thiết
 RUN apt-get update && apt-get install -y \
     python3-pip \

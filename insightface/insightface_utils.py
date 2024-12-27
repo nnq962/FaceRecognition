@@ -8,6 +8,11 @@ from insightface.utils import face_align
 from deepface import DeepFace
 import platform
 import faiss
+from pymongo import MongoClient
+
+client = MongoClient("mongodb://localhost:27017/")
+db = client["my_database"]
+users_collection = db["camera_users"]
 
 # Detect the operating system
 current_os = platform.system()
@@ -172,6 +177,49 @@ def search_ids(embeddings, index_path="data_base/face_index.faiss", mapping_path
                 "image": id_mapping["image"],
                 "similarity": similarity
             })
+        all_results.append(query_results)
+
+    return all_results
+
+def search_ids_mongoDB(embeddings, index_path="data_base/face_index_new.faiss", top_k=1, threshold=0.5):
+    """
+    Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu MongoDB dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
+
+    Args:
+        embeddings (numpy.ndarray): Mảng các embeddings đã chuẩn hóa (shape: (n_embeddings, 512)).
+        index_path (str): Đường dẫn tới FAISS index file.
+        top_k (int): Số lượng kết quả gần nhất cần trả về cho mỗi embedding.
+        threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
+
+    Returns:
+        list of list of dict: Danh sách kết quả cho mỗi embedding, mỗi kết quả bao gồm ID, tên ảnh và độ tương đồng.
+    """
+    # Load FAISS index
+    index = faiss.read_index(index_path)
+
+    # Đảm bảo embeddings là 2D để phù hợp với FAISS input
+    query_embeddings = np.array(embeddings).astype('float32')
+
+    # Tìm kiếm với FAISS
+    D, I = index.search(query_embeddings, k=top_k)  # D: Độ tương đồng, I: Chỉ số
+
+    # Kết quả cho tất cả embeddings
+    all_results = []
+    for distances, indices in zip(D, I):
+        query_results = []
+        for idx, similarity in zip(indices, distances):
+            if idx < 0 or similarity < threshold:  # Bỏ qua nếu không tìm thấy hoặc không đạt ngưỡng
+                continue
+
+            # Truy vấn MongoDB để lấy thông tin người dùng
+            user = users_collection.find_one({"_id": int(idx)})
+            if user:
+                query_results.append({
+                    "id": user["_id"],
+                    "full_name": user["full_name"],
+                    "similarity": similarity,
+                    "images": user["images"]  # Trả về danh sách ảnh
+                })
         all_results.append(query_results)
 
     return all_results

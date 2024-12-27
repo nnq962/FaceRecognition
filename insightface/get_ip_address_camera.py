@@ -31,13 +31,3 @@ def generate_rtsp_urls(mac_to_ip, credentials):
             rtsp_url = f"rtsp://{username}:{password}@{ip}:554/cam/realmonitor?channel=1&subtype=0"
             rtsp_urls.append(rtsp_url)
     return rtsp_urls
-
-mac_credentials = {
-    "a8:31:62:a3:30:cf": ("admin", "L2620AE7"),
-    "a8:31:62:a3:30:c7": ("admin", "L2A3A7AC"),
-}
-
-mac_addresses = list(mac_credentials.keys())
-mac_to_ip = get_ip_from_mac(mac_addresses)
-rtsp_urls = generate_rtsp_urls(mac_to_ip, mac_credentials)
-print(rtsp_urls)

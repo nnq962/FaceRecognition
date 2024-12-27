@@ -22,7 +22,11 @@ def process_source_argument(source, rtsp_urls):
         except (ValueError, IndexError):
             raise ValueError(f"Invalid camera name: {source}")
     elif source == "all_rtsp_camera":
-        return rtsp_urls
+        file_path = "device.txt"
+        with open(file_path, "w") as f:
+            for url in rtsp_urls:
+                f.write(url + "\n")
+        return file_path
     else:
         raise ValueError(f"Invalid source: {source}")
 
@@ -41,7 +45,7 @@ args = parser.parse_args()
 
 try:
     processed_source = process_source_argument(args.source, rtsp_urls)
-    print(f"Processed source: {processed_source}")
+    print(f"\nProcessed source: {processed_source}\n")
 except ValueError as e:
     print(f"Error: {e}")
     exit(1)

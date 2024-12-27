@@ -11,7 +11,7 @@ from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings
+from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB
 from mongo_utils import save_data_to_mongo
 import time
 import onnxruntime as ort
@@ -174,7 +174,7 @@ class InsightFaceDetector:
             with dt[1]:
                 if self.media_manager.face_recognition and all_cropped_faces:
                     all_embeddings = self.get_face_embeddings(all_cropped_faces)
-                    ids = search_ids(all_embeddings, top_k=1, threshold=0.5)
+                    ids = search_ids_mongoDB(all_embeddings, top_k=1, threshold=0.5)
 
                     if self.media_manager.face_emotion:
                         start_idx = 0
