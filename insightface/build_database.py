@@ -1,5 +1,4 @@
 import cv2
-from insightface_detector import InsightFaceDetector
 from pymongo import MongoClient
 import numpy as np
 import faiss

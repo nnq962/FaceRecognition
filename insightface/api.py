@@ -92,6 +92,12 @@ def delete_image():
     try:
         if os.path.exists(image_path):
             os.remove(image_path)
+            # Gọi các hàm chỉ khi việc thêm ảnh thành công
+            try:
+                update_embeddings_for_all_users(detector=detector)
+                create_faiss_index_with_mongo_id_cosine()
+            except Exception as e:
+                return jsonify({"error": f"Failed to update embeddings or FAISS index: {str(e)}"}), 500
             return jsonify({"message": "Image deleted successfully"}), 200
         else:
             return jsonify({"error": "Image file not found in the directory"}), 404
@@ -186,6 +192,13 @@ def delete_user():
             return jsonify({"error": f"Failed to delete user folder: {str(e)}"}), 500
 
     if result.deleted_count > 0:
+        # Gọi các hàm chỉ khi việc thêm ảnh thành công
+        try:
+            update_embeddings_for_all_users(detector=detector)
+            create_faiss_index_with_mongo_id_cosine()
+        except Exception as e:
+            return jsonify({"error": f"Failed to update embeddings or FAISS index: {str(e)}"}), 500
+        
         return jsonify({"message": "User deleted successfully"}), 200
     else:
         return jsonify({"error": "Failed to delete user"}), 500
