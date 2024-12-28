@@ -92,7 +92,7 @@ def delete_image():
     try:
         if os.path.exists(image_path):
             os.remove(image_path)
-            # Gọi các hàm chỉ khi việc thêm ảnh thành công
+            # Gọi các hàm chỉ khi việc xoá ảnh thành công
             try:
                 update_embeddings_for_all_users(detector=detector)
                 create_faiss_index_with_mongo_id_cosine()
@@ -192,7 +192,8 @@ def delete_user():
             return jsonify({"error": f"Failed to delete user folder: {str(e)}"}), 500
 
     if result.deleted_count > 0:
-        # Gọi các hàm chỉ khi việc thêm ảnh thành công
+
+        # Gọi các hàm chỉ khi việc xoá user thành công
         try:
             update_embeddings_for_all_users(detector=detector)
             create_faiss_index_with_mongo_id_cosine()
