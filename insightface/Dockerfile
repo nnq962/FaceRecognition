@@ -35,6 +35,7 @@ RUN apt-get update && apt-get install -y \
     libqt5widgets5 \
     supervisor \
     ffmpeg \
+    net-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. Cài gdown để tải model từ Google Drive
