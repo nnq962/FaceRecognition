@@ -1,3 +1,5 @@
+import subprocess
+import threading
 from update_basicsr import update_import
 
 # Update basicsr model
@@ -8,6 +10,14 @@ import argparse
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
 from get_ip_address_camera import get_ip_from_mac, generate_rtsp_urls
+
+# Chạy api.py trong một luồng riêng
+def run_api():
+    subprocess.run(["python", "api.py"])
+
+# Khởi động Flask API
+api_thread = threading.Thread(target=run_api)
+api_thread.start()
 
 mac_credentials = {
     "a8:31:62:a3:30:cf": ("admin", "L2620AE7"),

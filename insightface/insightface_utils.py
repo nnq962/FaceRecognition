@@ -5,7 +5,7 @@ import numpy as np
 import cv2
 import pickle
 from insightface.utils import face_align
-from deepface import DeepFace
+# from deepface import DeepFace
 import platform
 import faiss
 from pymongo import MongoClient
@@ -260,30 +260,30 @@ def normalize_embeddings(embeddings):
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
     return embeddings / np.maximum(norms, 1e-8)  # Tránh chia cho 0
 
-def is_real_face(img, threshold=0.65):
-    """
-    Check if a face in the image is real based on the anti-spoofing score.
+# def is_real_face(img, threshold=0.65):
+#     """
+#     Check if a face in the image is real based on the anti-spoofing score.
 
-    Args:
-        img (str or numpy.ndarray): Path to the image or image data.
-        threshold (float): Threshold to determine if the face is real.
+#     Args:
+#         img (str or numpy.ndarray): Path to the image or image data.
+#         threshold (float): Threshold to determine if the face is real.
 
-    Returns:
-        list: [True, antispoof_score] if the score exceeds the threshold; 
-              [False, antispoof_score] otherwise.
-    """
-    try:
-        # Call extract_faces with anti-spoofing enabled
-        result = DeepFace.extract_faces(img_path=img, anti_spoofing=True, detector_backend='skip')
+#     Returns:
+#         list: [True, antispoof_score] if the score exceeds the threshold; 
+#               [False, antispoof_score] otherwise.
+#     """
+#     try:
+#         # Call extract_faces with anti-spoofing enabled
+#         result = DeepFace.extract_faces(img_path=img, anti_spoofing=True, detector_backend='skip')
 
-        # Check the result
-        antispoof_score = result[0].get('antispoof_score', None)
-        if antispoof_score is not None:
-            # Return the result as a list
-            return [antispoof_score > threshold, antispoof_score]
-        else:
-            print("antispoof_score not found.")
-            return [False, None]
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
-        return [False, None]
+#         # Check the result
+#         antispoof_score = result[0].get('antispoof_score', None)
+#         if antispoof_score is not None:
+#             # Return the result as a list
+#             return [antispoof_score > threshold, antispoof_score]
+#         else:
+#             print("antispoof_score not found.")
+#             return [False, None]
+#     except Exception as e:
+#         print(f"An error occurred: {str(e)}")
+#         return [False, None]
