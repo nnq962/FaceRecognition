@@ -247,7 +247,7 @@ class InsightFaceDetector:
                                 })
 
                         if data_to_save:
-                            save_data_to_mongo(data_to_save, collection_name="test")
+                            save_data_to_mongo(data_to_save, collection_name="camera_data")
 
                     start_time = current_time
                 

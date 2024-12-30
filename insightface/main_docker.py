@@ -13,7 +13,7 @@ from get_ip_address_camera import get_ip_from_mac, generate_rtsp_urls
 
 # Chạy api.py trong một luồng riêng
 def run_api():
-    subprocess.run(["python", "api.py"])
+    subprocess.run(["python3", "api.py"])
 
 # Khởi động Flask API
 api_thread = threading.Thread(target=run_api)
@@ -54,7 +54,7 @@ parser.add_argument("--face_emotion", action="store_true", help="Enable face emo
 parser.add_argument("--check_small_face", action="store_true", help="Enable small face checking.")
 parser.add_argument("--streaming", action="store_true", help="Enable streaming mode.")
 parser.add_argument("--export_data", action="store_true", help="Enable data export.")
-parser.add_argument("--time_to_save", type=int, default=8, help="Time interval (in seconds) to save exported data.")
+parser.add_argument("--time_to_save", type=int, default=5, help="Time interval (in seconds) to save exported data.")
 parser.add_argument("--show_time_process", action="store_true", help="Enable display of process time.")
 
 args = parser.parse_args()
