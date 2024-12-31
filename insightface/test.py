@@ -2,36 +2,84 @@ import cv2
 import mediapipe as mp
 
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose()
-mp_drawing = mp.solutions.drawing_utils
+pose = mp_pose.Pose(
+        static_image_mode=True,
+        model_complexity=1,
+        enable_segmentation=False,
+        min_detection_confidence=0.5)
 
-cap = cv2.VideoCapture(0)  # Mở camera
+def is_person_raising_hand_image(image_bgr):
+    """
+    Kiểm tra xem người trong ảnh (frame) có đang giơ tay hay không.
+    - Chỉ cần MỘT trong hai tay (trái/phải) giơ lên (wrist.y < shoulder.y) thì hàm trả về True.
+    - Trả về False nếu không phát hiện người, hoặc không có tay nào giơ lên.
+    
+    Tham số:
+      image_bgr: ảnh BGR (thường đọc từ cv2.imread hoặc camera)
+    
+    Trả về:
+      True  - nếu phát hiện người và có ít nhất 1 tay giơ lên
+      False - nếu không phát hiện người, hoặc người không giơ tay
+    """
 
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
+    # Chuyển ảnh sang RGB cho MediaPipe
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
-    # Xử lý khung hình
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = pose.process(rgb_frame)
+    # Tạo một đối tượng pose cho ảnh tĩnh (static_image_mode=True)
 
-    if results.pose_landmarks:
-        # Vẽ keypoints lên hình
-        mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+    results = pose.process(image_rgb)
 
-        # Lấy tọa độ
-        landmarks = results.pose_landmarks.landmark
-        left_wrist = landmarks[mp_pose.PoseLandmark.LEFT_WRIST]
-        left_elbow = landmarks[mp_pose.PoseLandmark.LEFT_ELBOW]
-        left_shoulder = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER]
+    # Nếu không phát hiện pose, trả về False
+    if not results.pose_landmarks:
+        return False
 
-        if left_wrist.y < left_shoulder.y and left_elbow.y < left_shoulder.y:
-            cv2.putText(frame, "Left Hand Raised", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    # Lấy landmark vai (shoulder) và cổ tay (wrist) bên trái/phải
+    # Theo MediaPipe Pose: 
+    #   Landmark 11: Left Shoulder,  12: Right Shoulder
+    #   Landmark 15: Left Wrist,     16: Right Wrist
+    left_shoulder  = results.pose_landmarks.landmark[11]
+    right_shoulder = results.pose_landmarks.landmark[12]
+    left_wrist     = results.pose_landmarks.landmark[15]
+    right_wrist    = results.pose_landmarks.landmark[16]
 
-    cv2.imshow('Hand Detection', frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    # Kiểm tra tay trái giơ lên:
+    # (tay trái giơ lên nếu y của cổ tay < y của vai trái)
+    left_hand_raised = (left_wrist.y < left_shoulder.y)
 
-cap.release()
-cv2.destroyAllWindows()
+    # Kiểm tra tay phải giơ lên:
+    # (tay phải giơ lên nếu y của cổ tay < y của vai phải)
+    right_hand_raised = (right_wrist.y < right_shoulder.y)
+
+    # Nếu 1 trong 2 tay giơ => trả về True
+    if left_hand_raised or right_hand_raised:
+        return True
+    else:
+        return False
+
+
+def main():
+    cap = cv2.VideoCapture(0)
+    while True:
+        success, image = cap.read()
+        if not success:
+            print("Không thể đọc từ webcam!")
+            break
+
+        # Kiểm tra xem bàn tay này đang mở hay không
+        if is_person_raising_hand(image):
+            text_status = f"Hand is fully opened"
+        else:
+            text_status = f"Hand is NOT fully opened"
+
+        print(text_status)
+
+        cv2.imshow("Hand Detection", image)
+        
+        if cv2.waitKey(1) & 0xFF == 27:  # ESC để thoát
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()

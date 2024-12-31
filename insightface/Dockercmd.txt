@@ -3,3 +3,4 @@ docker build -t insightface .
 # Run
 xhost +local:docker
 docker run --gpus all --device=/dev/video0 -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix insightface --source 0 --face_recognition --face_emotion --show_time_process
+# Change IP local

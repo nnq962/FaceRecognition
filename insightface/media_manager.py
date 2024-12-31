@@ -68,7 +68,8 @@ class MediaManager:
                  streaming=False,
                  export_data=False,
                  time_to_save=5,
-                 show_time_process=False):
+                 show_time_process=False,
+                 raise_hand=False):
         """
         Khởi tạo MediaManager với thông tin về nguồn đầu vào và cấu hình thư mục lưu kết quả.
         """
@@ -93,6 +94,7 @@ class MediaManager:
         self.export_data = export_data  # Có export dữ liệu khuôn mặt vào file CSV hay không
         self.time_to_save = time_to_save
         self.show_time_process = show_time_process
+        self.raise_hand = raise_hand
         self.camera_names = generate_name_names(source=self.source)
 
         # Thuộc tính sẽ được khởi tạo bởi các phương thức

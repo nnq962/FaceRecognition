@@ -12,6 +12,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
 from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB
+from hand_raise_detector import is_person_raising_hand_image, is_hand_opened_in_image, expand_and_crop_image
 from mongo_utils import save_data_to_mongo
 import time
 import onnxruntime as ort
@@ -178,14 +179,24 @@ class InsightFaceDetector:
 
                     if self.media_manager.face_emotion:
                         start_idx = 0
+
                         for img_index, im0 in enumerate(im0s):
                             metadata_for_image = [meta for meta in metadata if meta["image_index"] == img_index]
                             ids_for_image = ids[start_idx:start_idx + len(metadata_for_image)] if self.media_manager.face_recognition else []
+
                             for meta, id_info in zip(metadata_for_image, ids_for_image):
                                 bbox = np.array(meta["bbox"][:4], dtype=int)
+
                                 if id_info:
                                     emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(im0, bbox))[0]
                                     emotions.append(emotion)
+
+                                    if self.media_manager.raise_hand:
+                                        cropped_image = expand_and_crop_image(im0, bbox, alpha=0.2, beta=0.4)
+                                        
+                                        if is_hand_opened_in_image(cropped_image):
+                                            print("RAISE HAND")
+                                            print("=" * 50)
                                 else:
                                     emotions.append(None)
                             start_idx += len(metadata_for_image)
@@ -273,6 +284,25 @@ class InsightFaceDetector:
 
                     for face in faces:
                         bbox = face['bbox']
+                        alpha = 0.9  # Tỷ lệ mở rộng ngang
+                        beta = 1.8  # Tỷ lệ mở rộng dọc
+                        
+                        bbox_4 = bbox[:4]
+
+                        # Tách tọa độ bounding box cũ
+                        x_min, y_min, x_max, y_max = bbox_4
+                        w = x_max - x_min  # Chiều rộng bbox
+                        h = y_max - y_min  # Chiều cao bbox
+
+                        # Tính toán bounding box mở rộng
+                        new_x_min = int(x_min - alpha * w)  # Không kiểm tra giới hạn âm
+                        new_y_min = int(y_min - beta * h)   # Không kiểm tra giới hạn âm
+                        new_x_max = int(x_max + alpha * w)  # Không kiểm tra vượt biên
+                        new_y_max = int(y_max + beta * h)   # Không kiểm tra vượt biên
+
+                        # Bbox mới
+                        bbox_n = (new_x_min, new_y_min, new_x_max, new_y_max)
+                        
                         id = face["id"]
                         similarity = face["similarity"]
                         emotion = face["emotion"]
@@ -283,7 +313,7 @@ class InsightFaceDetector:
                             if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
                                 label = None
                             color = (0, int(255 * bbox[4]), int(255 * (1 - bbox[4])))
-                            annotator.box_label(bbox, label, color=color)
+                            annotator.box_label(bbox_n, label, color=color)
 
                         if self.media_manager.save_crop:
                             save_one_box(torch.tensor(bbox[:4]), imc, file=self.save_dir / 'crops' / f'{p.stem}.jpg',BGR=True)

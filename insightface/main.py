@@ -40,6 +40,7 @@ parser.add_argument("--streaming", action="store_true", help="Enable streaming m
 parser.add_argument("--export_data", action="store_true", help="Enable data export.")
 parser.add_argument("--time_to_save", type=int, default=8, help="Time interval (in seconds) to save exported data.")
 parser.add_argument("--show_time_process", action="store_true", help="Enable display of process time.")
+parser.add_argument("--raise_hand", action="store_true", help="Enable raise hand dectection.")
 
 args = parser.parse_args()
 
@@ -59,7 +60,8 @@ media_manager = MediaManager(
     streaming=args.streaming,
     export_data=args.export_data,
     time_to_save=args.time_to_save,
-    show_time_process=args.show_time_process
+    show_time_process=args.show_time_process,
+    raise_hand=args.raise_hand
 )
 
 detector = InsightFaceDetector(media_manager=media_manager)
