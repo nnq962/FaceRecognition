@@ -14,6 +14,7 @@ from GFPGAN.run_gfpgan import GFPGANInference
 from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB
 from hand_raise_detector import is_person_raising_hand_image, is_hand_opened_in_image, expand_and_crop_image
 from mongo_utils import save_data_to_mongo
+from websocket import broadcast_message, server
 import time
 import onnxruntime as ort
 ort.set_default_logger_severity(3)
@@ -177,7 +178,7 @@ class InsightFaceDetector:
                     all_embeddings = self.get_face_embeddings(all_cropped_faces)
                     ids = search_ids_mongoDB(all_embeddings, top_k=1, threshold=0.5)
 
-                    if self.media_manager.face_emotion:
+                    if self.media_manager.raise_hand:
                         start_idx = 0
 
                         for img_index, im0 in enumerate(im0s):
@@ -188,15 +189,16 @@ class InsightFaceDetector:
                                 bbox = np.array(meta["bbox"][:4], dtype=int)
 
                                 if id_info:
-                                    emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(im0, bbox))[0]
-                                    emotions.append(emotion)
+
+                                    if self.media_manager.face_emotion:
+                                        emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(im0, bbox))[0]
+                                        emotions.append(emotion)
 
                                     if self.media_manager.raise_hand:
-                                        cropped_image = expand_and_crop_image(im0, bbox, left=0, right=0, top=0, bottom=0)
+                                        cropped_image = expand_and_crop_image(im0, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
 
-                                        if is_hand_opened_in_image(cropped_image):
-                                            print("RAISE HAND")
-                                            print("=" * 50)
+                                        if is_hand_opened_in_image(cropped_image) and is_person_raising_hand_image(cropped_image):
+                                            broadcast_message(server, f"Học sinh {id_info[0]['full_name']} giơ tay!")  # Gửi thông báo
                                 else:
                                     emotions.append(None)
                             start_idx += len(metadata_for_image)
@@ -284,28 +286,6 @@ class InsightFaceDetector:
 
                     for face in faces:
                         bbox = face['bbox']
-                        left = 1.7
-                        right = 1.7
-                        top = 0.0
-                        bottom = 2.8
-
-                        # Tách 4 tọa độ từ bbox ban đầu
-                        bbox_4 = bbox[:4]
-                        x_min, y_min, x_max, y_max = bbox_4
-
-                        # Chiều rộng và chiều cao bounding box
-                        w = x_max - x_min
-                        h = y_max - y_min
-
-                        # Tính toán bounding box mở rộng theo 4 hướng
-                        new_x_min = int(x_min - left * w)    # Mở rộng trái
-                        new_y_min = int(y_min - top * h)     # Mở rộng trên
-                        new_x_max = int(x_max + right * w)   # Mở rộng phải
-                        new_y_max = int(y_max + bottom * h)  # Mở rộng dưới
-
-                        # Bbox mới
-                        bbox_n = (new_x_min, new_y_min, new_x_max, new_y_max)
-                        
                         id = face["id"]
                         similarity = face["similarity"]
                         emotion = face["emotion"]
@@ -316,7 +296,7 @@ class InsightFaceDetector:
                             if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
                                 label = None
                             color = (0, int(255 * bbox[4]), int(255 * (1 - bbox[4])))
-                            annotator.box_label(bbox_n, label, color=color)
+                            annotator.box_label(bbox, label, color=color)
 
                         if self.media_manager.save_crop:
                             save_one_box(torch.tensor(bbox[:4]), imc, file=self.save_dir / 'crops' / f'{p.stem}.jpg',BGR=True)
