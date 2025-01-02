@@ -7,15 +7,18 @@ hands = mp_hands.Hands(static_image_mode=True, max_num_hands=2, min_detection_co
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(static_image_mode=True, model_complexity=1, enable_segmentation=False, min_detection_confidence=0.5)
 
-def expand_and_crop_image(image, bbox, alpha=0.2, beta=0.4):
+def expand_and_crop_image(image, bbox, left=0.2, right=0.2, top=0.4, bottom=0.4):
     """
-    Mở rộng bounding box và cắt ảnh theo bounding box đã mở rộng.
+    Mở rộng bounding box theo 4 hướng riêng biệt (trái, phải, trên, dưới)
+    và cắt ảnh theo bounding box đã mở rộng.
 
     Tham số:
       - image: Ảnh đã load bằng cv2.imread (dạng numpy array).
       - bbox: Bounding box dạng (x_min, y_min, x_max, y_max).
-      - alpha: Tỷ lệ mở rộng ngang (trái và phải).
-      - beta: Tỷ lệ mở rộng dọc (trên và dưới).
+      - left: Tỷ lệ mở rộng phía trái.
+      - right: Tỷ lệ mở rộng phía phải.
+      - top: Tỷ lệ mở rộng phía trên.
+      - bottom: Tỷ lệ mở rộng phía dưới.
     
     Trả về:
       - Cropped image: Ảnh được cắt theo bounding box mở rộng.
@@ -27,11 +30,11 @@ def expand_and_crop_image(image, bbox, alpha=0.2, beta=0.4):
     w = x_max - x_min
     h = y_max - y_min
 
-    # Tính toán bounding box mở rộng
-    new_x_min = max(0, int(x_min - alpha * w))        # Không được âm
-    new_y_min = max(0, int(y_min - beta * h))         # Không được âm
-    new_x_max = min(width, int(x_max + alpha * w))    # Không vượt quá chiều rộng ảnh
-    new_y_max = min(height, int(y_max + beta * h))    # Không vượt quá chiều cao ảnh
+    # Tính toán bounding box mở rộng theo 4 hướng riêng biệt
+    new_x_min = max(0, int(x_min - left * w))          # Mở rộng trái
+    new_y_min = max(0, int(y_min - top * h))           # Mở rộng trên
+    new_x_max = min(width, int(x_max + right * w))     # Mở rộng phải
+    new_y_max = min(height, int(y_max + bottom * h))   # Mở rộng dưới
 
     # Cắt ảnh theo bounding box mở rộng
     cropped_image = image[new_y_min:new_y_max, new_x_min:new_x_max]

@@ -1,5 +1,6 @@
 pymongo
 flask
+mediapipe
 absl-py==2.1.0
 addict==2.4.0
 albucore==0.0.21

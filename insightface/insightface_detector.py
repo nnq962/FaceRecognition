@@ -192,8 +192,8 @@ class InsightFaceDetector:
                                     emotions.append(emotion)
 
                                     if self.media_manager.raise_hand:
-                                        cropped_image = expand_and_crop_image(im0, bbox, alpha=0.2, beta=0.4)
-                                        
+                                        cropped_image = expand_and_crop_image(im0, bbox, left=0, right=0, top=0, bottom=0)
+
                                         if is_hand_opened_in_image(cropped_image):
                                             print("RAISE HAND")
                                             print("=" * 50)
@@ -284,21 +284,24 @@ class InsightFaceDetector:
 
                     for face in faces:
                         bbox = face['bbox']
-                        alpha = 0.9  # Tỷ lệ mở rộng ngang
-                        beta = 1.8  # Tỷ lệ mở rộng dọc
-                        
+                        left = 1.7
+                        right = 1.7
+                        top = 0.0
+                        bottom = 2.8
+
+                        # Tách 4 tọa độ từ bbox ban đầu
                         bbox_4 = bbox[:4]
-
-                        # Tách tọa độ bounding box cũ
                         x_min, y_min, x_max, y_max = bbox_4
-                        w = x_max - x_min  # Chiều rộng bbox
-                        h = y_max - y_min  # Chiều cao bbox
 
-                        # Tính toán bounding box mở rộng
-                        new_x_min = int(x_min - alpha * w)  # Không kiểm tra giới hạn âm
-                        new_y_min = int(y_min - beta * h)   # Không kiểm tra giới hạn âm
-                        new_x_max = int(x_max + alpha * w)  # Không kiểm tra vượt biên
-                        new_y_max = int(y_max + beta * h)   # Không kiểm tra vượt biên
+                        # Chiều rộng và chiều cao bounding box
+                        w = x_max - x_min
+                        h = y_max - y_min
+
+                        # Tính toán bounding box mở rộng theo 4 hướng
+                        new_x_min = int(x_min - left * w)    # Mở rộng trái
+                        new_y_min = int(y_min - top * h)     # Mở rộng trên
+                        new_x_max = int(x_max + right * w)   # Mở rộng phải
+                        new_y_max = int(y_max + bottom * h)  # Mở rộng dưới
 
                         # Bbox mới
                         bbox_n = (new_x_min, new_y_min, new_x_max, new_y_max)
