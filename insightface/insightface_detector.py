@@ -138,6 +138,34 @@ class InsightFaceDetector:
             message = f"Học sinh {full_name} giơ tay! [{camera_name}]"
             send_notification(message)
 
+    def get_face_emotions(self, img, bounding_boxes):
+        """
+        Analyze emotions of faces in an image.
+
+        This method detects emotions for faces using the provided bounding boxes 
+        (in [x1, y1, x2, y2] format) and returns the dominant emotion with its probability.
+
+        Args:
+            img (numpy.ndarray): Input image containing faces.
+            bounding_boxes (list or numpy.ndarray): Face bounding boxes in [x1, y1, x2, y2] format.
+
+        Returns:
+            list: A list of dictionaries with the dominant emotion and its probability,
+                or an empty list if `bounding_boxes` is empty.
+        """
+        # Kiểm tra nếu `bounding_boxes` rỗng
+        if not bounding_boxes:
+            return []  # Trả về danh sách rỗng nếu không có bounding boxes
+
+        # Kiểm tra nếu tính năng phân tích cảm xúc bị tắt
+        if not self.media_manager.face_emotion:
+            return []
+
+        # Phân tích cảm xúc
+        emotions = self.fer_class.analyze_face(img, bounding_boxes)
+        dominant_emotions = self.fer_class.get_dominant_emotions(emotions)
+        return dominant_emotions
+
     def run_inference(self):
         """
         Run inference on images/video and display results
@@ -179,9 +207,8 @@ class InsightFaceDetector:
             # for crop in all_cropped_faces:
             #     print(len(all_cropped_faces))
             #     print(is_real_face(img=crop, threshold=0.65))
-            # print("================================")
 
-            # Search ids, emotion analysis
+            # Search ids, emotion analysis, check raising hand, check small face (beta)
             ids = []
             emotions = []
             with dt[1]:
@@ -197,37 +224,33 @@ class InsightFaceDetector:
                             
                             metadata_for_image = [meta for meta in metadata if meta["image_index"] == img_index]
                             ids_for_image = ids[start_idx:start_idx + len(metadata_for_image)] if self.media_manager.face_recognition else []
-
+                            
+                            bboxes_emotion = []
+                            emotion_indices = []
                             for meta_idx, (meta, id_info) in enumerate(zip(metadata_for_image, ids_for_image)):
                                 bbox = np.array(meta["bbox"][:4], dtype=int)
-
-                                if id_info:
-
-                                    if self.media_manager.face_emotion:
-                                        emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(im0, bbox))[0]
-                                        emotions.append(emotion)
- 
-                                    self.check_raising_hand(im0, bbox, id_info[0]['full_name'], camera_name=self.media_manager.camera_names[img_index] if self.media_manager.webcam else "Photo")
-
-                                    cropped_image = crop_image(im0, bbox)
-                                    restored_img = self.gfpgan_model.inference(cropped_image)
-                                    embedding = self.get_face_embeddings(restored_img)
-                                    new_id = search_ids_mongoDB(embedding, top_k=1, threshold=0.5)
-                            
-                                    if new_id:
-                                        ids[start_idx + meta_idx] = new_id[0]
-
-                                else:
-                                    # if self.media_manager.check_small_face and is_small_face(bbox=bbox, min_size=50):
-                                    #     cropped_image = crop_image(im0, bbox)
-                                    #     restored_img = self.gfpgan_model.inference(cropped_image)
-                                    #     embedding = self.get_face_embeddings(restored_img)
-                                    #     new_id = search_ids_mongoDB(embedding, top_k=1, threshold=0.5)
                                 
-                                    #     if new_id:
-                                    #         ids[start_idx + meta_idx] = new_id[0]
-          
-                                    emotions.append(None)
+                                if id_info:
+                                    bboxes_emotion.append(bbox)
+                                    emotion_indices.append(meta_idx)
+
+                                    self.check_raising_hand(im0, bbox, id_info[0]['full_name'], camera_name=self.media_manager.camera_names[img_index] if self.media_manager.webcam else "Photo")
+                                
+                                else:
+                                    if self.media_manager.check_small_face and is_small_face(bbox=bbox, min_size=50):
+                                        cropped_image = crop_image(im0, bbox)
+                                        restored_img = self.gfpgan_model.inference(cropped_image)
+                                        embedding = self.get_face_embeddings(restored_img)
+                                        new_id = search_ids_mongoDB(embedding, top_k=1, threshold=0.1)
+                                
+                                        if new_id:
+                                            ids[start_idx + meta_idx] = new_id[0]
+         
+                            dominant_emotions = self.get_face_emotions(im0, bboxes_emotion)
+                            
+                            for idx, emotion in zip(emotion_indices, dominant_emotions):
+                                emotions.append({"meta_idx": idx, "emotion": emotion})
+
                             start_idx += len(metadata_for_image)
 
             # Return result
@@ -240,9 +263,16 @@ class InsightFaceDetector:
                     ids_for_image = [None] * count
 
                 if self.media_manager.face_emotion and emotions:
-                    emotions_for_image = emotions[start_idx:start_idx + count]
+                    emotions_for_image = [
+                        {
+                            "emotion": emotion["emotion"]["dominant_emotion"],
+                            "probability": emotion["emotion"]["probability"]
+                        }
+                        if emotion else {"emotion": "unknown", "probability": 0.0}
+                        for emotion in emotions[start_idx:start_idx + count]
+                        ]
                 else:
-                    emotions_for_image = [None] * count
+                    emotions_for_image = [{"emotion": "unknown", "probability": 0.0}] * count
 
                 results = [
                     {
@@ -250,7 +280,8 @@ class InsightFaceDetector:
                         "keypoints": meta["keypoints"],
                         "id": id_info[0]["id"] if id_info else "unknown",
                         "similarity": f"{id_info[0]['similarity'] * 100:.2f}%" if id_info else "N/A",
-                        "emotion": f"{emotion[0]} {emotion[1] * 100:.2f}%" if emotion else "unknown"
+                        "emotion": emotion["emotion"],
+                        "emotion_probability": f"{emotion['probability'] * 100:.2f}%" if emotion["emotion"] != "unknown" else "N/A"
                     }
                     for meta, id_info, emotion in zip(
                         metadata[start_idx:start_idx + count],
@@ -265,16 +296,19 @@ class InsightFaceDetector:
             # Export data to MongoDB
             if self.media_manager.export_data:
                 current_time = time.time()
+
                 if current_time - start_time > self.media_manager.time_to_save:
+
                     for img_index, faces in enumerate(results_per_image):
                         data_to_save = []
                         camera_name = self.media_manager.camera_names[img_index]
+
                         for face in faces:
                             if face["id"] != "unknown":
                                 name = face["id"]
                                 recognition_prob = float(face["similarity"].replace("%", "")) if face["similarity"] != "N/A" else None
-                                emotion = face["emotion"].split(" ")[0] if face["emotion"] else "unknown"
-                                emotion_prob = float(face["emotion"].split(" ")[1][:-1]) if face["emotion"] and "%" in face["emotion"] else None
+                                emotion = face["emotion"] if face["emotion"] else "unknown"
+                                emotion_prob = float(face["emotion_probability"].replace("%", "")) if face["emotion_probability"] != "N/A" else None
 
                                 time_save = datetime.now()
                                 data_to_save.append({
@@ -295,10 +329,12 @@ class InsightFaceDetector:
             for img_index, faces in enumerate(results_per_image):
                 seen += 1
                 if self.media_manager.webcam:  
-                    p, im0 = path[img_index], im0s[img_index].copy()
+                    p = path[img_index]
                     s += f'{img_index}: '
                 else:
-                    p, im0 = path, im0s.copy()
+                    p = path
+
+                im0 = self.get_frame(im0s, img_index, self.media_manager.webcam)
 
                 p = Path(p)
                 if self.media_manager.save or self.media_manager.save_crop:
@@ -316,8 +352,9 @@ class InsightFaceDetector:
                         id = face["id"]
                         similarity = face["similarity"]
                         emotion = face["emotion"]
+                        emotion_prob = face["emotion_probability"]
 
-                        label = f"{id} {similarity} | {emotion}"
+                        label = f"{id} {similarity} | {emotion} {emotion_prob}"
             
                         if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
                             if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:

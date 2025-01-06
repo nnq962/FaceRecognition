@@ -53,7 +53,7 @@ except ValueError as e:
     exit(1)
 
 media_manager = MediaManager(
-    source="data_test/nnq1.jpg",
+    source=processed_source,
     save=args.save,
     face_recognition=args.face_recognition,
     face_emotion=args.face_emotion,

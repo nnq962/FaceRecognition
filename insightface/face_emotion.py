@@ -19,6 +19,7 @@ class FERUtils:
         print("Loading FER model...")
         self.model = FER()
         print("FER model loaded successfully!\n")
+
     @staticmethod
     def configure_gpu(gpu_memory_limit):
         """
@@ -46,14 +47,17 @@ class FERUtils:
     @staticmethod
     def xyxy2xywh(boxes):
         """
-        Convert bounding boxes from [x1, y1, x2, y2] to [x, y, w, h].
+        Convert bounding boxes from [x1, y1, x2, y2] to [x, y, w, h] with integer outputs.
 
         Args:
-            boxes (numpy.ndarray): Input bounding boxes.
+            boxes (numpy.ndarray or list or tuple): Input bounding boxes.
 
         Returns:
             numpy.ndarray: Converted bounding boxes in [x, y, w, h] format.
         """
+        if isinstance(boxes, (list, tuple)):
+            boxes = np.array(boxes)
+
         if not isinstance(boxes, np.ndarray):
             raise TypeError(f"Expected input to be a numpy.ndarray, got {type(boxes)}")
 
@@ -61,16 +65,16 @@ class FERUtils:
             if boxes.shape[0] != 4:
                 raise ValueError(f"Expected input shape to be [4], got {boxes.shape}")
             x1, y1, x2, y2 = boxes
-            w = x2 - x1
-            h = y2 - y1
-            return np.array([int(x1), int(y1), int(w), int(h)], dtype=np.int32)
+            w = max(0, x2 - x1)
+            h = max(0, y2 - y1)
+            return np.array([x1, y1, w, h], dtype=np.int32)
 
         elif boxes.ndim == 2:  # Multiple bounding boxes
             if boxes.shape[1] != 4:
                 raise ValueError(f"Expected input shape to be [N, 4], got {boxes.shape}")
             x1, y1, x2, y2 = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
-            w = x2 - x1
-            h = y2 - y1
+            w = np.maximum(0, x2 - x1)
+            h = np.maximum(0, y2 - y1)
             return np.stack((x1, y1, w, h), axis=1).astype(np.int32)
 
         else:
@@ -88,26 +92,29 @@ class FERUtils:
             list: Emotion detection results for each face.
         """
         # Convert bounding boxes to [x, y, w, h] format
-        converted_boxes = [self.xyxy2xywh(face_rectangles)]
+        converted_boxes = self.xyxy2xywh(face_rectangles)
         return self.model.detect_emotions(img, converted_boxes)
 
     @staticmethod
-    def get_dominant_emotion(results):
+    def get_dominant_emotions(batch_emotions):
         """
-        Extract the dominant emotion from FER results.
+        Lấy cảm xúc có xác suất lớn nhất từ batch emotions.
 
         Args:
-            results (list): FER detection results.
+            batch_emotions (list): Danh sách các kết quả cảm xúc dạng:
+                [{'box': [x1, y1, x2, y2], 'emotions': {'emotion1': prob1, ...}}, ...]
 
         Returns:
-            list: List of dominant emotions and their probabilities for each face.
+            list: Danh sách cảm xúc chiếm ưu thế với xác suất tương ứng,
+                [{'dominant_emotion': 'emotion_name', 'probability': prob}, ...]
         """
-        dominant_emotions = []
-        for face in results:
-            if face['emotions']:
-                dominant_emotion = max(face['emotions'], key=face['emotions'].get)
-                probability = round(face['emotions'][dominant_emotion], 2)
-                dominant_emotions.append([dominant_emotion, probability])
-            else:
-                dominant_emotions.append([None, 0.0])  # No emotions detected
-        return dominant_emotions
+        results = []
+        for face in batch_emotions:
+            emotions = face['emotions']
+            dominant_emotion = max(emotions, key=emotions.get)  # Lấy cảm xúc có xác suất lớn nhất
+            probability = emotions[dominant_emotion]  # Xác suất tương ứng
+            results.append({
+                'dominant_emotion': dominant_emotion,
+                'probability': probability
+            })
+        return results

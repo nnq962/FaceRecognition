@@ -1,33 +1,61 @@
-import websocket
+import cv2
+from insightface_detector import InsightFaceDetector
+from fer import FER
+import numpy as np
+import time
+from face_emotion import FERUtils
 
-# Xử lý sự kiện khi nhận được tin nhắn từ server
-def on_message(ws, message):
-    print(f"Nhận thông báo từ server: {message}")
+fer_class = FERUtils()
 
-# Xử lý sự kiện khi kết nối đến server
-def on_open(ws):
-    print("Đã kết nối đến server!")
+# Khởi tạo các đối tượng cần thiết
+fer_model = FER()
+detector = InsightFaceDetector(media_manager=None)
 
-# Xử lý sự kiện khi kết nối bị đóng
-def on_close(ws, close_status_code, close_msg):
-    print("Kết nối bị đóng.")
+# Đọc ảnh
+img = cv2.imread("data_test/2person.jpg")
+pred = detector.get_face_detects(img)
 
-# Xử lý sự kiện khi có lỗi
-def on_error(ws, error):
-    print(f"Lỗi: {error}")
+# Kiểm tra nếu có khuôn mặt được phát hiện
+emotion_count = 0
+batch_bbox = []
+if pred and pred[0]:
+    bboxes, keypoints = pred[0]  # Lấy bounding boxes và keypoints từ kết quả
 
-if __name__ == "__main__":
-    # Địa chỉ server
-    server_address = "ws://192.168.1.142:6789"
+    # Tính thời gian xử lý từng khuôn mặt
+    start_time = time.perf_counter()
+    for bbox, kps in zip(bboxes, keypoints):
+        x1, y1, x2, y2, conf = bbox.astype(int)  # Chuyển bounding box về kiểu int
+        bbox_test = [x1, y1, x2, y2]
+        batch_bbox.append(np.array(bbox_test))
 
-    # Khởi tạo WebSocketApp và gán các callback
-    ws = websocket.WebSocketApp(
-        server_address,
-        on_message=on_message,
-        on_open=on_open,
-        on_close=on_close,
-        on_error=on_error,
-    )
+        # Phát hiện cảm xúc từng khuôn mặt
+        emotion = fer_model.detect_emotions(img, [bbox_test])
+        print(f"Emotion for bbox {bbox_test}: {emotion}")
+        emotion_count += 1
 
-    # Chạy WebSocket client
-    ws.run_forever()
+    end_time = time.perf_counter()
+    print("Time process (per face):", end_time - start_time)
+    print("Emotion count:", emotion_count)
+
+    # Vẽ bounding boxes và keypoints lên ảnh
+    for bbox, kps in zip(bboxes, keypoints):
+        x1, y1, x2, y2, conf = bbox.astype(int)
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        for kp in kps:
+            kp_x, kp_y = kp.astype(int)
+            cv2.circle(img, (kp_x, kp_y), 3, (0, 0, 255), -1)
+
+    cv2.imshow("Detected Faces", img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    # Tính thời gian xử lý cả batch
+    start_time_batch = time.perf_counter()
+    emotions = fer_class.analyze_face(img, batch_bbox)
+    dominant_emotions = fer_class.get_dominant_emotions(emotions)
+    end_time_batch = time.perf_counter()
+    print(f"Batch emotions: {dominant_emotions}")
+    print("Time process (batch):", end_time_batch - start_time_batch)
+else:
+    print("No faces detected!")
+
