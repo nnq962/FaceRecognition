@@ -153,19 +153,35 @@ class InsightFaceDetector:
             list: A list of dictionaries with the dominant emotion and its probability,
                 or an empty list if `bounding_boxes` is empty.
         """
-        # Kiểm tra nếu `bounding_boxes` rỗng
         if not bounding_boxes:
-            return []  # Trả về danh sách rỗng nếu không có bounding boxes
+            return []
 
-        # Kiểm tra nếu tính năng phân tích cảm xúc bị tắt
         if not self.media_manager.face_emotion:
             return []
 
-        # Phân tích cảm xúc
         emotions = self.fer_class.analyze_face(img, bounding_boxes)
         dominant_emotions = self.fer_class.get_dominant_emotions(emotions)
         return dominant_emotions
+    
+    def restored_image(self, img, bounding_box, min_size=50):
+        """
+        Restore a small face using GFPGAN if it meets the size criteria.
 
+        Args:
+            img (numpy.ndarray): Input image containing the face.
+            bounding_box (list or numpy.ndarray): Bounding box in [x1, y1, x2, y2] format.
+            min_size (int): Minimum size threshold for detecting a small face (default: 50).
+
+        Returns:
+            numpy.ndarray or None: Restored image if the face is small; otherwise, None.
+        """
+        if self.media_manager.check_small_face and is_small_face(bounding_box, min_size):
+            cropped_image = crop_image(img, bounding_box)
+            restored_img = self.gfpgan_model.inference(cropped_image)
+            return restored_img
+        
+        return None
+        
     def run_inference(self):
         """
         Run inference on images/video and display results
@@ -211,12 +227,13 @@ class InsightFaceDetector:
             # Search ids, emotion analysis, check raising hand, check small face (beta)
             ids = []
             emotions = []
+
             with dt[1]:
                 if self.media_manager.face_recognition and all_cropped_faces:
                     all_embeddings = self.get_face_embeddings(all_cropped_faces)
                     ids = search_ids_mongoDB(all_embeddings, top_k=1, threshold=0.5)
 
-                    if self.media_manager.check_small_face or self.media_manager.face_emotion:
+                    if self.media_manager.face_emotion:
                         start_idx = 0
 
                         for img_index, im0 in enumerate(im0s):
@@ -225,8 +242,11 @@ class InsightFaceDetector:
                             metadata_for_image = [meta for meta in metadata if meta["image_index"] == img_index]
                             ids_for_image = ids[start_idx:start_idx + len(metadata_for_image)] if self.media_manager.face_recognition else []
                             
+                            # Prepare for emotion analysis
                             bboxes_emotion = []
                             emotion_indices = []
+                            dominant_emotions = [{"dominant_emotion": "unknown", "probability": "N/A"}] * len(metadata_for_image)
+
                             for meta_idx, (meta, id_info) in enumerate(zip(metadata_for_image, ids_for_image)):
                                 bbox = np.array(meta["bbox"][:4], dtype=int)
                                 
@@ -237,25 +257,28 @@ class InsightFaceDetector:
                                     self.check_raising_hand(im0, bbox, id_info[0]['full_name'], camera_name=self.media_manager.camera_names[img_index] if self.media_manager.webcam else "Photo")
                                 
                                 else:
-                                    if self.media_manager.check_small_face and is_small_face(bbox=bbox, min_size=50):
-                                        cropped_image = crop_image(im0, bbox)
-                                        restored_img = self.gfpgan_model.inference(cropped_image)
+                                    restored_img = self.restored_image(im0, bbox, min_size=50)
+
+                                    if restored_img:
                                         embedding = self.get_face_embeddings(restored_img)
                                         new_id = search_ids_mongoDB(embedding, top_k=1, threshold=0.1)
                                 
                                         if new_id:
                                             ids[start_idx + meta_idx] = new_id[0]
-         
-                            dominant_emotions = self.get_face_emotions(im0, bboxes_emotion)
-                            
-                            for idx, emotion in zip(emotion_indices, dominant_emotions):
-                                emotions.append({"meta_idx": idx, "emotion": emotion})
+                                
+                            emotions_batch = self.get_face_emotions(im0, bboxes_emotion)
+
+                            for idx, emotion in zip(emotion_indices, emotions_batch):
+                                dominant_emotions[idx] = {"dominant_emotion": emotion["dominant_emotion"], "probability": emotion["probability"]}
+
+                            emotions.extend(dominant_emotions)
 
                             start_idx += len(metadata_for_image)
-
+                            
             # Return result
             results_per_image = []
             start_idx = 0
+
             for count in face_counts:
                 if self.media_manager.face_recognition and ids:
                     ids_for_image = ids[start_idx:start_idx + count]
@@ -265,14 +288,13 @@ class InsightFaceDetector:
                 if self.media_manager.face_emotion and emotions:
                     emotions_for_image = [
                         {
-                            "emotion": emotion["emotion"]["dominant_emotion"],
-                            "probability": emotion["emotion"]["probability"]
+                            "emotion": emotion["dominant_emotion"],
+                            "probability": f"{float(emotion['probability']) * 100:.2f}%" if isinstance(emotion["probability"], (int, float)) else "N/A"
                         }
-                        if emotion else {"emotion": "unknown", "probability": 0.0}
                         for emotion in emotions[start_idx:start_idx + count]
-                        ]
+                    ]
                 else:
-                    emotions_for_image = [{"emotion": "unknown", "probability": 0.0}] * count
+                    emotions_for_image = [{"emotion": "no emotion", "probability": "N/A"}] * count
 
                 results = [
                     {
@@ -281,7 +303,7 @@ class InsightFaceDetector:
                         "id": id_info[0]["id"] if id_info else "unknown",
                         "similarity": f"{id_info[0]['similarity'] * 100:.2f}%" if id_info else "N/A",
                         "emotion": emotion["emotion"],
-                        "emotion_probability": f"{emotion['probability'] * 100:.2f}%" if emotion["emotion"] != "unknown" else "N/A"
+                        "emotion_probability": emotion["probability"]
                     }
                     for meta, id_info, emotion in zip(
                         metadata[start_idx:start_idx + count],
@@ -328,6 +350,7 @@ class InsightFaceDetector:
             # Display results
             for img_index, faces in enumerate(results_per_image):
                 seen += 1
+                
                 if self.media_manager.webcam:  
                     p = path[img_index]
                     s += f'{img_index}: '
@@ -339,6 +362,7 @@ class InsightFaceDetector:
                 p = Path(p)
                 if self.media_manager.save or self.media_manager.save_crop:
                     save_path = str(self.save_dir / p.name)
+
                 s += f'[{im0.shape[1]}x{im0.shape[0]}] '
                 imc = im0.copy() if self.media_manager.save_crop else im0
                 annotator = Annotator(im0, line_width=self.media_manager.line_thickness)
@@ -359,6 +383,7 @@ class InsightFaceDetector:
                         if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
                             if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
                                 label = None
+
                             color = (0, int(255 * bbox[4]), int(255 * (1 - bbox[4])))
                             annotator.box_label(bbox, label, color=color)
 
@@ -372,6 +397,7 @@ class InsightFaceDetector:
                         windows.append(p)
                         cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
                         cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
+
                     cv2.imshow(str(p), im0)
                     cv2.waitKey(1)
 
@@ -379,19 +405,24 @@ class InsightFaceDetector:
                 if self.media_manager.save_img:
                     if self.dataset.mode == 'image':
                         cv2.imwrite(save_path, im0)
+
                     else:  # 'video' or 'stream'
                         if self.media_manager.vid_path[img_index] != save_path:  # new video
                             self.media_manager.vid_path[img_index] = save_path
+
                             if isinstance(self.media_manager.vid_writer[img_index], cv2.VideoWriter):
                                 self.media_manager.vid_writer[img_index].release()  # release previous video writer
+
                             if vid_cap:  # video
                                 fps = vid_cap.get(cv2.CAP_PROP_FPS)
                                 w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                                 h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                             else:  # stream
                                 fps, w, h = 10, im0.shape[1], im0.shape[0]
+
                             save_path = str(Path(save_path).with_suffix('.mp4'))  # force *.mp4 suffix on results videos
                             self.media_manager.vid_writer[img_index] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+
                         self.media_manager.vid_writer[img_index].write(im0)
 
                 # Streaming RTSP

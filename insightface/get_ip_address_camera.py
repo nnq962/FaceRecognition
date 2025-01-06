@@ -1,3 +1,4 @@
+from pymongo import MongoClient
 import subprocess
 
 def get_ip_from_mac(mac_addresses):
@@ -30,4 +31,41 @@ def generate_rtsp_urls(mac_to_ip, credentials):
             username, password = credentials.get(mac, ("", ""))
             rtsp_url = f"rtsp://{username}:{password}@{ip}:554/cam/realmonitor?channel=1&subtype=0"
             rtsp_urls.append(rtsp_url)
+    return rtsp_urls
+
+def create_rtsp_urls_from_mongo(camera_ids):
+    """
+    Tạo danh sách RTSP URLs dựa trên danh sách _id của camera trong MongoDB.
+
+    Args:
+        camera_ids (list): Danh sách _id của các camera cần lấy RTSP URLs.
+
+    Returns:
+        list: Danh sách các URL RTSP tương ứng với các _id.
+    """
+    # Kết nối MongoDB
+    client = MongoClient("mongodb://localhost:27017/")
+    db = client["my_database"]
+    camera_collection = db["camera_information"]
+
+    # Truy vấn dữ liệu từ MongoDB với _id được cung cấp
+    cameras = camera_collection.find({"_id": {"$in": camera_ids}}, {"MAC_address": 1, "user": 1, "password": 1, "_id": 0})
+    credentials = {}
+    mac_addresses = []
+
+    # Lấy thông tin MAC address, user, và password
+    for camera in cameras:
+        mac = camera.get("MAC_address", "").lower()
+        user = camera.get("user", "")
+        password = camera.get("password", "")
+        if mac:
+            credentials[mac] = (user, password)
+            mac_addresses.append(mac)
+
+    # Lấy IP từ MAC address
+    mac_to_ip = get_ip_from_mac(mac_addresses)
+
+    # Tạo đường dẫn RTSP
+    rtsp_urls = generate_rtsp_urls(mac_to_ip, credentials)
+
     return rtsp_urls
