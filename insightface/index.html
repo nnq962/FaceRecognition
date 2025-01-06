@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Test WebSocket Client</title>
+</head>
+<body>
+  <h1>Thông báo giơ tay</h1>
+  <div id="messages"></div>
+
+  <script>
+    // Kết nối tới server Python
+    // Nếu chạy local, dùng localhost. Nếu server ở máy khác, thay IP tương ứng
+    const socket = new WebSocket('ws://localhost:8765');
+
+    socket.addEventListener('open', () => {
+      console.log('Đã kết nối với server!');
+      socket.send('Hello từ client');
+    });
+
+    socket.addEventListener('message', (event) => {
+      console.log('Nhận tin nhắn:', event.data);
+      const msgDiv = document.getElementById('messages');
+      msgDiv.innerHTML += `<p>${event.data}</p>`;
+    });
+
+    socket.addEventListener('close', () => {
+      console.log('Kết nối WebSocket đã đóng.');
+    });
+
+    socket.addEventListener('error', (error) => {
+      console.error('Lỗi WebSocket:', error);
+    });
+  </script>
+</body>
+</html>

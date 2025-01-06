@@ -2,7 +2,7 @@ from websocket_server import WebsocketServer
 from threading import Thread
 
 # Địa chỉ IP và cổng của server
-HOST = "192.168.1.94"
+HOST = "192.168.1.142"
 PORT = 6789
 
 # Danh sách các kết nối WebSocket

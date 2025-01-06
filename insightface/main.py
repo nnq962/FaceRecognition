@@ -2,6 +2,7 @@ import argparse
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
 from get_ip_address_camera import get_ip_from_mac, generate_rtsp_urls
+from websocket_server import start_ws_server
 
 mac_credentials = {
     "a8:31:62:a3:30:cf": ("admin", "L2620AE7"),
@@ -52,7 +53,7 @@ except ValueError as e:
     exit(1)
 
 media_manager = MediaManager(
-    source=processed_source,
+    source="data_test/nnq1.jpg",
     save=args.save,
     face_recognition=args.face_recognition,
     face_emotion=args.face_emotion,
@@ -63,6 +64,9 @@ media_manager = MediaManager(
     show_time_process=args.show_time_process,
     raise_hand=args.raise_hand
 )
+
+if args.raise_hand:
+    start_ws_server()
 
 detector = InsightFaceDetector(media_manager=media_manager)
 detector.run_inference()

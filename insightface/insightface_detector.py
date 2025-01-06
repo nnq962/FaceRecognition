@@ -14,7 +14,7 @@ from GFPGAN.run_gfpgan import GFPGANInference
 from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB
 from hand_raise_detector import is_person_raising_hand_image, is_hand_opened_in_image, expand_and_crop_image
 from mongo_utils import save_data_to_mongo
-from websocket import broadcast_message, server
+from websocket_server import send_notification
 import time
 import onnxruntime as ort
 ort.set_default_logger_severity(3)
@@ -123,6 +123,20 @@ class InsightFaceDetector:
     def get_face_embeddings(self, cropped_images):
         embeddings = self.rec_model.get_feat(cropped_images)
         return normalize_embeddings(embeddings)
+    
+    def get_frame(self, im0s, i, webcam=False):
+        if webcam:
+            return im0s[i]
+        return im0s
+    
+    def check_raising_hand(self, frame, bbox, full_name, camera_name):
+        if not self.media_manager.raise_hand:
+            return
+        cropped_expand_image = expand_and_crop_image(frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
+
+        if is_hand_opened_in_image(cropped_expand_image) and is_person_raising_hand_image(cropped_expand_image):
+            message = f"Học sinh {full_name} giơ tay! [{camera_name}]"
+            send_notification(message)
 
     def run_inference(self):
         """
@@ -143,10 +157,7 @@ class InsightFaceDetector:
 
             # Crop all faces
             for i, det in enumerate(pred):
-                if self.media_manager.webcam:  
-                    im0 = im0s[i].copy()
-                else:
-                    im0 = im0s.copy()
+                im0 = self.get_frame(im0s, i, self.media_manager.webcam)
 
                 if det is None:
                     face_counts.append(0)
@@ -178,14 +189,16 @@ class InsightFaceDetector:
                     all_embeddings = self.get_face_embeddings(all_cropped_faces)
                     ids = search_ids_mongoDB(all_embeddings, top_k=1, threshold=0.5)
 
-                    if self.media_manager.raise_hand:
+                    if self.media_manager.check_small_face or self.media_manager.face_emotion:
                         start_idx = 0
 
                         for img_index, im0 in enumerate(im0s):
+                            im0 = self.get_frame(im0s, img_index, self.media_manager.webcam)
+                            
                             metadata_for_image = [meta for meta in metadata if meta["image_index"] == img_index]
                             ids_for_image = ids[start_idx:start_idx + len(metadata_for_image)] if self.media_manager.face_recognition else []
 
-                            for meta, id_info in zip(metadata_for_image, ids_for_image):
+                            for meta_idx, (meta, id_info) in enumerate(zip(metadata_for_image, ids_for_image)):
                                 bbox = np.array(meta["bbox"][:4], dtype=int)
 
                                 if id_info:
@@ -193,13 +206,27 @@ class InsightFaceDetector:
                                     if self.media_manager.face_emotion:
                                         emotion = self.fer_class.get_dominant_emotion(self.fer_class.analyze_face(im0, bbox))[0]
                                         emotions.append(emotion)
+ 
+                                    self.check_raising_hand(im0, bbox, id_info[0]['full_name'], camera_name=self.media_manager.camera_names[img_index] if self.media_manager.webcam else "Photo")
 
-                                    if self.media_manager.raise_hand:
-                                        cropped_image = expand_and_crop_image(im0, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
+                                    cropped_image = crop_image(im0, bbox)
+                                    restored_img = self.gfpgan_model.inference(cropped_image)
+                                    embedding = self.get_face_embeddings(restored_img)
+                                    new_id = search_ids_mongoDB(embedding, top_k=1, threshold=0.5)
+                            
+                                    if new_id:
+                                        ids[start_idx + meta_idx] = new_id[0]
 
-                                        if is_hand_opened_in_image(cropped_image) and is_person_raising_hand_image(cropped_image):
-                                            broadcast_message(server, f"Học sinh {id_info[0]['full_name']} giơ tay!")  # Gửi thông báo
                                 else:
+                                    # if self.media_manager.check_small_face and is_small_face(bbox=bbox, min_size=50):
+                                    #     cropped_image = crop_image(im0, bbox)
+                                    #     restored_img = self.gfpgan_model.inference(cropped_image)
+                                    #     embedding = self.get_face_embeddings(restored_img)
+                                    #     new_id = search_ids_mongoDB(embedding, top_k=1, threshold=0.5)
+                                
+                                    #     if new_id:
+                                    #         ids[start_idx + meta_idx] = new_id[0]
+          
                                     emotions.append(None)
                             start_idx += len(metadata_for_image)
 
