@@ -473,9 +473,10 @@ class InsightFaceDetector:
 
                         label = f"{id} {similarity} | {emotion} {emotion_prob}"
             
-                        if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
-                            if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
-                                label = None
+                        # if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
+
+                        if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
+                            label = None
 
                             color = (0, int(255 * bbox[4]), int(255 * (1 - bbox[4])))
                             annotator.box_label(bbox, label, color=color)
@@ -489,7 +490,7 @@ class InsightFaceDetector:
                 await asyncio.sleep(0)
 
                 if self.media_manager.view_img:
-                    if platform.system() == 'Linux' and p not in windows:
+                    if pla tform.system() == 'Linux' and p not in windows:
                         windows.append(p)
                         cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
                         cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])

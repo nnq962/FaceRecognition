@@ -7,7 +7,7 @@ async def main():
     media_manager = MediaManager(
         source='0',
         save=False,
-        face_recognition=False,
+        face_recognition=True,
         face_emotion=False,
         check_small_face=False,
         streaming=False,

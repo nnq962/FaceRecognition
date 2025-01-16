@@ -16,6 +16,7 @@ users_collection = db["camera_users"]
 
 # Detect the operating system
 current_os = platform.system()
+save_path = f"/Users/quyetnguyen/static"
 
 if current_os == "Darwin":  # macOS
     faiss.omp_set_num_threads(1)  # Limit FAISS to use 1 thread
@@ -181,7 +182,7 @@ def search_ids(embeddings, index_path="data_base/face_index.faiss", mapping_path
 
     return all_results
 
-def search_ids_mongoDB(embeddings, index_path="data_base/face_index_new.faiss", top_k=1, threshold=0.5):
+def search_ids_mongoDB(embeddings, index_path=save_path + "data_base/face_index.faiss", top_k=1, threshold=0.5):
     """
     Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu MongoDB dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
 
