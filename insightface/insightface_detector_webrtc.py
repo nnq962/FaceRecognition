@@ -20,6 +20,14 @@ import onnxruntime as ort
 ort.set_default_logger_severity(3)
 import numpy as np
 from datetime import datetime
+from aiohttp import web
+from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription
+import json
+from av import VideoFrame
+from fractions import Fraction
+import asyncio
+import ssl
+
 
 class InsightFaceDetector:
     """
@@ -34,6 +42,12 @@ class InsightFaceDetector:
         self.det_model = None
         self.rec_model = None
         self.media_manager = media_manager
+        self.frame = None  # Biến lưu frame hiện tại để gửi qua WebRTC
+        self.pc = None  # PeerConnection
+        self.app = web.Application()  # WebRTC server
+
+        self.app.router.add_post("/offer", self.offer)
+        self.app.router.add_get("/", self.index)      
 
         if self.media_manager is not None:
             self.dataset = self.media_manager.get_dataloader()
@@ -46,6 +60,88 @@ class InsightFaceDetector:
                 self.media_manager.init_stream()
 
         self.load_model()
+    
+    async def offer(self, request):
+        """
+        Xử lý WebRTC offer từ client.
+        """
+        params = await request.json()
+        offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+
+        self.pc = RTCPeerConnection()
+        print("PeerConnection created")
+
+        # Thêm video track
+        video_track = self.VideoStreamTrack(self)
+        self.pc.addTrack(video_track)
+        print("Added video track from AI detector")
+
+        await self.pc.setRemoteDescription(offer)
+        print("Set remote description")
+        answer = await self.pc.createAnswer()
+        await self.pc.setLocalDescription(answer)
+        print("Set local description")
+
+        return web.Response(
+            content_type="application/json",
+            text=json.dumps(
+                {"sdp": self.pc.localDescription.sdp, "type": self.pc.localDescription.type}
+            ),
+        )
+    
+    async def index(self, request):
+        """
+        Serve the client HTML file for accessing the video stream.
+        """
+        try:
+            with open("client_webrtc.html", "r") as f:  # Đảm bảo file này nằm cùng thư mục chạy
+                content = f.read()
+            return web.Response(content_type="text/html", text=content)
+        except FileNotFoundError:
+            return web.Response(status=404, text="HTML file not found")
+    
+    class VideoStreamTrack(MediaStreamTrack):
+        """
+        Track video để gửi frame từ AI detector qua WebRTC.
+        """
+        kind = "video"
+
+        def __init__(self, detector):
+            super().__init__()
+            self.detector = detector
+
+        async def recv(self):
+            while True:
+                if self.detector.frame is not None:
+                    frame = self.detector.frame
+                    break
+                await asyncio.sleep(0.01)  # Đợi frame mới
+
+            # Chuyển frame thành VideoFrame
+            video_frame = VideoFrame.from_ndarray(frame, format="bgr24")
+            video_frame.pts = time.time_ns() // 1000
+            video_frame.time_base = Fraction(1, 1000000)  # Microseconds
+
+            await asyncio.sleep(1 / 30)  # Đặt tốc độ khung hình (30 FPS)
+            return video_frame
+
+    async def run_webrtc_server(self):
+        """
+        Chạy WebRTC server với HTTPS.
+        """
+        print("-" * 70)
+        print("Starting WebRTC server with HTTPS...")
+
+        # Tạo context SSL
+        ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_context.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
+
+        runner = web.AppRunner(self.app)
+        await runner.setup()
+        site = web.TCPSite(runner, host="0.0.0.0", port=9090, ssl_context=ssl_context)
+        await site.start()
+        print("WebRTC server running at https://0.0.0.0:9090")
+        print("-" * 70)
 
     def load_model(self):
         """Load detection and recognition models"""
@@ -182,7 +278,7 @@ class InsightFaceDetector:
         
         return None
         
-    def run_inference(self):
+    async def run_inference(self):
         """
         Run inference on images/video and display results
         """
@@ -389,6 +485,9 @@ class InsightFaceDetector:
                 
                 # Stream results
                 im0 = annotator.result()
+                self.frame = im0
+                await asyncio.sleep(0)
+
                 if self.media_manager.view_img:
                     if platform.system() == 'Linux' and p not in windows:
                         windows.append(p)

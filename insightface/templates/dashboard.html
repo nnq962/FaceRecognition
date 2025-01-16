@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        /* Thêm CSS để căn chỉnh logout sang lề phải */
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .nav-links {
+            display: flex;
+            gap: 10px;
+        }
+        .nav-logout {
+            margin-left: auto;
+        }
+        .on-time { color: green; }
+        .late { color: red; }
+    </style>
+    <script>
+        // Hàm lấy dữ liệu từ API và cập nhật bảng
+        function updateAttendance() {
+            fetch('/api/get_attendance')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.querySelector('#attendance-table tbody');
+                    tbody.innerHTML = ''; // Xóa dữ liệu cũ
+
+                    // Thêm dữ liệu mới
+                    data.forEach(employee => {
+                        const row = `
+                            <tr>
+                                <td>${employee.id}</td>
+                                <td>${employee.name}</td>
+                                <td class="${employee.first_seen <= '08:00' ? 'on-time' : 'late'}">
+                                    ${employee.first_seen}
+                                </td>
+                                <td class="${employee.last_seen >= '17:30' ? 'on-time' : 'late'}">
+                                    ${employee.last_seen}
+                                </td>
+                            </tr>
+                        `;
+                        tbody.innerHTML += row;
+                    });
+                })
+                .catch(error => console.error('Error fetching attendance:', error));
+        }
+
+        // Cập nhật dữ liệu mỗi 5 giây
+        setInterval(updateAttendance, 5000);
+
+        // Tải dữ liệu lần đầu khi trang được load
+        document.addEventListener('DOMContentLoaded', updateAttendance);
+    </script>
+</head>
+<body>
+    <header>
+        <h1>Employee Management</h1>
+        <nav>
+            <!-- Các liên kết điều hướng -->
+            <div class="nav-links">
+                <a href="/video">Video Stream</a>
+                <a href="/manage_employees">Manage Employees</a>
+                <a href="/manage_managers">Manage Managers</a>
+                <a href="/export/employees" class="btn">Export Employees (CSV)</a>
+            </div>
+            <!-- Logout căn sang lề phải -->
+            <div class="nav-logout">
+                <a href="/logout">Logout</a>
+            </div>
+        </nav>
+    </header>
+    <main>
+        <h2>Employee Attendance</h2>
+        <table id="attendance-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Nội dung sẽ được cập nhật qua AJAX -->
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>

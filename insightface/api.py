@@ -6,7 +6,9 @@ import io
 import csv
 import shutil
 from insightface_detector import InsightFaceDetector
-from build_database import update_embeddings_for_all_users, create_faiss_index_with_mongo_id_cosine
+from build_database import process_image
+import faiss
+import numpy as np
 
 app = Flask(__name__)
 detector = InsightFaceDetector()
@@ -14,46 +16,188 @@ detector = InsightFaceDetector()
 # Kết nối tới MongoDB
 client = MongoClient("mongodb://localhost:27017/") 
 db = client["my_database"] 
-users_collection = db["camera_users"]
-managers_collection = db["camera_managers"]
+users_collection = db["users"]
+managers_collection = db["managers"]
 camera_collection = db["camera_information"]
 data_collection = db["camera_data"]
 
+save_path = f"/Users/quyetnguyen/static"
+
 # ----------------------------------------------------------------
-@app.route('/add_user', methods=['POST'])
+def update_all_faiss_index(output_path=save_path + "/data_base/face_index_new.faiss"):
+    embeddings = []
+    ids = []
+
+    # Lấy tất cả người dùng từ MongoDB
+    users = list(users_collection.find())
+    for user in users:
+        user_id = user["_id"]  # ID của người dùng
+        face_embeddings = user.get("face_embeddings", [])  # Lấy danh sách face_embeddings
+
+        # Duyệt qua tất cả face_embeddings và thêm vào danh sách
+        for embedding in face_embeddings:
+            embeddings.append(embedding)  # Thêm embedding vào danh sách
+            ids.append(user_id)  # Dùng MongoDB `_id` làm ID
+
+    if len(embeddings) == 0:
+        print("No embeddings found in the database.")
+        return
+
+    # Chuyển embeddings thành numpy array
+    embeddings_array = np.array(embeddings, dtype="float32")
+    ids_array = np.array(ids, dtype=np.int64)  # FAISS yêu cầu ID là kiểu số nguyên
+
+    # Tạo FAISS index với Inner Product (cho Cosine Similarity)
+    dimension = embeddings_array.shape[1]
+    index = faiss.IndexFlatIP(dimension)  # Inner Product để tính Cosine Similarity
+    index_with_id = faiss.IndexIDMap(index)
+
+    # Thêm embeddings và IDs vào FAISS
+    index_with_id.add_with_ids(embeddings_array, ids_array)
+
+    # Ghi FAISS index ra tệp
+    faiss.write_index(index_with_id, output_path)
+    print(f"FAISS index (Cosine Similarity) saved to {output_path}")
+
+# ----------------------------------------------------------------
+def update_faiss_index(new_embedding, user_id, index_path=save_path + "/data_base/face_index.faiss"):
+    # Kiểm tra nếu tệp FAISS index đã tồn tại
+    if os.path.exists(index_path):
+        # Tải FAISS index hiện tại
+        index = faiss.read_index(index_path)
+    else:
+        # Tạo FAISS index mới nếu chưa tồn tại
+        dimension = len(new_embedding)
+        index = faiss.IndexIDMap(faiss.IndexFlatIP(dimension))
+
+    # Chuyển đổi embedding và ID sang numpy array
+    embedding_array = np.array([new_embedding], dtype="float32")
+    id_array = np.array([user_id], dtype=np.int64)
+
+    # Thêm embedding mới vào FAISS index
+    index.add_with_ids(embedding_array, id_array)
+
+    # Lưu FAISS index vào tệp
+    faiss.write_index(index, index_path)
+    print(f"Updated FAISS index saved to {index_path}")
+
+# ----------------------------------------------------------------
+@app.route('/api/get_all_users', methods=['GET'])
+def get_all_users():
+    users = list(users_collection.find())
+    return jsonify(users)
+
+# ----------------------------------------------------------------
+@app.route('/api/add_user', methods=['POST'])
 def add_user():
     data = request.json
-
-    # Kiểm tra dữ liệu đầu vào
-    required_fields = ["full_name", "username", "password", "department_id"]
+    required_fields = ["full_name", "department_id"]
     if not all(field in data for field in required_fields):
         return jsonify({"error": "Missing required fields"}), 400
 
     # Tạo ID tự động tăng dần
-    last_user = users_collection.find_one(sort=[("_id", -1)])  # Lấy user có _id lớn nhất
-    user_id = last_user["_id"] + 1 if last_user else 1  # Tăng ID nếu có, bắt đầu từ 1 nếu chưa có user nào
+    last_user = users_collection.find_one(sort=[("_id", -1)])
+    user_id = last_user["_id"] + 1 if last_user else 1
 
+    # Tạo đường dẫn thư mục cho user
+    folder_path = f"{save_path}/uploads/user_{user_id}"
+    
     # Chuẩn bị dữ liệu để thêm vào MongoDB
     user = {
         "_id": user_id,
         "full_name": data["full_name"],
-        "username": data["username"],
-        "password": data["password"],  # Lưu trực tiếp mật khẩu
         "department_id": data["department_id"],
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "photo_folder": folder_path
     }
 
-    # Thêm user vào collection
-    users_collection.insert_one(user)
-    return jsonify({"message": "User added", "id": user_id})
+    try:
+        # Thêm user vào MongoDB
+        users_collection.insert_one(user)
+
+        # Tạo thư mục cho user
+        os.makedirs(folder_path, exist_ok=True)
+
+        return jsonify({"message": "User added", "id": user_id, "photo_folder": folder_path}), 201
+    except Exception as e:
+        return jsonify({"error": f"Failed to add user: {str(e)}"}), 500
 
 # ----------------------------------------------------------------
-# API: Lấy danh sách users
-@app.route('/get_users', methods=['GET'])
-def get_users():
-    users = list(users_collection.find())
-    return jsonify(users)
+@app.route('/api/delete_user/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    try:
+        # Lấy thông tin user từ MongoDB
+        user = users_collection.find_one({"_id": int(user_id)})
+        if not user:
+            return jsonify({"error": "User not found"}), 404
 
+        # Xóa user khỏi MongoDB
+        result = users_collection.delete_one({"_id": int(user_id)})
+        if result.deleted_count == 0:
+            return jsonify({"error": "Failed to delete user"}), 500
+
+        # Xóa thư mục của user
+        folder_path = user.get("photo_folder")
+        if folder_path and os.path.exists(folder_path):
+            shutil.rmtree(folder_path)  # Xóa toàn bộ thư mục và nội dung bên trong
+
+        return jsonify({"message": "User and folder deleted successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete user: {str(e)}"}), 500
+
+# ----------------------------------------------------------------
+@app.route('/api/upload_photo/<user_id>', methods=['POST'])
+def upload_photo(user_id):
+    if 'photo' not in request.files:
+        return jsonify({"error": "No photo uploaded"}), 400
+
+    photo = request.files['photo']
+
+    # Lấy thông tin user từ MongoDB
+    user = users_collection.find_one({"_id": int(user_id)})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Đường dẫn thư mục của user
+    folder_path = user.get("photo_folder")
+    if not folder_path:
+        return jsonify({"error": "User folder not found"}), 500
+
+    try:
+        # Đảm bảo thư mục tồn tại
+        os.makedirs(folder_path, exist_ok=True)
+
+        # Lưu ảnh vào thư mục
+        filename = f"{photo.filename}"
+        file_path = os.path.join(folder_path, filename)
+        photo.save(file_path)
+
+        # Lấy đặc trưng khuôn mặt từ hàm `process_image`
+        try:
+            face_embedding = process_image(file_path, detector)
+
+            if face_embedding is not None:
+                # Lưu đặc trưng khuôn mặt vào MongoDB
+                face_embedding = face_embedding.tolist()
+
+                users_collection.update_one(
+                    {"_id": int(user_id)},
+                    {"$push": {"face_embeddings": face_embedding}}
+                )
+
+                # Cập nhật FAISS index với embedding mới
+                update_faiss_index(face_embedding, int(user_id))
+
+                return jsonify({"message": "Photo uploaded and face features saved"}), 200
+            else:
+                return jsonify({"error": "No face detected in the image"}), 400
+
+        except Exception as e:
+            return jsonify({"error": f"Failed to process image: {str(e)}"}), 500
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to upload photo: {str(e)}"}), 500
+    
 # ----------------------------------------------------------------
 @app.route('/delete_image', methods=['DELETE'])
 def delete_image():
@@ -103,187 +247,57 @@ def delete_image():
             return jsonify({"error": "Image file not found in the directory"}), 404
     except Exception as e:
         return jsonify({"error": f"Failed to delete image: {str(e)}"}), 500
-# ----------------------------------------------------------------
-
-# Tạo API thêm ảnh cho user
-@app.route('/add_image', methods=['POST'])
-def add_image():
-    data = request.json
-
-    # Kiểm tra đầu vào
-    required_fields = ["username", "password", "image_path"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    username = data["username"]
-    password = data["password"]
-    image_path = data["image_path"]
-
-    # Kiểm tra user có tồn tại và mật khẩu đúng không
-    user = users_collection.find_one({"username": username, "password": password})
-    if not user:
-        return jsonify({"error": "Invalid username or password"}), 401
-
-    # Lấy _id của user và tạo thư mục nếu chưa tồn tại
-    user_id = user["_id"]
-    user_dir = f"data_set/{user_id}"
-    os.makedirs(user_dir, exist_ok=True)
-
-    # Sao chép ảnh vào thư mục user
-    try:
-        if os.path.exists(image_path):  # Kiểm tra đường dẫn ảnh có tồn tại
-            file_name = os.path.basename(image_path)
-            new_path = os.path.join(user_dir, file_name)
-
-            # Kiểm tra xem ảnh đã tồn tại trong thư mục đích chưa
-            if os.path.exists(new_path):
-                return jsonify({"error": "Image already exists in the destination"}), 409
-
-            # Sao chép ảnh
-            shutil.copy(image_path, new_path)
-
-            # Cập nhật đường dẫn ảnh trong MongoDB
-            users_collection.update_one(
-                {"_id": user_id},
-                {"$push": {"images": {"path": new_path}}}            
-            )
-
-            # Gọi các hàm chỉ khi việc thêm ảnh thành công
-            try:
-                update_embeddings_for_all_users(detector=detector)
-                create_faiss_index_with_mongo_id_cosine()
-            except Exception as e:
-                return jsonify({"error": f"Failed to update embeddings or FAISS index: {str(e)}"}), 500
-
-            return jsonify({"message": "Image added successfully", "image_path": new_path}), 200
-        else:
-            return jsonify({"error": "Image file not found"}), 404
-    except Exception as e:
-        return jsonify({"error": f"Failed to add image: {str(e)}"}), 50
-# ----------------------------------------------------------------
-@app.route('/delete_user', methods=['DELETE'])
-def delete_user():
-    data = request.json
-
-    # Kiểm tra đầu vào
-    required_fields = ["username", "password"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    username = data["username"]
-    password = data["password"]
-
-    # Kiểm tra user có tồn tại và mật khẩu đúng không
-    user = users_collection.find_one({"username": username, "password": password})
-    if not user:
-        return jsonify({"error": "Invalid username or password"}), 401
-
-    # Xóa user khỏi MongoDB
-    user_id = user["_id"]
-    result = users_collection.delete_one({"_id": user_id})
-
-    # Xóa thư mục chứa ảnh của user
-    user_dir = f"data_set/{user_id}"
-    if os.path.exists(user_dir):
-        try:
-            import shutil
-            shutil.rmtree(user_dir)  # Xóa toàn bộ thư mục
-        except Exception as e:
-            return jsonify({"error": f"Failed to delete user folder: {str(e)}"}), 500
-
-    if result.deleted_count > 0:
-
-        # Gọi các hàm chỉ khi việc xoá user thành công
-        try:
-            update_embeddings_for_all_users(detector=detector)
-            create_faiss_index_with_mongo_id_cosine()
-        except Exception as e:
-            return jsonify({"error": f"Failed to update embeddings or FAISS index: {str(e)}"}), 500
-        
-        return jsonify({"message": "User deleted successfully"}), 200
-    else:
-        return jsonify({"error": "Failed to delete user"}), 500
 
 # ----------------------------------------------------------------
-@app.route('/add_camera_manager', methods=['POST'])
-def add_camera_manager():
+@app.route('/api/get_all_managers', methods=['GET'])
+def get_all_managers():
+    managers = list(managers_collection.find({}, {"_id": 1, "fullname": 1, "department_id": 1, "username": 1}))
+    for manager in managers:
+        manager["_id"] = str(manager["_id"])
+    return jsonify(managers), 200
+
+# ----------------------------------------------------------------
+@app.route('/api/add_manager', methods=['POST'])
+def add_manager():
     data = request.json
 
     # Kiểm tra dữ liệu đầu vào
-    required_fields = ["camera_id", "fullname", "department_id", "username", "password"]
+    required_fields = ["fullname", "department_id", "username", "password"]
     if not all(field in data for field in required_fields):
         return jsonify({"error": "Missing required fields"}), 400
 
-    camera_id = data["camera_id"]
-    fullname = data["fullname"]
-    department_id = data["department_id"]
-    username = data["username"]
-    password = data["password"]
+    # Kiểm tra username đã tồn tại chưa
+    existing_manager = managers_collection.find_one({"username": data["username"]})
+    if existing_manager:
+        return jsonify({"error": "Username already exists"}), 409  # 409: Conflict
 
-    # Kiểm tra camera_id hợp lệ
-    if camera_id not in [1, 2]:
-        return jsonify({"error": "Invalid camera_id, must be 1 or 2"}), 400
-
-    # Xác định tên camera và địa chỉ dựa trên camera_id
-    camera_name = f"rtsp_camera_{camera_id}"
-    camera_address = f"rtsp://192.168.1.142:8554/stream{camera_id}"
-
-    # Tạo ID tự động tăng dần cho camera manager
+    # Tạo ID tự động tăng dần
     last_manager = managers_collection.find_one(sort=[("_id", -1)])
     manager_id = last_manager["_id"] + 1 if last_manager else 1
 
-    # Chuẩn bị dữ liệu để thêm vào MongoDB
-    camera_manager = {
+    # Thêm manager vào MongoDB
+    manager = {
         "_id": manager_id,
-        "camera_id": camera_id,
-        "fullname": fullname,
-        "department_id": department_id,
-        "username": username,
-        "password": password,  # Lưu mật khẩu trực tiếp
-        "camera_name": camera_name,
-        "camera_address": camera_address,
+        "fullname": data["fullname"],
+        "department_id": data["department_id"],
+        "username": data["username"],
+        "password": data["password"],
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     }
 
-    # Thêm camera manager vào collection
-    managers_collection.insert_one(camera_manager)
-    return jsonify({
-        "message": "Camera manager added successfully",
-        "id": manager_id,
-        "fullname": fullname,
-        "department_id": department_id,
-        "username": username,
-        "camera_name": camera_name,
-        "camera_address": camera_address
-    })
+    try:
+        managers_collection.insert_one(manager)
+        return jsonify({"message": "Manager added", "id": manager_id}), 201
+    except Exception as e:
+        return jsonify({"error": f"Failed to add manager: {str(e)}"}), 500
+
 # ----------------------------------------------------------------
-@app.route('/delete_camera_manager', methods=['DELETE'])
-def delete_camera_manager():
-    data = request.json
-
-    # Kiểm tra dữ liệu đầu vào
-    required_fields = ["username", "password"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    username = data["username"]
-    password = data["password"]
-
-    # Kiểm tra camera manager có tồn tại và mật khẩu đúng không
-    manager = managers_collection.find_one({"username": username, "password": password})
-    if not manager:
-        return jsonify({"error": "Invalid username or password"}), 401
-
-    # Lấy _id của camera manager để xử lý xóa
-    manager_id = manager["_id"]
-
-    # Xóa camera manager khỏi MongoDB
-    result = managers_collection.delete_one({"_id": manager_id})
-
-    if result.deleted_count > 0:
-        return jsonify({"message": "Camera manager deleted successfully"}), 200
-    else:
-        return jsonify({"error": "Failed to delete camera manager"}), 500
+@app.route('/api/delete_manager/<manager_id>', methods=['DELETE'])
+def delete_manager(manager_id):
+    result = managers_collection.delete_one({"_id": int(manager_id)})
+    if result.deleted_count == 0:
+        return jsonify({"error": "Manager not found"}), 404
+    return jsonify({"message": "Manager deleted"}), 200
 
 # ----------------------------------------------------------------
 @app.route('/add_camera', methods=['POST'])
@@ -400,6 +414,7 @@ def emotion_summary():
     }
 
     return jsonify(result), 200
+
 # ----------------------------------------------------------------
 @app.route('/get_tracking_data', methods=['POST'])
 def get_tracking_data():
@@ -449,8 +464,8 @@ def get_tracking_data():
         "tracking_data": tracking_data
     }
     return jsonify(result), 200
-# ----------------------------------------------------------------
 
+# ----------------------------------------------------------------
 @app.route('/get_tracking_data_csv', methods=['POST'])
 def get_tracking_data_csv():
     data = request.json
@@ -496,6 +511,84 @@ def get_tracking_data_csv():
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment;filename=tracking_data.csv"}
     )
+
+# ----------------------------------------------------------------
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.json  # Dữ liệu từ client gửi lên
+    username = data.get('username')
+    password = data.get('password')
+
+    # Tìm manager trong MongoDB
+    manager = managers_collection.find_one({"username": username})
+    if not manager:
+        return jsonify({"success": False, "message": "Username not found"}), 404
+
+    # So khớp mật khẩu
+    if manager["password"] == password:  # Bạn có thể dùng hash để bảo mật hơn
+        return jsonify({
+            "success": True,
+            "message": "Login successful",
+            "data": {
+                "fullname": manager["fullname"],
+                "department_id": manager["department_id"],
+                "username": manager["username"],
+                "created_at": manager["created_at"]
+            }
+        }), 200
+    else:
+        return jsonify({"success": False, "message": "Incorrect password"}), 401
+    
+# ----------------------------------------------------------------
+@app.route('/api/get_attendance', methods=['GET'])
+def get_attendance():
+    try:
+        # Lấy ngày hiện tại
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        # Lấy tất cả bản ghi trong ngày hôm nay
+        records = list(data_collection.find({
+            "timestamp": {"$regex": f"^{today}"}
+        }))
+
+        # Dữ liệu tạm để lưu kết quả
+        attendance = {}
+
+        # Lọc lần đầu tiên và cuối cùng cho mỗi ID
+        for record in records:
+            employee_id = record["id"]
+            timestamp = record["timestamp"]
+
+            if employee_id not in attendance:
+                attendance[employee_id] = {
+                    "first_seen": timestamp,
+                    "last_seen": timestamp
+                }
+            else:
+                # Cập nhật thời gian đầu tiên và cuối cùng
+                if timestamp < attendance[employee_id]["first_seen"]:
+                    attendance[employee_id]["first_seen"] = timestamp
+                if timestamp > attendance[employee_id]["last_seen"]:
+                    attendance[employee_id]["last_seen"] = timestamp
+
+        # Lấy thông tin tên từ users collection
+        attendance_list = []
+        for emp_id, data in attendance.items():
+            user = users_collection.find_one({"_id": emp_id})
+            name = user["full_name"] if user else f"Unknown ({emp_id})"
+
+            # Thêm vào danh sách kết quả với định dạng thời gian chuẩn
+            attendance_list.append({
+                "id": emp_id,
+                "name": name,
+                "first_seen": datetime.strptime(data["first_seen"], "%Y-%m-%d %H:%M:%S").strftime("%H:%M"),
+                "last_seen": datetime.strptime(data["last_seen"], "%Y-%m-%d %H:%M:%S").strftime("%H:%M"),
+            })
+
+        return jsonify(attendance_list), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 
 # Chạy ứng dụng Flask
 if __name__ == "__main__":

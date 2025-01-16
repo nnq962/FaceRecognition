@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Employees</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <header>
+        <h1>Manage Employees</h1>
+        <nav>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/logout">Logout</a>
+        </nav>
+    </header>
+    <main>
+        <!-- Thông báo -->
+        {% if message %}
+        <p style="color: green;">{{ message }}</p>
+        {% endif %}
+        
+        <form method="POST" action="/manage_employees">
+            <input type="text" name="full_name" placeholder="Full Name" required>
+            <input type="text" name="department_id" placeholder="Department ID" required>
+            <button type="submit">Add Employee</button>
+        </form>
+
+        <!-- Danh sách nhân viên -->
+        <h2>Employee List</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Full Name</th>
+                    <th>Department</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for employee in employees %}
+                <tr>
+                    <td>{{ employee._id }}</td>
+                    <td>{{ employee.full_name }}</td>
+                    <td>{{ employee.department_id }}</td>
+                    <td>{{ employee.created_at }}</td>
+                    <td>
+                        <!-- Nút xóa user -->
+                        <form method="POST" action="/delete_employee" style="display: inline;">
+                            <input type="hidden" name="employee_id" value="{{ employee._id }}">
+                            <button type="submit">Delete</button>
+                        </form>
+
+                        <!-- Form upload ảnh -->
+                        <form method="POST" action="/upload_photo" enctype="multipart/form-data" style="display: inline;">
+                            <input type="hidden" name="employee_id" value="{{ employee._id }}">
+                            <input type="file" name="photo" required>
+                            <button type="submit">Upload Photo</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </main>
+</body>
+</html>

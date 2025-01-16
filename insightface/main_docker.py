@@ -4,12 +4,13 @@ from update_basicsr import update_import
 
 # Update basicsr model
 update_import(file_path="/usr/local/lib/python3.10/dist-packages/basicsr/data/degradations.py")
-update_import(file_path="/home/pc/.conda/envs/nnq/lib/python3.10/site-packages/basicsr/data/degradations.py")
+update_import(file_path="/home/pc/.conda/envs/nnq_env/lib/python3.10/site-packages/basicsr/data/degradations.py")
 
 import argparse
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
-from get_ip_address_camera import get_ip_from_mac, generate_rtsp_urls
+from get_ip_address_camera import create_rtsp_urls_from_mongo
+from websocket_server import start_ws_server
 
 # Chạy api.py trong một luồng riêng
 def run_api():
@@ -19,32 +20,33 @@ def run_api():
 api_thread = threading.Thread(target=run_api)
 api_thread.start()
 
-mac_credentials = {
-    "a8:31:62:a3:30:cf": ("admin", "L2620AE7"),
-    "a8:31:62:a3:30:c7": ("admin", "L2A3A7AC"),
-}
+def process_source(source_arg):
+    if source_arg.isdigit():
+        camera_ids = [int(source_arg)]
+        rtsp_urls = create_rtsp_urls_from_mongo(camera_ids)
+        if rtsp_urls:
+            return rtsp_urls[0]
 
-mac_addresses = list(mac_credentials.keys())
-mac_to_ip = get_ip_from_mac(mac_addresses)
-rtsp_urls = generate_rtsp_urls(mac_to_ip, mac_credentials)
+    if "," in source_arg:
+        device_ids = source_arg.split(",")
+        devices = []
+        for device_id in device_ids:
+            if device_id.isdigit():
+                devices.append(device_id)
+            else:
+                try:
+                    camera_ids = [int(id.strip()) for id in device_id.split(",") if id.strip().isdigit()]
+                    rtsp_urls = create_rtsp_urls_from_mongo(camera_ids)
+                    devices.extend(rtsp_urls)
+                except Exception as e:
+                    print(f"Error retrieving RTSP URLs: {e}")
+                    return None
+        with open("device.txt", "w") as f:
+            for device in devices:
+                f.write(f"{device}\n")
+        return "device.txt"
 
-def process_source_argument(source, rtsp_urls):
-    if source.isdigit():
-        return int(source)
-    elif source.startswith("rtsp_camera_"):
-        try:
-            index = int(source.split("_")[-1]) - 1
-            return rtsp_urls[index]
-        except (ValueError, IndexError):
-            raise ValueError(f"Invalid camera name: {source}")
-    elif source == "all_rtsp_camera":
-        file_path = "device.txt"
-        with open(file_path, "w") as f:
-            for url in rtsp_urls:
-                f.write(url + "\n")
-        return file_path
-    else:
-        raise ValueError(f"Invalid source: {source}")
+    return source_arg
 
 parser = argparse.ArgumentParser(description="Run face detection and analysis.")
 parser.add_argument("--source", type=str, required=True, help="Source for the media (e.g., '0' for webcam or a video file path).")
@@ -56,15 +58,21 @@ parser.add_argument("--streaming", action="store_true", help="Enable streaming m
 parser.add_argument("--export_data", action="store_true", help="Enable data export.")
 parser.add_argument("--time_to_save", type=int, default=5, help="Time interval (in seconds) to save exported data.")
 parser.add_argument("--show_time_process", action="store_true", help="Enable display of process time.")
+parser.add_argument("--raise_hand", action="store_true", help="Enable raise hand detection.")
 
 args = parser.parse_args()
 
-try:
-    processed_source = process_source_argument(args.source, rtsp_urls)
-    print(f"\nProcessed source: {processed_source}\n")
-except ValueError as e:
-    print(f"Error: {e}")
+processed_source = process_source(args.source)
+if processed_source is None:
+    print("Failed to process --source. Exiting.")
     exit(1)
+
+if isinstance(processed_source, str) and processed_source == "device.txt":
+    print("\nGenerated device.txt with the following sources:")
+    with open(processed_source, "r") as f:
+        print(f.read())
+else:
+    print(f"\nProcessing source: {processed_source}\n")
 
 media_manager = MediaManager(
     source=processed_source,
@@ -75,8 +83,12 @@ media_manager = MediaManager(
     streaming=args.streaming,
     export_data=args.export_data,
     time_to_save=args.time_to_save,
-    show_time_process=args.show_time_process
+    show_time_process=args.show_time_process,
+    raise_hand=args.raise_hand
 )
+
+if args.raise_hand:
+    start_ws_server()
 
 detector = InsightFaceDetector(media_manager=media_manager)
 detector.run_inference()

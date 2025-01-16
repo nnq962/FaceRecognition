@@ -1,0 +1,428 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>550</width>
+    <height>430</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>550</width>
+    <height>430</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>550</width>
+    <height>430</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <property name="animated">
+   <bool>false</bool>
+  </property>
+  <property name="tabShape">
+   <enum>QTabWidget::Rounded</enum>
+  </property>
+  <property name="unifiedTitleAndToolBarOnMac">
+   <bool>false</bool>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QPushButton" name="get_users_button">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>20</y>
+      <width>120</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #3498db; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #2980b9; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2980b9; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Get all users</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="add_user_button">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>90</y>
+      <width>120</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #3498db; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #2980b9; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2980b9; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Add user</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="delete_user_button">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>300</y>
+      <width>120</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #3498db; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #2980b9; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2980b9; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Delete user</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="add_image_button">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>160</y>
+      <width>120</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #3498db; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #2980b9; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2980b9; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Add image</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="delete_image_button">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>230</y>
+      <width>120</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #3498db; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #2980b9; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2980b9; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Delete image</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="add_camera_manager_button">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>20</y>
+      <width>161</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #27ae60; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #1e8449; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2ecc71; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Add camera manager</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="delete_camera_manager_button">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>90</y>
+      <width>161</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #27ae60; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #1e8449; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2ecc71; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Delete camera manager</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="delete_camera_info_button">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>160</y>
+      <width>161</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #27ae60; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #1e8449; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2ecc71; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Add camera info</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="get_emotion_summary_button">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>230</y>
+      <width>161</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #27ae60; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #1e8449; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2ecc71; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Get emotion summary</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="get_tracking_data_button">
+    <property name="geometry">
+     <rect>
+      <x>160</x>
+      <y>300</y>
+      <width>161</width>
+      <height>50</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QPushButton {
+    border-radius: 10px; /* Bo góc với bán kính 15 pixel */
+    background-color: #27ae60; /* Màu nền */
+    color: white; /* Màu chữ */
+    border: 2px solid #1e8449; /* Đường viền */
+	font: 14pt &quot;.AppleSystemUIFont&quot;;
+}
+QPushButton:hover {
+    background-color: #2ecc71; /* Màu nền khi trỏ chuột vào nút */
+}
+</string>
+    </property>
+    <property name="text">
+     <string>Add camera info</string>
+    </property>
+    <property name="iconSize">
+     <size>
+      <width>16</width>
+      <height>16</height>
+     </size>
+    </property>
+    <property name="autoDefault">
+     <bool>false</bool>
+    </property>
+   </widget>
+   <widget class="QWidget" name="layoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>370</x>
+      <y>20</y>
+      <width>161</width>
+      <height>61</height>
+     </rect>
+    </property>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <property name="sizeConstraint">
+      <enum>QLayout::SetDefaultConstraint</enum>
+     </property>
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <item>
+      <widget class="QLineEdit" name="cameraInput">
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+       <property name="placeholderText">
+        <string comment="0">Nhập ID Camera</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="open_camera_button">
+       <property name="text">
+        <string>Open Camera</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

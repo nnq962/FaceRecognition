@@ -2,6 +2,7 @@ from pathlib import Path
 from utils.general import increment_path, check_file, check_imshow
 from utils.dataloaders import LoadImages, LoadStreams, LoadScreenshots, IMG_FORMATS, VID_FORMATS
 import subprocess
+import cv2
 
 
 def ffmpeg2rtsp(rtsp_url, width, height, fps):
@@ -15,8 +16,11 @@ def ffmpeg2rtsp(rtsp_url, width, height, fps):
         '-r', str(fps),  # Tốc độ khung hình
         '-i', '-',  # Đọc từ stdin
         '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-tune', 'zerolatency',
+        '-preset', 'ultrafast',  # Preset để cân bằng hiệu suất và chất lượng
+        '-tune', 'zerolatency',  # Tối ưu hóa độ trễ thấp
+        '-b:v', '1M',  # Giới hạn bitrate video (1Mbps)
+        '-maxrate', '1M',  # Bitrate tối đa
+        '-bufsize', '2M',  # Kích thước bộ đệm
         '-f', 'rtsp',  # Định dạng stream RTSP
         rtsp_url  # URL đích
     ]
@@ -55,7 +59,7 @@ class MediaManager:
                  exist_ok=False,
                  save=False,
                  vid_stride=1,
-                 view_img=True,  # show results
+                 view_img=False,  # show results
                  save_txt=False,  # save results to *.txt
                  save_conf=False,  # save confidences in --save-txt labels
                  save_crop=False,  # save cropped prediction boxes
@@ -178,14 +182,19 @@ class MediaManager:
 
             # Lấy thông số cho từng webcam từ dataset
             frame = self.dataset.imgs[i]  # Frame mẫu từ webcam i
-            height, width = frame.shape[:2]
-            fps = self.dataset.fps[i] if hasattr(self.dataset, 'fps') else 30  # Lấy FPS nếu có, mặc định là 30
+            original_height, original_width = frame.shape[:2]
+            
+            # Giảm độ phân giải và FPS (thay đổi kích thước nếu cần)
+            target_width = 1280  # Độ phân giải mong muốn (VD: 1280x720)
+            target_height = 720
+            target_fps = 15  # FPS giảm xuống (nếu cần)
 
-            print(f"Webcam {i + 1} - Width: {width}, Height: {height}, FPS: {fps}")
+            print(f"Webcam {i + 1} - Original Width: {original_width}, Original Height: {original_height}, FPS: {self.dataset.fps[i]}")
+            print(f"Stream {i + 1} - Target Width: {target_width}, Target Height: {target_height}, Target FPS: {target_fps}")
             print(f"Initializing stream {i + 1} at {rtsp_url}...")
 
-            # Khởi tạo tiến trình FFmpeg
-            ffmpeg_proc = ffmpeg2rtsp(rtsp_url, width, height, fps)
+            # Khởi tạo tiến trình FFmpeg với thông số giảm
+            ffmpeg_proc = ffmpeg2rtsp(rtsp_url, target_width, target_height, target_fps)
             self.ffmpeg_procs.append(ffmpeg_proc)
 
         print(f"{len(self.ffmpeg_procs)} streaming processes initialized.")
@@ -208,7 +217,12 @@ class MediaManager:
         proc = self.ffmpeg_procs[index]  # Lấy tiến trình FFmpeg tương ứng với chỉ số
         if proc and proc.stdin:
             try:
-                proc.stdin.write(frame.tobytes())
+                # Giảm độ phân giải trước khi đẩy vào tiến trình FFmpeg
+                target_width = 1280  # Độ phân giải mục tiêu
+                target_height = 720
+                frame_resized = cv2.resize(frame, (target_width, target_height), interpolation=cv2.INTER_AREA)
+
+                proc.stdin.write(frame_resized.tobytes())
             except BrokenPipeError:
                 print(f"Stream {index + 1} has ended unexpectedly. Restarting process...")
                 # Khởi động lại tiến trình nếu gặp lỗi

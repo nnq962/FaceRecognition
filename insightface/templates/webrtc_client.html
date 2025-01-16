@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Camera Stream</title>
+</head>
+<body>
+    <h1>Multi-Camera WebRTC Stream</h1>
+    <div>
+        <label for="camera-index">Camera Index:</label>
+        <input type="number" id="camera-index" value="0" min="0">
+        <button id="startButton">Start Stream</button>
+    </div>
+    <div id="videos"></div>
+    <script>
+        async function startStream() {
+            const cameraIndex = document.getElementById("camera-index").value;
+            const videosDiv = document.getElementById("videos");
+            const video = document.createElement("video");
+            video.autoplay = true;
+            video.playsinline = true;
+            videosDiv.appendChild(video);
+
+            const pc = new RTCPeerConnection();
+
+            // Lắng nghe các track từ server
+            pc.ontrack = (event) => {
+                console.log(`Track received for camera ${cameraIndex}:`, event.track);
+                video.srcObject = event.streams[0];
+            };
+
+            // Tạo offer và gửi tới server
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            try {
+                const response = await fetch("http://127.0.0.1:5555/offer", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        sdp: pc.localDescription.sdp,
+                        type: pc.localDescription.type,
+                        camera_index: cameraIndex,  // Truyền camera index
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch answer: ${response.statusText}`);
+                }
+
+                const answer = await response.json();
+                await pc.setRemoteDescription(answer);
+            } catch (error) {
+                console.error("Error during WebRTC signaling:", error);
+            }
+        }
+
+        document.getElementById("startButton").addEventListener("click", startStream);
+    </script>
+</body>
+</html>
