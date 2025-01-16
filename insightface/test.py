@@ -1,30 +1,31 @@
-import cv2
+import asyncio
+from insightface_detector_webrtc import InsightFaceDetector
+from media_manager import MediaManager
 
-# Địa chỉ RTSP
-rtsp_url = "rtsp://admin:Admin123@192.168.1.80:554/Streaming/Channels/301"
+async def main():
+    # Tạo media manager và detector
+    media_manager = MediaManager(
+        source='0',
+        save=False,
+        face_recognition=False,
+        face_emotion=False,
+        check_small_face=False,
+        streaming=False,
+        export_data=False,
+        time_to_save=5,
+        show_time_process=False,
+        raise_hand=False,
+        view_img=True
+    )
 
-# Kết nối tới RTSP
-cap = cv2.VideoCapture(rtsp_url)
+    detector = InsightFaceDetector(media_manager=media_manager)
 
-if not cap.isOpened():
-    print("Không thể kết nối đến luồng RTSP. Kiểm tra lại địa chỉ!")
-else:
-    print("Đang hiển thị video...")
+    # Chạy WebRTC server và inference song song
+    await asyncio.gather(
+        detector.run_webrtc_server(),
+        detector.run_inference()
+    )
 
-# Hiển thị video
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Không nhận được khung hình. Kiểm tra kết nối RTSP.")
-        break
 
-    # Hiển thị khung hình
-    cv2.imshow("RTSP Stream", frame)
-
-    # Nhấn 'q' để thoát
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-# Giải phóng tài nguyên
-cap.release()
-cv2.destroyAllWindows()
+if __name__ == "__main__":
+    asyncio.run(main())
