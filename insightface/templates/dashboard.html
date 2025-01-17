@@ -2,11 +2,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- Đảm bảo responsive -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
+    <!-- Link đến file CSS chung -->
     <link rel="stylesheet" href="/static/css/styles.css">
+    <!-- CSS riêng cho dashboard (nếu cần) -->
     <style>
-        /* Thêm CSS để căn chỉnh logout sang lề phải */
+        /* Nếu muốn tùy chỉnh nav tại đây */
         nav {
             display: flex;
             justify-content: space-between;
@@ -19,13 +22,16 @@
         .nav-logout {
             margin-left: auto;
         }
-        .on-time { color: green; }
-        .late { color: red; }
+        /* Màu sắc text header nếu muốn */
+        header h1 {
+            margin: 0;
+        }
     </style>
+    <!-- Script cập nhật attendance -->
     <script>
         // Hàm lấy dữ liệu từ API và cập nhật bảng
         function updateAttendance() {
-            fetch('/api/get_attendance')
+            fetch('http://192.168.1.53:6123/api/get_attendance')
                 .then(response => response.json())
                 .then(data => {
                     const tbody = document.querySelector('#attendance-table tbody');
@@ -52,30 +58,30 @@
         }
 
         // Cập nhật dữ liệu mỗi 5 giây
-        setInterval(updateAttendance, 5000);
+        setInterval(updateAttendance, 1000);
 
         // Tải dữ liệu lần đầu khi trang được load
         document.addEventListener('DOMContentLoaded', updateAttendance);
     </script>
 </head>
 <body>
+    <!-- Header -->
     <header>
         <h1>Employee Management</h1>
         <nav>
-            <!-- Các liên kết điều hướng -->
             <div class="nav-links">
+                <!-- Các liên kết điều hướng -->
                 <a href="/video">Video Stream</a>
                 <a href="/manage_employees">Manage Employees</a>
                 <a href="/manage_managers">Manage Managers</a>
-                <a href="/export/employees" class="btn">Export Employees (CSV)</a>
-            </div>
-            <!-- Logout căn sang lề phải -->
-            <div class="nav-logout">
+                <a href="/export/employees" class="btn">Export Data (CSV)</a>
                 <a href="/logout">Logout</a>
             </div>
         </nav>
     </header>
-    <main>
+
+    <!-- Dashboard Container bo góc -->
+    <div class="dashboard-container">
         <h2>Employee Attendance</h2>
         <table id="attendance-table">
             <thead>
@@ -90,6 +96,6 @@
                 <!-- Nội dung sẽ được cập nhật qua AJAX -->
             </tbody>
         </table>
-    </main>
+    </div>
 </body>
 </html>

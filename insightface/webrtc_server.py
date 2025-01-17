@@ -102,7 +102,7 @@ async def index(request):
     """
     Serve the client HTML file for accessing the video stream.
     """
-    with open("client_webrtc.html", "r") as f:
+    with open("templates/webrtc_client.html", "r") as f:
         content = f.read()
     return web.Response(content_type="text/html", text=content)
 
@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
     # Configure SSL context for HTTPS
     ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ssl_context.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
+    ssl_context.load_cert_chain(certfile="cert_and_key/cert.pem", keyfile="cert_and_key/key.pem")
 
     # Run the app with HTTPS
     web.run_app(app, host="0.0.0.0", port=9090, ssl_context=ssl_context)

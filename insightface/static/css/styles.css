@@ -1,10 +1,18 @@
+/* 1) Import font Lexend */
+@import url('https://fonts.googleapis.com/css2?family=Lexend&display=swap');
+
+/* 2) Reset cơ bản cho body */
 body {
-    font-family: Arial, sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #f5f5f5;
+    /* Đổi nền thành trắng */
+    background-color: #ffffff;
+    /* Sử dụng font Lexend */
+    font-family: 'Lexend', sans-serif;
+    color: #333;
 }
 
+/* 3) Header dùng nền tối, chữ trắng (giống cũ) */
 header {
     background-color: #333;
     color: #fff;
@@ -18,62 +26,128 @@ header h1 {
     margin: 0;
 }
 
+/* Link trong nav */
 nav a {
     color: #fff;
     text-decoration: none;
     margin-left: 20px;
 }
-
 nav a:hover {
     text-decoration: underline;
 }
 
+/* 4) LOGIN CONTAINER */
 .login-container {
+    /* Bo hẹp để hiển thị đẹp trên cả mobile & desktop */
     max-width: 400px;
+    width: 90%;
     margin: 100px auto;
-    background: #fff;
+    background-color: #fff;
     padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    /* Bo góc mềm mại giống macOS */
+    border-radius: 12px;
+    /* Bóng đổ nhẹ */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+/* Tiêu đề đăng nhập */
 .login-container h1 {
     text-align: center;
+    margin-bottom: 20px;
 }
 
+/* Form đăng nhập (tối ưu hiển thị cột dọc) */
 .login-container form {
     display: flex;
     flex-direction: column;
 }
 
-.login-container input {
-    margin-bottom: 15px;
-    padding: 10px;
+/* Input và button chung */
+.login-container input,
+.login-container button {
     font-size: 16px;
+    padding: 12px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    outline: none;
 }
 
+/* Riêng nút đăng nhập */
 .login-container button {
-    padding: 10px;
-    font-size: 16px;
     background-color: #333;
-    color: white;
+    color: #fff;
     border: none;
     cursor: pointer;
 }
+.login-container button:hover {
+    background-color: #555;
+}
 
+/* 5) DASHBOARD CONTAINER (để bọc nội dung trang dashboard) */
+.dashboard-container {
+    max-width: 1200px; /* Chiều rộng tối đa cho màn hình lớn */
+    width: 90%;        /* Đảm bảo co giãn trên mobile */
+    margin: 50px auto; /* Căn giữa, tạo khoảng cách phía trên/dưới */
+    padding: 20px;
+    border-radius: 12px;
+    background-color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-container h2 {
+    margin-top: 0; /* Xóa khoảng cách thừa phía trên */
+}
+
+/* Liên kết trong nav header (hoặc nav-links) */
+/* Có thể dùng chung cho dashboard */
+.header-nav-links a,
+.nav-links a {
+    text-decoration: none;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+.header-nav-links a:hover,
+.nav-links a:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Nút "Export Employees" hay nút khác sử dụng class .btn */
+.btn {
+    background-color: #333;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+.btn:hover {
+    background-color: #555;
+}
+
+/* 6) BẢNG CHUNG */
 table {
     width: 100%;
     border-collapse: collapse;
     margin: 20px 0;
 }
-
-table th, table td {
+table th, 
+table td {
     border: 1px solid #ddd;
     padding: 10px;
-    text-align: left;
+    text-align: center; /* Để bảng Attendance gọn hơn */
 }
-
 table th {
     background-color: #333;
-    color: white;
+    color: #fff;
+}
+
+/* 7) Màu sắc cho thời gian chấm công */
+.on-time {
+    color: green;
+}
+.late {
+    color: red;
 }

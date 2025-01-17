@@ -12,11 +12,11 @@ from pymongo import MongoClient
 
 client = MongoClient("mongodb://localhost:27017/")
 db = client["my_database"]
-users_collection = db["camera_users"]
+users_collection = db["users"]
 
 # Detect the operating system
 current_os = platform.system()
-save_path = f"/Users/quyetnguyen/static"
+save_path = f"~/nnq_static/"
 
 if current_os == "Darwin":  # macOS
     faiss.omp_set_num_threads(1)  # Limit FAISS to use 1 thread
@@ -195,6 +195,11 @@ def search_ids_mongoDB(embeddings, index_path=save_path + "data_base/face_index.
     Returns:
         list of list of dict: Danh sách kết quả cho mỗi embedding, mỗi kết quả bao gồm ID, tên ảnh và độ tương đồng.
     """
+    # Kiểm tra tệp FAISS index
+    if not os.path.exists(index_path):
+        print(f"FAISS index file không tồn tại tại: {index_path}")
+        return []
+
     # Load FAISS index
     index = faiss.read_index(index_path)
 
@@ -218,8 +223,7 @@ def search_ids_mongoDB(embeddings, index_path=save_path + "data_base/face_index.
                 query_results.append({
                     "id": user["_id"],
                     "full_name": user["full_name"],
-                    "similarity": similarity,
-                    "images": user["images"]  # Trả về danh sách ảnh
+                    "similarity": similarity
                 })
         all_results.append(query_results)
 
@@ -260,6 +264,37 @@ def normalize_embeddings(embeddings):
     """
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
     return embeddings / np.maximum(norms, 1e-8)  # Tránh chia cho 0
+
+def save_data_to_mongo(data, db_name="my_database", collection_name="my_collection", mongo_url="mongodb://localhost:27017/"):
+    """
+    Hàm lưu dữ liệu vào MongoDB.
+
+    Parameters:
+        data (dict or list): Dữ liệu cần lưu, có thể là một tài liệu hoặc danh sách tài liệu.
+        db_name (str): Tên cơ sở dữ liệu.
+        collection_name (str): Tên collection.
+        mongo_url (str): Chuỗi kết nối MongoDB.
+
+    Returns:
+        dict: Thông tin phản hồi sau khi chèn dữ liệu.
+    """
+    try:
+        # Kết nối tới MongoDB
+        client = MongoClient(mongo_url)
+        db = client[db_name]
+        collection = db[collection_name]
+
+        # Lưu dữ liệu
+        if isinstance(data, list):
+            result = collection.insert_many(data)
+            return {"status": "success", "inserted_ids": result.inserted_ids}
+        elif isinstance(data, dict):
+            result = collection.insert_one(data)
+            return {"status": "success", "inserted_id": result.inserted_id}
+        else:
+            return {"status": "error", "message": "Data must be a dictionary or a list of dictionaries"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 # def is_real_face(img, threshold=0.65):
 #     """

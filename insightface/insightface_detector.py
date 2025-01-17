@@ -11,9 +11,8 @@ from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB
+from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB, save_data_to_mongo
 from hand_raise_detector import is_person_raising_hand_image, is_hand_opened_in_image, expand_and_crop_image
-from mongo_utils import save_data_to_mongo
 from websocket_server import send_notification
 import time
 import onnxruntime as ort

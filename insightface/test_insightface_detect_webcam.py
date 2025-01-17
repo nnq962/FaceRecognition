@@ -1,6 +1,4 @@
 import cv2
-import numpy as np
-from insightface.app.common import Face
 from insightface.model_zoo import model_zoo
 import os
 

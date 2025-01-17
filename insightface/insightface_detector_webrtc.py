@@ -11,9 +11,8 @@ from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB
+from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB, save_data_to_mongo
 from hand_raise_detector import is_person_raising_hand_image, is_hand_opened_in_image, expand_and_crop_image
-from mongo_utils import save_data_to_mongo
 from websocket_server import send_notification
 import time
 import onnxruntime as ort
@@ -94,7 +93,7 @@ class InsightFaceDetector:
         Serve the client HTML file for accessing the video stream.
         """
         try:
-            with open("client_webrtc.html", "r") as f:  # Đảm bảo file này nằm cùng thư mục chạy
+            with open("templates/webrtc_client.html", "r") as f:  # Đảm bảo file này nằm cùng thư mục chạy
                 content = f.read()
             return web.Response(content_type="text/html", text=content)
         except FileNotFoundError:
@@ -134,7 +133,7 @@ class InsightFaceDetector:
 
         # Tạo context SSL
         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        ssl_context.load_cert_chain(certfile="cert.pem", keyfile="key.pem")
+        ssl_context.load_cert_chain(certfile="cert_and_key/cert.pem", keyfile="cert_and_key/key.pem")
 
         runner = web.AppRunner(self.app)
         await runner.setup()
@@ -490,7 +489,7 @@ class InsightFaceDetector:
                 await asyncio.sleep(0)
 
                 if self.media_manager.view_img:
-                    if pla tform.system() == 'Linux' and p not in windows:
+                    if platform.system() == 'Linux' and p not in windows:
                         windows.append(p)
                         cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
                         cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])

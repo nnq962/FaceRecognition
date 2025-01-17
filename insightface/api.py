@@ -9,8 +9,10 @@ from insightface_detector import InsightFaceDetector
 from build_database import process_image
 import faiss
 import numpy as np
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 detector = InsightFaceDetector()
 
 # Kết nối tới MongoDB
@@ -21,7 +23,7 @@ managers_collection = db["managers"]
 camera_collection = db["camera_information"]
 data_collection = db["camera_data"]
 
-save_path = f"/Users/quyetnguyen/static"
+save_path = f"~/nnq_static/"
 
 # ----------------------------------------------------------------
 def update_all_faiss_index(output_path=save_path + "/data_base/face_index_new.faiss"):
@@ -592,4 +594,4 @@ def get_attendance():
 
 # Chạy ứng dụng Flask
 if __name__ == "__main__":
-    app.run(debug=True, port=6123)
+    app.run(host="0.0.0.0", port=6123)
