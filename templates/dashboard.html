@@ -31,7 +31,7 @@
     <script>
         // Hàm lấy dữ liệu từ API và cập nhật bảng
         function updateAttendance() {
-            fetch('http://192.168.1.53:6123/api/get_attendance')
+            fetch('http://27.72.62.241:6123/api/get_attendance')
                 .then(response => response.json())
                 .then(data => {
                     const tbody = document.querySelector('#attendance-table tbody');
@@ -74,7 +74,7 @@
                 <a href="/video">Video Stream</a>
                 <a href="/manage_employees">Manage Employees</a>
                 <a href="/manage_managers">Manage Managers</a>
-                <a href="/export/employees" class="btn">Export Data (CSV)</a>
+                <a href="/export_attendance" class="btn">Export Data</a>
                 <a href="/logout">Logout</a>
             </div>
         </nav>

@@ -18,7 +18,7 @@ class Config:
     
 
     # Đường dẫn lưu file
-    save_path = Path.home() / "nnq_static"
+    save_path = str(Path.home()) + "/nnq_static"
 
 # Tạo instance `config` để sử dụng trong toàn bộ project
 config = Config()

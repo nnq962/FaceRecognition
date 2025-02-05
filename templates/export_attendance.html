@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Attendance</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <header>
+        <h1>Attendance Management</h1>
+        <nav class="nav-links">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/logout">Logout</a>
+        </nav>
+    </header>
+
+    <!-- Cửa sổ bo tròn -->
+    <div class="dashboard-container" >
+        <!-- Tiêu đề tổng quát -->
+        <h2 style="text-align: center; margin-bottom: 10px;">Export Attendance Data</h2> <!-- Giảm khoảng cách -->
+
+        <!-- Form chức năng cụ thể -->
+        <form method="POST" action="/export_attendance" class="login-container" style="text-align: center;">
+            <!-- Tiêu đề chức năng cụ thể -->
+            <h3 style="text-align: center; color: #000; margin-bottom: 20px;">Export data by month</h3>
+
+            <!-- Nhập tháng -->
+            <label for="month">Month:</label>
+            <select id="month" name="month" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; appearance: none;" required>
+                <option value="" disabled selected>Select month</option>
+                {% for i in range(1, 13) %}
+                    <option value="{{ i }}">{{ i }}</option>
+                {% endfor %}
+            </select>
+            
+            <!-- Nhập năm -->
+            <label for="year">Year:</label>
+            <input type="text" id="year" name="year" placeholder="Enter year (e.g., 2025)" style="width: calc(100% - 20px); padding: 12px; border-radius: 8px; border: 1px solid #ddd; margin: 10px auto;" required>
+
+            <!-- Nhập tên camera -->
+            <label for="camera_name">Camera Name:</label>
+            <input type="text" id="camera_name" name="camera_name" placeholder="Enter camera name (e.g., webcam_0)" style="width: calc(100% - 20px); padding: 12px; border-radius: 8px; border: 1px solid #ddd; margin: 10px auto;" required>
+            
+            <!-- Nút tải xuống -->
+            <button type="submit" class="btn" style="margin: 20px auto; display: block;">Download Excel</button>
+        </form>
+    </div>
+</body>
+</html>
