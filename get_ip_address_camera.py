@@ -1,5 +1,5 @@
-from pymongo import MongoClient
 import subprocess
+from config import config
 
 def get_ip_from_mac(mac_addresses):
     try:
@@ -43,10 +43,7 @@ def create_rtsp_urls_from_mongo(camera_ids):
     Returns:
         list: Danh sách các URL RTSP tương ứng với các _id.
     """
-    # Kết nối MongoDB
-    client = MongoClient("mongodb://localhost:27017/")
-    db = client["my_database"]
-    camera_collection = db["camera_information"]
+    camera_collection = config.camera_collection
 
     # Truy vấn dữ liệu từ MongoDB với _id được cung cấp
     cameras = camera_collection.find({"_id": {"$in": camera_ids}}, {"MAC_address": 1, "user": 1, "password": 1, "_id": 0})

@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify, Response
-from pymongo import MongoClient
 from datetime import datetime, timedelta
 import pandas as pd
 import os
@@ -7,27 +6,24 @@ import io
 import csv
 import shutil
 from insightface_detector import InsightFaceDetector
-from build_database import process_image
+from insightface_utils import process_image
 import faiss
 import numpy as np
 from flask_cors import CORS
 from flask import Flask, request, jsonify
 from gtts import gTTS
-from pathlib import Path
+from config import config
 
 app = Flask(__name__)
 CORS(app)
 detector = InsightFaceDetector()
 
 # Kết nối tới MongoDB
-client = MongoClient("mongodb://localhost:27017/") 
-db = client["my_database"] 
-users_collection = db["users"]
-managers_collection = db["managers"]
-camera_collection = db["camera_information"]
-data_collection = db["camera_data"]
-
-save_path = Path.home() / "nnq_static"
+users_collection = config.users_collection
+managers_collection = config.managers_collection
+camera_collection = config.camera_collection
+data_collection = config.data_collection
+save_path = config.save_path
 
 # ----------------------------------------------------------------
 def process_user_photos():
@@ -247,54 +243,54 @@ def upload_photo(user_id):
         return jsonify({"error": f"Failed to upload photo: {str(e)}"}), 500
     
 # ----------------------------------------------------------------
-@app.route('/delete_image', methods=['DELETE'])
-def delete_image():
-    data = request.json
+# @app.route('/delete_image', methods=['DELETE'])
+# def delete_image():
+#     data = request.json
 
-    # Kiểm tra đầu vào
-    required_fields = ["username", "password", "image_path"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
+#     # Kiểm tra đầu vào
+#     required_fields = ["username", "password", "image_path"]
+#     if not all(field in data for field in required_fields):
+#         return jsonify({"error": "Missing required fields"}), 400
 
-    username = data["username"]
-    password = data["password"]
-    image_name = data["image_path"]  # Tên ảnh
+#     username = data["username"]
+#     password = data["password"]
+#     image_name = data["image_path"]  # Tên ảnh
 
-    # Kiểm tra user có tồn tại và mật khẩu đúng không
-    user = users_collection.find_one({"username": username, "password": password})
-    if not user:
-        return jsonify({"error": "Invalid username or password"}), 401
+#     # Kiểm tra user có tồn tại và mật khẩu đúng không
+#     user = users_collection.find_one({"username": username, "password": password})
+#     if not user:
+#         return jsonify({"error": "Invalid username or password"}), 401
 
-    user_id = user["_id"]
-    user_dir = f"data_set/{user_id}"
-    image_path = os.path.join(user_dir, image_name)  # Tạo đường dẫn đầy đủ
+#     user_id = user["_id"]
+#     user_dir = f"data_set/{user_id}"
+#     image_path = os.path.join(user_dir, image_name)  # Tạo đường dẫn đầy đủ
 
-    # Kiểm tra xem ảnh có tồn tại trong MongoDB không
-    image_record = users_collection.find_one({"_id": user_id, "images.path": image_path})
-    if not image_record:
-        return jsonify({"error": "Image not found in the database"}), 404
+#     # Kiểm tra xem ảnh có tồn tại trong MongoDB không
+#     image_record = users_collection.find_one({"_id": user_id, "images.path": image_path})
+#     if not image_record:
+#         return jsonify({"error": "Image not found in the database"}), 404
 
-    # Xóa thông tin ảnh trong MongoDB
-    users_collection.update_one(
-        {"_id": user_id},
-        {"$pull": {"images": {"path": image_path}}}
-    )
+#     # Xóa thông tin ảnh trong MongoDB
+#     users_collection.update_one(
+#         {"_id": user_id},
+#         {"$pull": {"images": {"path": image_path}}}
+#     )
 
-    # Xóa ảnh vật lý trong thư mục
-    try:
-        if os.path.exists(image_path):
-            os.remove(image_path)
-            # Gọi các hàm chỉ khi việc xoá ảnh thành công
-            try:
-                update_embeddings_for_all_users(detector=detector)
-                create_faiss_index_with_mongo_id_cosine()
-            except Exception as e:
-                return jsonify({"error": f"Failed to update embeddings or FAISS index: {str(e)}"}), 500
-            return jsonify({"message": "Image deleted successfully"}), 200
-        else:
-            return jsonify({"error": "Image file not found in the directory"}), 404
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete image: {str(e)}"}), 500
+#     # Xóa ảnh vật lý trong thư mục
+#     try:
+#         if os.path.exists(image_path):
+#             os.remove(image_path)
+#             # Gọi các hàm chỉ khi việc xoá ảnh thành công
+#             try:
+#                 update_embeddings_for_all_users(detector=detector)
+#                 create_faiss_index_with_mongo_id_cosine()
+#             except Exception as e:
+#                 return jsonify({"error": f"Failed to update embeddings or FAISS index: {str(e)}"}), 500
+#             return jsonify({"message": "Image deleted successfully"}), 200
+#         else:
+#             return jsonify({"error": "Image file not found in the directory"}), 404
+#     except Exception as e:
+#         return jsonify({"error": f"Failed to delete image: {str(e)}"}), 500
 
 # ----------------------------------------------------------------
 @app.route('/api/get_all_managers', methods=['GET'])
@@ -391,7 +387,6 @@ def add_camera():
         "camera_address": camera_address,
         "camera_location": camera_location
     }), 201
-
 
 # ----------------------------------------------------------------
 @app.route('/emotion_summary', methods=['POST'])

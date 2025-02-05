@@ -8,15 +8,13 @@ from insightface.utils import face_align
 # from deepface import DeepFace
 import platform
 import faiss
-from pymongo import MongoClient
+from config import config
 
-client = MongoClient("mongodb://localhost:27017/")
-db = client["my_database"]
-users_collection = db["users"]
+users_collection = config.users_collection
+save_path = config.save_path
 
 # Detect the operating system
 current_os = platform.system()
-save_path = Path.home() / "nnq_static"
 
 if current_os == "Darwin":  # macOS
     faiss.omp_set_num_threads(1)  # Limit FAISS to use 1 thread
@@ -265,7 +263,7 @@ def normalize_embeddings(embeddings):
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
     return embeddings / np.maximum(norms, 1e-8)  # Tránh chia cho 0
 
-def save_data_to_mongo(data, db_name="my_database", collection_name="my_collection", mongo_url="mongodb://localhost:27017/"):
+def save_data_to_mongo(data):
     """
     Hàm lưu dữ liệu vào MongoDB.
 
@@ -279,22 +277,52 @@ def save_data_to_mongo(data, db_name="my_database", collection_name="my_collecti
         dict: Thông tin phản hồi sau khi chèn dữ liệu.
     """
     try:
-        # Kết nối tới MongoDB
-        client = MongoClient(mongo_url)
-        db = client[db_name]
-        collection = db[collection_name]
-
         # Lưu dữ liệu
         if isinstance(data, list):
-            result = collection.insert_many(data)
+            result = config.data_collection.insert_many(data)
             return {"status": "success", "inserted_ids": result.inserted_ids}
         elif isinstance(data, dict):
-            result = collection.insert_one(data)
+            result = config.data_collection.insert_one(data)
             return {"status": "success", "inserted_id": result.inserted_id}
         else:
             return {"status": "error", "message": "Data must be a dictionary or a list of dictionaries"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+def process_image(image_path, detector):
+    """
+    Trích xuất embedding từ hình ảnh.
+
+    Parameters:
+        - image_path: Đường dẫn đến ảnh cần xử lý.
+        - detector: Đối tượng chứa các hàm `get_face_detect` và `get_face_embedding`.
+
+    Returns:
+        - embedding: Mảng numpy chứa embedding của khuôn mặt (hoặc None nếu có lỗi).
+    """
+    img = cv2.imread(image_path)
+    if img is None:
+        print(f"Failed to read image {image_path}.")
+        return None
+
+    try:
+        # Gọi hàm phát hiện khuôn mặt
+        result = detector.get_face_detect(img)
+        if not result or not result[0]:
+            print(f"No face detected in {image_path}.")
+            return None
+
+        # Lấy tọa độ khuôn mặt đầu tiên
+        face_box = result[0][0]
+
+        # Trích xuất embedding
+        embedding = detector.get_face_embedding(img, face_box[0], face_box[1], face_box[2])
+
+        return embedding
+
+    except Exception as e:
+        print(f"Error processing {image_path}: {e}")
+        return None
 
 # def is_real_face(img, threshold=0.65):
 #     """
