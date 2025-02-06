@@ -26,5 +26,17 @@ class Config:
     # Đường dẫn lưu file
     save_path = str(Path.home()) + "/nnq_static"
 
+    # Chuyển đổi sang pathlib.Path để xử lý thư mục
+    SAVE_PATH = Path(save_path)
+    UPLOADS_PATH = SAVE_PATH / "uploads"
+    DATABASE_PATH = SAVE_PATH / "data_base"
+
+    # Tạo thư mục nếu chưa tồn tại
+    for folder in [SAVE_PATH, UPLOADS_PATH, DATABASE_PATH]:
+        Path(folder).mkdir(parents=True, exist_ok=True)
+
+    init_database = True
+
+
 # Tạo instance `config` để sử dụng trong toàn bộ project
 config = Config()

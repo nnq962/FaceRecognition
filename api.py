@@ -756,6 +756,13 @@ def export_attendance():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+# ----------------------------------------------------------------
+if config.init_database:
+    print("-" * 80)
+    print("Initialize database")
+    process_user_photos()
+    update_all_faiss_index()
 
 # Chạy ứng dụng Flask
 if __name__ == "__main__":
