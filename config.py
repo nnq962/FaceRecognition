@@ -15,8 +15,9 @@ class Config:
     managers_collection = db["managers"]
     camera_collection = db["camera_information"]
     data_collection = db["camera_data"]
-    
 
+    vram_limit_for_FER = 3
+    
     # Đường dẫn lưu file
     save_path = str(Path.home()) + "/nnq_static"
 

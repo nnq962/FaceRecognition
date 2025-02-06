@@ -19,6 +19,7 @@ import onnxruntime as ort
 ort.set_default_logger_severity(3)
 import numpy as np
 from datetime import datetime
+from config import config
 
 class InsightFaceDetector:
     """
@@ -38,7 +39,7 @@ class InsightFaceDetector:
             self.dataset = self.media_manager.get_dataloader()
             self.save_dir = self.media_manager.get_save_directory()
             if self.media_manager.face_emotion:
-                self.fer_class = FERUtils(gpu_memory_limit=2048)
+                self.fer_class = FERUtils(gpu_memory_limit=config.vram_limit_for_FER * 1024)
             if self.media_manager.check_small_face:
                 self.gfpgan_model = GFPGANInference(upscale=2)
             if self.media_manager.streaming:
