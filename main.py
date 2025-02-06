@@ -1,9 +1,3 @@
-from update_basicsr import update_import
-
-# Update basicsr model
-update_import(file_path="/usr/local/lib/python3.10/dist-packages/basicsr/data/degradations.py")
-update_import(file_path="/home/pc/.conda/envs/nnq_env/lib/python3.10/site-packages/basicsr/data/degradations.py")
-
 import argparse
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
