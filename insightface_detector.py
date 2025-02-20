@@ -4,9 +4,8 @@ from insightface.model_zoo import model_zoo
 import os
 import platform
 from pathlib import Path
-from utils.plots import Annotator, save_one_box
+from utils.plots import Annotator
 from utils.general import LOGGER, Profile
-import torch
 from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
@@ -18,8 +17,8 @@ import time
 import onnxruntime as ort
 ort.set_default_logger_severity(3)
 import numpy as np
-from datetime import datetime
 from config import config
+
 
 class InsightFaceDetector:
     """
@@ -129,13 +128,29 @@ class InsightFaceDetector:
             return im0s[i]
         return im0s
     
-    def check_raising_hand(self, frame, bbox, full_name, camera_name):
+    def check_raising_hand(self, frame, bbox, id, timestamp, camera_name):
         if not self.media_manager.raise_hand:
             return
         cropped_expand_image = expand_and_crop_image(frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
 
-        if is_hand_opened_in_image(cropped_expand_image) and is_person_raising_hand_image(cropped_expand_image):
-            message = f"Học sinh {full_name} giơ tay! [{camera_name}]"
+        hand_open = is_hand_opened_in_image(cropped_expand_image)
+        hand_raised = is_person_raising_hand_image(cropped_expand_image)
+
+        if hand_open and hand_raised:
+            message = {
+                "user_id": id,
+                "type": "up",
+                "time": timestamp,
+                "camera": camera_name
+            }
+            send_notification(message)
+        else:
+            message = {
+                "user_id": id,
+                "type": "down",
+                "time": timestamp,
+                "camera": camera_name
+            }
             send_notification(message)
 
     def get_face_emotions(self, img, bounding_boxes):
@@ -234,7 +249,7 @@ class InsightFaceDetector:
                     all_embeddings = self.get_face_embeddings(all_cropped_faces)
                     ids = search_ids_mongoDB(all_embeddings, top_k=1, threshold=0.5)
 
-                    if self.media_manager.face_emotion:
+                    if self.media_manager.face_emotion or self.media_manager.raise_hand:
                         start_idx = 0
 
                         for img_index, im0 in enumerate(im0s):
@@ -255,7 +270,7 @@ class InsightFaceDetector:
                                     bboxes_emotion.append(bbox)
                                     emotion_indices.append(meta_idx)
 
-                                    self.check_raising_hand(im0, bbox, id_info[0]['full_name'], camera_name=self.media_manager.camera_names[img_index] if self.media_manager.webcam else "Photo")
+                                    self.check_raising_hand(im0, bbox, id_info[0]['id'], config.get_vietnam_time(), config.camera_names[img_index] if self.media_manager.webcam else "Photo")
                                 
                                 else:
                                     restored_img = self.restored_image(im0, bbox, min_size=50)
@@ -322,7 +337,7 @@ class InsightFaceDetector:
                 if current_time - start_time > self.media_manager.time_to_save:
                     for img_index, faces in enumerate(results_per_image):
                         data_to_save = []
-                        camera_name = self.media_manager.camera_names[img_index]
+                        camera_name = config.camera_names[img_index]
 
                         for face in faces:
                             if face["id"] != "unknown":
@@ -331,9 +346,8 @@ class InsightFaceDetector:
                                 emotion = face["emotion"] if face["emotion"] else "unknown"
                                 emotion_prob = float(face["emotion_probability"].replace("%", "")) if face["emotion_probability"] != "N/A" else None
 
-                                time_save = datetime.now()
                                 data_to_save.append({
-                                    "timestamp": time_save.strftime("%Y-%m-%d %H:%M:%S"),
+                                    "timestamp": config.get_vietnam_time(),
                                     "id": name,
                                     "similarity": recognition_prob,
                                     "emotion": emotion,
@@ -385,7 +399,10 @@ class InsightFaceDetector:
                             annotator.box_label(bbox, label, color=color)
 
                         if self.media_manager.save_crop:
-                            save_one_box(torch.tensor(bbox[:4]), imc, file=self.save_dir / 'crops' / f'{p.stem}.jpg',BGR=True)
+                            crops_dir = Path(self.save_dir) / 'crops'
+                            crops_dir.mkdir(parents=True, exist_ok=True)
+                            face_crop = crop_image(imc, bbox[:4])
+                            cv2.imwrite(str(crops_dir / f'{p.stem}.jpg'), face_crop)
                 
                 # Stream results
                 im0 = annotator.result()
@@ -421,10 +438,6 @@ class InsightFaceDetector:
                             self.media_manager.vid_writer[img_index] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
 
                         self.media_manager.vid_writer[img_index].write(im0)
-
-                # Streaming RTSP
-                if self.media_manager.streaming:
-                    self.media_manager.push_frame_to_stream(img_index, im0)
 
             if self.media_manager.show_time_process:
                 # Total processing time for a single frame (inference + processing)

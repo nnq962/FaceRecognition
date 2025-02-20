@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Debug Live Stream HLS với Flask</title>
+  <!-- Thêm thư viện hls.js từ CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    body {
+      background-color: #000;
+      color: #fff;
+      text-align: center;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    #playBtn {
+      padding: 10px 20px;
+      font-size: 18px;
+      margin: 20px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background-color: #007BFF;
+      color: #fff;
+    }
+    #video {
+      width: 80%;
+      max-width: 800px;
+      border: 2px solid #fff;
+      display: none;
+      margin-bottom: 20px;
+    }
+    /* Div hiển thị log */
+    #log {
+      background-color: #222;
+      padding: 10px;
+      max-width: 800px;
+      margin: 20px auto;
+      text-align: left;
+      font-size: 14px;
+      height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Debug Live Stream HLS với Flask</h1>
+  <!-- Nút bấm để kích hoạt phát video -->
+  <button id="playBtn">Play Video</button>
+  <!-- Phần tử video -->
+  <video id="video" controls></video>
+  <!-- Khu vực hiển thị log -->
+  <div id="log"></div>
+  
+  <script>
+    // Hàm ghi log lên console và div log
+    function log(message) {
+      console.log(message);
+      const logDiv = document.getElementById('log');
+      const p = document.createElement('p');
+      p.textContent = message;
+      logDiv.appendChild(p);
+    }
+    
+    log("Trang đã được tải.");
+
+    const video = document.getElementById('video');
+    const playBtn = document.getElementById('playBtn');
+    // Đường dẫn đến file HLS (playlist) được FFmpeg tạo ra
+    const videoSrc = '/static/stream/stream.m3u8';
+
+    // Các sự kiện của phần tử video
+    video.addEventListener('loadedmetadata', function() {
+      log("Sự kiện loadedmetadata: video.currentSrc = " + video.currentSrc);
+    });
+    video.addEventListener('play', function() {
+      log("Sự kiện play");
+    });
+    video.addEventListener('playing', function() {
+      log("Sự kiện playing");
+    });
+    video.addEventListener('pause', function() {
+      log("Sự kiện pause");
+    });
+    video.addEventListener('error', function(e) {
+      log("Sự kiện error: " + video.error);
+    });
+    
+    // Hàm khởi tạo và tải video qua Hls.js
+    function loadVideo() {
+      log("Bắt đầu load video từ: " + videoSrc);
+      if (Hls.isSupported()) {
+        log("Hls.js được hỗ trợ trên trình duyệt này.");
+        const hls = new Hls();
+        hls.loadSource(videoSrc);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function(event, data) {
+          log("HLS manifest đã được phân tích thành công. Số phân đoạn: " + data.fragments.length);
+        });
+        hls.on(Hls.Events.ERROR, function(event, data) {
+          log("Lỗi HLS: " + JSON.stringify(data));
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        log("Trình duyệt hỗ trợ HLS native (Safari).");
+        video.src = videoSrc;
+        video.addEventListener('loadedmetadata', function() {
+          log("Metadata đã được tải (Safari).");
+        });
+      } else {
+        log("Trình duyệt của bạn không hỗ trợ HLS.");
+      }
+    }
+
+    // Khi người dùng nhấn nút "Play"
+    playBtn.addEventListener('click', function() {
+      log("Người dùng đã nhấn nút Play.");
+      loadVideo();
+      video.style.display = 'block';
+      playBtn.style.display = 'none';
+      video.muted = false;  // Nếu muốn bật âm thanh, hoặc đặt video.muted = true để tự động phát không có âm thanh
+      video.play().then(() => {
+        log("Video đã bắt đầu phát (promise resolved).");
+      }).catch(err => {
+        log("Lỗi khi gọi video.play(): " + err);
+      });
+    });
+  </script>
+</body>
+</html>
