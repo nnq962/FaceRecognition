@@ -10,7 +10,7 @@ from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB, save_data_to_mongo
+from insightface_utils import crop_image, is_small_face, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB, save_data_to_mongo
 from hand_raise_detector import is_person_raising_hand_image, is_hand_opened_in_image, expand_and_crop_image
 from websocket_server import send_notification
 import time
@@ -387,10 +387,15 @@ class InsightFaceDetector:
                         emotion = face["emotion"]
                         emotion_prob = face["emotion_probability"]
 
-                        label = f"{id} {similarity} | {emotion} {emotion_prob}"
+                        label = None
+
+                        if self.media_manager.face_emotion:
+                            label = f"ID: {id} {similarity}, {emotion} {emotion_prob}"
+                        elif self.media_manager.face_recognition:
+                            label = f"ID: {id} {similarity}"
             
                         if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
-                            if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
+                            if self.media_manager.hide_labels or self.media_manager.hide_conf:
                                 label = None
 
                             color = (0, int(255 * bbox[4]), int(255 * (1 - bbox[4])))

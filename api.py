@@ -1,17 +1,14 @@
-from flask import Flask, request, jsonify, Response, send_file
+from flask import Flask, request, jsonify, send_file
 import mimetypes
 from datetime import datetime, timedelta
 import pandas as pd
 import os
-import io
-import csv
 import shutil
 from insightface_detector import InsightFaceDetector
 from insightface_utils import process_image
 import faiss
 import numpy as np
 from flask_cors import CORS
-from flask import Flask, request, jsonify
 from gtts import gTTS
 from config import config
 
@@ -25,6 +22,41 @@ managers_collection = config.managers_collection
 camera_collection = config.camera_collection
 data_collection = config.data_collection
 save_path = config.save_path
+greeted_employees = {}
+
+
+# ----------------------------------------------------------------
+def play_greeting(name, greeting_type="chào"):
+    """Phát âm thanh chào mừng hoặc tạm biệt"""
+    text = f"{greeting_type.capitalize()} {name}!"
+    tts = gTTS(text, lang="vi")
+    audio_file = "greeting.mp3"
+    tts.save(audio_file)
+
+    # Phát âm thanh bằng FFmpeg
+    os.system(f"ffplay -nodisp -autoexit {audio_file}")
+
+
+# ----------------------------------------------------------------
+def calculate_work_hours(entries):
+    """Tính tổng giờ công trong ngày và ghi chú nếu đi muộn."""
+    if len(entries) == 0:  # Không có dữ liệu
+        return None, None, None, "Không có dữ liệu"
+    elif len(entries) == 1:  # Chỉ có một mốc thời gian
+        check_in = datetime.strptime(entries[0], "%Y-%m-%d %H:%M:%S")
+        return check_in.strftime("%H:%M:%S"), None, None, "Chỉ có thời gian vào"
+
+    check_in = min(entries)  # Lấy thời gian vào đầu tiên
+    check_out = max(entries)  # Lấy thời gian ra cuối cùng
+    check_in_dt = datetime.strptime(check_in, "%Y-%m-%d %H:%M:%S")
+    check_out_dt = datetime.strptime(check_out, "%Y-%m-%d %H:%M:%S")
+    total_hours = (check_out_dt - check_in_dt).total_seconds() / 3600
+
+    # Ghi chú đi muộn nếu vào sau 08:00
+    late_note = "Đi muộn" if check_in_dt.time() > datetime.strptime("08:00:00", "%H:%M:%S").time() else ""
+
+    return check_in_dt.strftime("%H:%M:%S"), check_out_dt.strftime("%H:%M:%S"), total_hours, late_note
+
 
 # ----------------------------------------------------------------
 def process_user_photos():
@@ -68,6 +100,7 @@ def process_user_photos():
         print(f"Completed processing user ID {user_id}. Total photos processed: {photo_count}")
         print("-" * 80)
 
+
 # ----------------------------------------------------------------
 def update_all_faiss_index(output_path=save_path + "/data_base/face_index.faiss"):
     embeddings = []
@@ -104,6 +137,7 @@ def update_all_faiss_index(output_path=save_path + "/data_base/face_index.faiss"
     faiss.write_index(index_with_id, output_path)
     print(f"FAISS index (Cosine Similarity) saved to {output_path}")
 
+
 # ----------------------------------------------------------------
 def update_faiss_index(new_embedding, user_id, index_path=save_path + "/data_base/face_index.faiss"):
     # Kiểm tra nếu tệp FAISS index đã tồn tại
@@ -126,6 +160,7 @@ def update_faiss_index(new_embedding, user_id, index_path=save_path + "/data_bas
     faiss.write_index(index, index_path)
     print(f"Updated FAISS index saved to {index_path}")
 
+
 # ----------------------------------------------------------------
 @app.route('/api/get_all_users', methods=['GET'])
 def get_all_users():
@@ -147,6 +182,7 @@ def get_all_users():
             user.pop('face_embeddings', None)  # Xóa nếu tồn tại
 
     return jsonify(users)
+
 
 # ----------------------------------------------------------------
 @app.route('/api/add_user', methods=['POST'])
@@ -182,6 +218,7 @@ def add_user():
         return jsonify({"message": "User added", "id": user_id, "photo_folder": folder_path}), 201
     except Exception as e:
         return jsonify({"error": f"Failed to add user: {str(e)}"}), 500
+    
 
 # ----------------------------------------------------------------
 @app.route('/api/delete_user/<user_id>', methods=['DELETE'])
@@ -211,6 +248,7 @@ def delete_user(user_id):
         return jsonify({"message": "User and folder deleted successfully"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to delete user: {str(e)}"}), 500
+    
 
 # ----------------------------------------------------------------
 @app.route('/api/upload_photo/<user_id>', methods=['POST'])
@@ -265,6 +303,7 @@ def upload_photo(user_id):
     except Exception as e:
         return jsonify({"error": f"Failed to upload photo: {str(e)}"}), 500
     
+    
 # ----------------------------------------------------------------
 @app.route('/api/delete_photo/<user_id>', methods=['DELETE'])
 def delete_photo(user_id):
@@ -313,6 +352,7 @@ def delete_photo(user_id):
     except Exception as e:
         return jsonify({"error": f"Failed to delete photo: {str(e)}"}), 500
 
+
 # ----------------------------------------------------------------
 @app.route('/api/get_all_managers', methods=['GET'])
 def get_all_managers():
@@ -320,6 +360,7 @@ def get_all_managers():
     for manager in managers:
         manager["_id"] = str(manager["_id"])
     return jsonify(managers), 200
+
 
 # ----------------------------------------------------------------
 @app.route('/api/add_manager', methods=['POST'])
@@ -363,6 +404,7 @@ def delete_manager(manager_id):
     if result.deleted_count == 0:
         return jsonify({"error": "Manager not found"}), 404
     return jsonify({"message": "Manager deleted"}), 200
+
 
 # ----------------------------------------------------------------
 @app.route('/add_camera', methods=['POST'])
@@ -409,172 +451,6 @@ def add_camera():
         "camera_location": camera_location
     }), 201
 
-# ----------------------------------------------------------------
-@app.route('/emotion_summary', methods=['POST'])
-def emotion_summary():
-    data = request.json
-
-    # Kiểm tra đầu vào
-    required_fields = ["timestamp_start", "timestamp_end", "id", "camera_name"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    try:
-        timestamp_start = datetime.strptime(data["timestamp_start"], "%Y-%m-%d %H:%M:%S")
-        timestamp_end = datetime.strptime(data["timestamp_end"], "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return jsonify({"error": "Invalid timestamp format, use 'YYYY-MM-DD HH:MM:SS'"}), 400
-
-    user_id = data["id"]
-    camera_name = data["camera_name"]
-
-    # Lọc dữ liệu theo id, camera_name, và khoảng thời gian
-    tracking_data = list(data_collection.find({
-        "id": user_id,
-        "camera_name": camera_name,
-        "timestamp": {"$gte": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-                      "$lte": timestamp_end.strftime("%Y-%m-%d %H:%M:%S")}
-    }))
-
-    if not tracking_data:
-        return jsonify({"error": "No tracking data found for the given criteria"}), 404
-
-    # Tìm thông tin user
-    user_info = users_collection.find_one({"_id": user_id})
-    if not user_info:
-        return jsonify({"error": f"User with ID {user_id} not found"}), 404
-
-    # Tính tổng cảm xúc
-    emotion_count = {}
-    total_emotions = 0
-    for record in tracking_data:
-        emotion = record["emotion"]
-        emotion_prob = record["emotion_prob"]
-
-        if emotion in emotion_count:
-            emotion_count[emotion] += emotion_prob
-        else:
-            emotion_count[emotion] = emotion_prob
-
-        total_emotions += emotion_prob
-
-    if total_emotions == 0:
-        return jsonify({"error": "No emotions recorded in the tracking data"}), 404
-
-    # Tính phần trăm từng cảm xúc
-    emotion_percentages = {
-        emotion: round((prob / total_emotions) * 100, 2)
-        for emotion, prob in emotion_count.items()
-    }
-
-    # Chuẩn bị dữ liệu trả về
-    result = {
-        "timestamp_start": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-        "timestamp_end": timestamp_end.strftime("%Y-%m-%d %H:%M:%S"),
-        "id": user_id,
-        "full_name": user_info["full_name"],
-        "department_id": user_info["department_id"],
-        "emotion_percentages": emotion_percentages
-    }
-
-    return jsonify(result), 200
-
-# ----------------------------------------------------------------
-@app.route('/get_tracking_data', methods=['POST'])
-def get_tracking_data():
-    data = request.json
-
-    # Kiểm tra đầu vào
-    required_fields = ["timestamp_start", "timestamp_end", "id", "camera_name"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    try:
-        timestamp_start = datetime.strptime(data["timestamp_start"], "%Y-%m-%d %H:%M:%S")
-        timestamp_end = datetime.strptime(data["timestamp_end"], "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return jsonify({"error": "Invalid timestamp format, use 'YYYY-MM-DD HH:MM:SS'"}), 400
-
-    user_id = data["id"]
-    camera_name = data["camera_name"]
-
-    # Lọc dữ liệu trong khoảng thời gian và camera_name
-    tracking_data = list(data_collection.find({
-        "id": user_id,
-        "camera_name": camera_name,
-        "timestamp": {"$gte": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-                      "$lte": timestamp_end.strftime("%Y-%m-%d %H:%M:%S")}
-    }))
-
-    if not tracking_data:
-        return jsonify({"error": "No tracking data found for the given criteria"}), 404
-
-    # Tìm thông tin user
-    user_info = users_collection.find_one({"_id": user_id})
-    if not user_info:
-        return jsonify({"error": f"User with ID {user_id} not found"}), 404
-
-    # Chuyển đổi ObjectId thành chuỗi
-    for record in tracking_data:
-        record["_id"] = str(record["_id"])  # Chuyển ObjectId thành chuỗi
-
-    # Chuẩn bị kết quả trả về
-    result = {
-        "timestamp_start": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-        "timestamp_end": timestamp_end.strftime("%Y-%m-%d %H:%M:%S"),
-        "id": user_id,
-        "full_name": user_info["full_name"],
-        "department_id": user_info["department_id"],
-        "tracking_data": tracking_data
-    }
-    return jsonify(result), 200
-
-# ----------------------------------------------------------------
-@app.route('/get_tracking_data_csv', methods=['POST'])
-def get_tracking_data_csv():
-    data = request.json
-
-    # Kiểm tra đầu vào
-    required_fields = ["timestamp_start", "timestamp_end", "id", "camera_name"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    try:
-        timestamp_start = datetime.strptime(data["timestamp_start"], "%Y-%m-%d %H:%M:%S")
-        timestamp_end = datetime.strptime(data["timestamp_end"], "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return jsonify({"error": "Invalid timestamp format, use 'YYYY-MM-DD HH:MM:SS'"}), 400
-
-    user_id = data["id"]
-    camera_name = data["camera_name"]
-
-    # Lọc dữ liệu trong khoảng thời gian và camera_name
-    tracking_data = list(data_collection.find({
-        "id": user_id,
-        "camera_name": camera_name,
-        "timestamp": {"$gte": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-                      "$lte": timestamp_end.strftime("%Y-%m-%d %H:%M:%S")}
-    }))
-
-    if not tracking_data:
-        return jsonify({"error": "No tracking data found for the given criteria"}), 404
-
-    # Chuyển đổi ObjectId thành chuỗi
-    for record in tracking_data:
-        record["_id"] = str(record["_id"])
-
-    # Tạo CSV trong bộ nhớ
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=tracking_data[0].keys())
-    writer.writeheader()
-    writer.writerows(tracking_data)
-
-    # Trả về CSV dưới dạng response
-    return Response(
-        output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment;filename=tracking_data.csv"}
-    )
 
 # ----------------------------------------------------------------
 @app.route('/api/login', methods=['POST'])
@@ -602,20 +478,7 @@ def login():
         }), 200
     else:
         return jsonify({"success": False, "message": "Incorrect password"}), 401
-    
-# ----------------------------------------------------------------
-# Bộ nhớ tạm lưu trạng thái đã chào
-greeted_employees = {}
 
-def play_greeting(name, greeting_type="chào"):
-    """Phát âm thanh chào mừng hoặc tạm biệt"""
-    text = f"{greeting_type.capitalize()} {name}!"
-    tts = gTTS(text, lang="vi")
-    audio_file = "greeting.mp3"
-    tts.save(audio_file)
-
-    # Phát âm thanh bằng FFmpeg
-    os.system(f"ffplay -nodisp -autoexit {audio_file}")
     
 # ----------------------------------------------------------------
 @app.route('/api/get_attendance', methods=['GET'])
@@ -674,27 +537,9 @@ def get_attendance():
         return jsonify(attendance_list), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
+
 # ----------------------------------------------------------------
-def calculate_work_hours(entries):
-    """Tính tổng giờ công trong ngày và ghi chú nếu đi muộn."""
-    if len(entries) == 0:  # Không có dữ liệu
-        return None, None, None, "Không có dữ liệu"
-    elif len(entries) == 1:  # Chỉ có một mốc thời gian
-        check_in = datetime.strptime(entries[0], "%Y-%m-%d %H:%M:%S")
-        return check_in.strftime("%H:%M:%S"), None, None, "Chỉ có thời gian vào"
-
-    check_in = min(entries)  # Lấy thời gian vào đầu tiên
-    check_out = max(entries)  # Lấy thời gian ra cuối cùng
-    check_in_dt = datetime.strptime(check_in, "%Y-%m-%d %H:%M:%S")
-    check_out_dt = datetime.strptime(check_out, "%Y-%m-%d %H:%M:%S")
-    total_hours = (check_out_dt - check_in_dt).total_seconds() / 3600
-
-    # Ghi chú đi muộn nếu vào sau 08:00
-    late_note = "Đi muộn" if check_in_dt.time() > datetime.strptime("08:00:00", "%H:%M:%S").time() else ""
-
-    return check_in_dt.strftime("%H:%M:%S"), check_out_dt.strftime("%H:%M:%S"), total_hours, late_note
-
 @app.route('/api/export_attendance', methods=['POST'])
 def export_attendance():
     try:
@@ -778,12 +623,14 @@ def export_attendance():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+    
 # ----------------------------------------------------------------
 if config.init_database:
     print("-" * 80)
     print("Initialize database")
     process_user_photos()
     update_all_faiss_index()
+
 
 # ----------------------------------------------------------------
 @app.route('/api/process_and_update', methods=['POST'])
@@ -798,6 +645,7 @@ def process_and_update():
         return jsonify({"message": "User photos processed and FAISS index updated"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to process and update: {str(e)}"}), 500
+
 
 # ----------------------------------------------------------------
 @app.route('/api/get_photos/<user_id>', methods=['GET'])
@@ -824,6 +672,7 @@ def get_photos(user_id):
 
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve photos: {str(e)}"}), 500
+
 
 # ----------------------------------------------------------------
 @app.route('/api/view_photo/<user_id>/<filename>', methods=['GET'])
@@ -853,6 +702,47 @@ def view_photo(user_id, filename):
     except Exception as e:
         return jsonify({"error": f"Failed to load photo: {str(e)}"}), 500
 
-# Chạy ứng dụng Flask
+
+# ----------------------------------------------------------------
+@app.route('/api/get_user_data', methods=['GET'])
+def get_user_data():
+    try:
+        # Lấy tham số từ request
+        user_id = request.args.get("user_id", type=int)
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+        camera_name = request.args.get("camera_name")
+
+        # Kiểm tra tham số bắt buộc
+        if not user_id or not start_date or not end_date or not camera_name:
+            return jsonify({"error": "Missing required parameters"}), 400
+
+        # Chuyển đổi định dạng thời gian sang string để phù hợp với MongoDB
+        try:
+            start_date = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+            end_date = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS"}), 400
+
+        # Truy vấn dữ liệu từ MongoDB
+        user_data = list(data_collection.find(
+            {
+                "id": user_id,
+                "camera_name": camera_name,
+                "timestamp": {"$gte": start_date, "$lte": end_date}
+            },
+            {"_id": 0}  # Bỏ trường _id trong kết quả trả về
+        ))
+
+        if not user_data:
+            return jsonify({"error": "No data found for given criteria"}), 404
+
+        return jsonify(user_data), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch user data: {str(e)}"}), 500
+
+
+# ----------------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=6123)
