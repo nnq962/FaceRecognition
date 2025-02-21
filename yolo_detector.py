@@ -2,7 +2,6 @@ import cv2
 import os
 import platform
 from insightface.model_zoo import model_zoo
-from insightface.app.common import Face
 from ultralytics import YOLO
 from pathlib import Path
 from utils.plots import Annotator
@@ -50,22 +49,20 @@ class YoloFaceDetector:
 
     def get_face_detects(self, imgs, verbose=False, conf=0.7):
         if not isinstance(imgs, list):
-            imgs = [imgs]  # Nếu chỉ có 1 ảnh, chuyển thành list
+            imgs = [imgs]
         
-        # Chạy batch inference
         results = self.det_model(imgs, verbose=verbose, conf=conf)
         
-        # Parse kết quả
         detections = []
         for res in results:
             faces = []
-            if res.boxes is not None:  # Kiểm tra xem có phát hiện nào không
-                for box in res.boxes.data.numpy():  # Chuyển tensor sang numpy
-                    x1, y1, x2, y2, conf = box[:5]  # Lấy tọa độ + độ tự tin
+            if res.boxes is not None:
+                for box in res.boxes.data.cpu().numpy():
+                    x1, y1, x2, y2, conf = box[:5]
                     faces.append(np.array([x1, y1, x2, y2, conf], dtype=np.float32))
-            detections.append(faces)  # Lưu danh sách khuôn mặt của ảnh này
+            detections.append(faces)
 
-        return detections  # Trả về list chứa list khuôn mặt của từng ảnh
+        return detections
 
     def get_face_embeddings(self, cropped_images):
         embeddings = self.rec_model.get_feat(cropped_images)
