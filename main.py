@@ -13,6 +13,7 @@ def process_source(source_arg):
     """
     if source_arg.isdigit():  # Single numeric ID (e.g., '0' or '1')
         if source_arg == "0":  # Webcam
+            config.camera_names.append("webcam")
             return "0"
         else:  # Single camera
             rtsp_urls = config.create_rtsp_urls_from_mongo([int(source_arg)])
@@ -87,5 +88,5 @@ media_manager = MediaManager(
 if args.raise_hand:
     start_ws_server()
 
-detector = InsightFaceDetector(media_manager=media_manager)
-detector.run_inference()
+# detector = InsightFaceDetector(media_manager=media_manager)
+# detector.run_inference()
