@@ -4,3 +4,4 @@ __pycache__/
 .idea/
 runs/
 cert_and_key/
+device.txt

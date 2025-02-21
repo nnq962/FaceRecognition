@@ -7,7 +7,7 @@ import io
 import csv
 import shutil
 from insightface_detector import InsightFaceDetector
-from insightface_utils import process_image
+from yolo_detector_utils import process_image
 import faiss
 import numpy as np
 from flask_cors import CORS

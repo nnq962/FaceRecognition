@@ -10,7 +10,7 @@ from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-from insightface_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB, save_data_to_mongo
+from yolo_detector_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB, save_data_to_mongo
 from hand_raise_detector import is_person_raising_hand_image, is_hand_opened_in_image, expand_and_crop_image
 from websocket_server import send_notification
 import time
@@ -19,12 +19,10 @@ ort.set_default_logger_severity(3)
 import numpy as np
 from config import config
 
-yolo_model_path = "yolov11n-face.pt"
-
 
 class YoloFaceDetector:
     def __init__(self, media_manager=None):
-        self.det_model_path = os.path.expanduser("~/Models/det_10g.onnx")
+        self.det_model_path = os.path.expanduser("~/Models/yolov11n-face.pt")
         self.rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
         self.det_model = None
         self.rec_model = None
@@ -42,7 +40,7 @@ class YoloFaceDetector:
 
     def load_model(self):
         """Load detection and recognition models"""
-        self.det_model = YOLO(yolo_model_path)
+        self.det_model = YOLO(self.det_model_path)
         
         self.rec_model = model_zoo.get_model(self.rec_model_path)
         self.rec_model.prepare(ctx_id=0)
