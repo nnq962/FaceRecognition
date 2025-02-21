@@ -7,3 +7,4 @@ cert_and_key/
 log_nohup.txt
 main.log
 api.log
+.env
