@@ -1,6 +1,7 @@
 import asyncio
 import websockets
 import threading
+import json
 
 # Tập hợp các client đang kết nối
 connected_clients = set()
@@ -53,14 +54,22 @@ def start_ws_server(host="0.0.0.0", port=8765):
     t = threading.Thread(target=run_loop, daemon=True)
     t.start()
 
-def send_notification(message: str):
+def send_notification(message: dict):
     """
-    Hàm này cho phép file bên ngoài gọi để gửi message tới tất cả client.
+    Sends a notification message to all connected WebSocket clients.
+
+    Args:
+        message (dict): A dictionary containing notification details.
     """
     if loop is None:
         print("WebSocket server chưa khởi động! Gọi start_ws_server() trước.")
         return
+    
+    # Chuyển đổi message thành JSON string trước khi gửi
+    message_json = json.dumps(message)
+    
     # Gọi hàm notify_all_clients trong event loop đang chạy ở thread khác
-    future = asyncio.run_coroutine_threadsafe(notify_all_clients(message), loop)
-    # future.result() sẽ chờ gửi xong (nếu muốn), hoặc bạn có thể bỏ dòng này.
+    future = asyncio.run_coroutine_threadsafe(notify_all_clients(message_json), loop)
+    
+    # future.result() sẽ chờ gửi xong (nếu muốn), hoặc có thể bỏ dòng này.
     future.result()

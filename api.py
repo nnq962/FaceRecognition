@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, send_file
+import mimetypes
 from datetime import datetime, timedelta
 import pandas as pd
 import os
@@ -128,7 +129,23 @@ def update_faiss_index(new_embedding, user_id, index_path=save_path + "/data_bas
 # ----------------------------------------------------------------
 @app.route('/api/get_all_users', methods=['GET'])
 def get_all_users():
-    users = list(users_collection.find())
+    # Lấy tham số từ query
+    department_id = request.args.get('department_id', None)
+    without_face_embeddings = request.args.get('without_face_embeddings', '0') == '1'  # Chuyển thành bool
+
+    # Tạo bộ lọc truy vấn MongoDB
+    query = {}
+    if department_id:
+        query['department_id'] = department_id  # Lọc theo phòng ban
+
+    # Truy vấn danh sách user
+    users = list(users_collection.find(query))
+
+    # Nếu without_face_embeddings=True, xóa trường face_embeddings khỏi kết quả
+    if without_face_embeddings:
+        for user in users:
+            user.pop('face_embeddings', None)  # Xóa nếu tồn tại
+
     return jsonify(users)
 
 # ----------------------------------------------------------------
@@ -184,6 +201,12 @@ def delete_user(user_id):
         folder_path = user.get("photo_folder")
         if folder_path and os.path.exists(folder_path):
             shutil.rmtree(folder_path)  # Xóa toàn bộ thư mục và nội dung bên trong
+
+            # Chạy xử lý ảnh người dùng
+            process_user_photos()
+            
+            # Cập nhật FAISS index
+            update_all_faiss_index()
 
         return jsonify({"message": "User and folder deleted successfully"}), 200
     except Exception as e:
@@ -243,54 +266,52 @@ def upload_photo(user_id):
         return jsonify({"error": f"Failed to upload photo: {str(e)}"}), 500
     
 # ----------------------------------------------------------------
-# @app.route('/delete_image', methods=['DELETE'])
-# def delete_image():
-#     data = request.json
+@app.route('/api/delete_photo/<user_id>', methods=['DELETE'])
+def delete_photo(user_id):
+    data = request.get_json()
 
-#     # Kiểm tra đầu vào
-#     required_fields = ["username", "password", "image_path"]
-#     if not all(field in data for field in required_fields):
-#         return jsonify({"error": "Missing required fields"}), 400
+    if not data or "file_path" not in data:
+        return jsonify({"error": "File path is required"}), 400
 
-#     username = data["username"]
-#     password = data["password"]
-#     image_name = data["image_path"]  # Tên ảnh
+    file_path = data["file_path"]
 
-#     # Kiểm tra user có tồn tại và mật khẩu đúng không
-#     user = users_collection.find_one({"username": username, "password": password})
-#     if not user:
-#         return jsonify({"error": "Invalid username or password"}), 401
+    # Kiểm tra xem user có tồn tại không
+    user = users_collection.find_one({"_id": int(user_id)})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
 
-#     user_id = user["_id"]
-#     user_dir = f"data_set/{user_id}"
-#     image_path = os.path.join(user_dir, image_name)  # Tạo đường dẫn đầy đủ
+    # Kiểm tra xem thư mục user có tồn tại không
+    folder_path = user.get("photo_folder")
+    if not folder_path:
+        return jsonify({"error": "User folder not found"}), 500
 
-#     # Kiểm tra xem ảnh có tồn tại trong MongoDB không
-#     image_record = users_collection.find_one({"_id": user_id, "images.path": image_path})
-#     if not image_record:
-#         return jsonify({"error": "Image not found in the database"}), 404
+    # Đường dẫn đầy đủ của file cần xóa
+    full_path = os.path.join(folder_path, file_path)
 
-#     # Xóa thông tin ảnh trong MongoDB
-#     users_collection.update_one(
-#         {"_id": user_id},
-#         {"$pull": {"images": {"path": image_path}}}
-#     )
+    if not os.path.exists(full_path):
+        return jsonify({"error": "File not found"}), 404
 
-#     # Xóa ảnh vật lý trong thư mục
-#     try:
-#         if os.path.exists(image_path):
-#             os.remove(image_path)
-#             # Gọi các hàm chỉ khi việc xoá ảnh thành công
-#             try:
-#                 update_embeddings_for_all_users(detector=detector)
-#                 create_faiss_index_with_mongo_id_cosine()
-#             except Exception as e:
-#                 return jsonify({"error": f"Failed to update embeddings or FAISS index: {str(e)}"}), 500
-#             return jsonify({"message": "Image deleted successfully"}), 200
-#         else:
-#             return jsonify({"error": "Image file not found in the directory"}), 404
-#     except Exception as e:
-#         return jsonify({"error": f"Failed to delete image: {str(e)}"}), 500
+    try:
+        # Xóa file ảnh
+        os.remove(full_path)
+
+        # Xóa embedding tương ứng từ MongoDB
+        face_embeddings = user.get("face_embeddings", [])
+        if face_embeddings:
+            users_collection.update_one(
+                {"_id": int(user_id)},
+                {"$set": {"face_embeddings": []}}  # Hoặc xóa phần tử cụ thể nếu có cách ánh xạ
+            )
+
+        process_user_photos()
+
+        # Cập nhật FAISS index
+        update_all_faiss_index()
+
+        return jsonify({"message": "Photo deleted successfully"}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete photo: {str(e)}"}), 500
 
 # ----------------------------------------------------------------
 @app.route('/api/get_all_managers', methods=['GET'])
@@ -763,6 +784,74 @@ if config.init_database:
     print("Initialize database")
     process_user_photos()
     update_all_faiss_index()
+
+# ----------------------------------------------------------------
+@app.route('/api/process_and_update', methods=['POST'])
+def process_and_update():
+    try:
+        # Chạy xử lý ảnh người dùng
+        process_user_photos()
+        
+        # Cập nhật FAISS index
+        update_all_faiss_index()
+        
+        return jsonify({"message": "User photos processed and FAISS index updated"}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to process and update: {str(e)}"}), 500
+
+# ----------------------------------------------------------------
+@app.route('/api/get_photos/<user_id>', methods=['GET'])
+def get_photos(user_id):
+    # Lấy thông tin user từ MongoDB
+    user = users_collection.find_one({"_id": int(user_id)})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Lấy thư mục lưu ảnh của user
+    folder_path = user.get("photo_folder")
+    if not folder_path:
+        return jsonify({"error": "User folder not found"}), 500
+
+    # Kiểm tra nếu thư mục không tồn tại
+    if not os.path.exists(folder_path):
+        return jsonify({"error": "User photo folder does not exist"}), 404
+
+    try:
+        # Lấy danh sách file ảnh
+        photos = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+
+        return jsonify({"user_id": user_id, "photos": photos}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve photos: {str(e)}"}), 500
+
+# ----------------------------------------------------------------
+@app.route('/api/view_photo/<user_id>/<filename>', methods=['GET'])
+def view_photo(user_id, filename):
+    # Lấy thông tin user từ MongoDB
+    user = users_collection.find_one({"_id": int(user_id)})
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Lấy thư mục lưu ảnh của user
+    folder_path = user.get("photo_folder")
+    if not folder_path:
+        return jsonify({"error": "User folder not found"}), 500
+
+    # Đường dẫn ảnh
+    file_path = os.path.join(folder_path, filename)
+
+    # Kiểm tra nếu file ảnh tồn tại
+    if not os.path.exists(file_path):
+        return jsonify({"error": "Photo not found"}), 404
+
+    try:
+        # Tự động xác định loại ảnh (PNG, JPG, JPEG, GIF, ...)
+        mimetype = mimetypes.guess_type(file_path)[0] or 'application/octet-stream'
+
+        return send_file(file_path, mimetype=mimetype)  # Gửi ảnh với mimetype phù hợp
+    except Exception as e:
+        return jsonify({"error": f"Failed to load photo: {str(e)}"}), 500
 
 # Chạy ứng dụng Flask
 if __name__ == "__main__":

@@ -31,7 +31,7 @@
     <script>
         // Hàm lấy dữ liệu từ API và cập nhật bảng
         function updateAttendance() {
-            fetch('http://27.72.62.241:6123/api/get_attendance')
+            fetch('http://14.232.211.211:6123/api/get_attendance')
                 .then(response => response.json())
                 .then(data => {
                     const tbody = document.querySelector('#attendance-table tbody');

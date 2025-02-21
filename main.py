@@ -1,10 +1,12 @@
+from config import config
 import argparse
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
-from get_ip_address_camera import create_rtsp_urls_from_mongo
 from websocket_server import start_ws_server
 
 def process_source(source_arg):
+    print("source_arg")
+    print(source_arg)
     """
     Process the source argument to determine the type of input.
     - '0': Webcam
@@ -15,7 +17,7 @@ def process_source(source_arg):
         if source_arg == "0":  # Webcam
             return "0"
         else:  # Single camera
-            rtsp_urls = create_rtsp_urls_from_mongo([int(source_arg)])
+            rtsp_urls = config.create_rtsp_urls_from_mongo([int(source_arg)])
             if rtsp_urls:
                 return rtsp_urls[0]
             else:
@@ -29,7 +31,7 @@ def process_source(source_arg):
                 if device_id.strip() == "0":  # Webcam
                     devices.append("0")
                 else:
-                    rtsp_urls = create_rtsp_urls_from_mongo([int(device_id.strip())])
+                    rtsp_urls = config.create_rtsp_urls_from_mongo([int(device_id.strip())])
                     if rtsp_urls:
                         devices.extend(rtsp_urls)
                     else:

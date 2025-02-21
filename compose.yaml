@@ -1,0 +1,29 @@
+services:
+
+  mongo:
+    image: mongo:7.0
+    restart: always
+    container_name: facerecognition-mongodb
+    ports:
+      - ${MONGODB_PORT}:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGODB_DATABASE}
+    volumes:
+      - db-mongodb:/data/db
+    networks:
+      - ai-backend
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  ai-backend:
+    driver: bridge
+
+volumes:
+  db-mongodb:
+    driver: local
