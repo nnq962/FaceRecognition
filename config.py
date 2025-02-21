@@ -5,6 +5,7 @@ import subprocess
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import sys
+import gdown
 
 class Config:
     """ Class chứa toàn bộ cấu hình của ứng dụng """
@@ -17,8 +18,16 @@ class Config:
     init_database = True
     vram_limit_for_FER = 1
     camera_names = []
-    save_path = str(Path.home()) + "/nnq_static" 
-
+    save_path = str(Path.home()) + "/nnq_static"
+    model_urls = {
+    "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
+    "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2",
+    "GFPGANv1.3.pth": "https://drive.google.com/uc?id=1zmW9g7vaRWuFSUKIS9ShCmP-6WU6Xxan",
+    "detection_Resnet50_Final.pth": "https://drive.google.com/uc?id=1jP3-UU8LhBvG8ArZQNl6kpDUfH_Xan9m",
+    "parsing_parsenet.pth": "https://drive.google.com/uc?id=1ZFqra3Vs4i5fB6B8LkyBo_WQXaPRn77y",
+    "yolov11-face.pt": "https://drive.google.com/uc?id=1Y6syEi7jMbRkiEC-4Wd5cqwOKWtiD2at"
+    }
+    
     # Tạo MONGO_URI linh hoạt
     if user and password:
         MONGO_URI = f"mongodb://{user}:{password}@{host}:{port}/{database}"
@@ -43,11 +52,13 @@ class Config:
         Path(folder).mkdir(parents=True, exist_ok=True)
 
     def __init__(self):
+        print("-" * 80)
         self.update_path = self.find_file_in_anaconda("degradations.py")
         self.update_import(file_path=self.update_path)
+        self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
+        print("-" * 80)
 
     def get_vietnam_time(self):
-        """Trả về thời gian hiện tại theo múi giờ Việt Nam (UTC+7) với định dạng YYYY-MM-DD HH:MM:SS."""
         vietnam_now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
         return vietnam_now.strftime("%Y-%m-%d %H:%M:%S")
     
@@ -160,8 +171,6 @@ class Config:
         old_import = "from torchvision.transforms.functional_tensor import rgb_to_grayscale"
         new_import = "from torchvision.transforms.functional import rgb_to_grayscale"
         
-        print("-" * 80)
-
         # Kiểm tra tệp có tồn tại không
         if not os.path.exists(file_path):
             print(f"File not found: {file_path}")
@@ -182,8 +191,32 @@ class Config:
             except Exception as e:
                 print(f"An error occurred: {e}")
 
+    def prepare_models(self, model_urls, save_dir="~/Models"):
+        """
+        Kiểm tra và tải xuống các mô hình từ Google Drive nếu chưa tồn tại.
+
+        Args:
+            model_urls (dict): Từ điển chứa tên mô hình và URL Google Drive tương ứng.
+                            Ví dụ: {"model1": "https://drive.google.com/uc?id=FILE_ID", ...}
+        """
+        # Chuẩn bị đường dẫn thư mục lưu trữ
+        save_dir = os.path.expanduser(save_dir)
+        os.makedirs(save_dir, exist_ok=True)
+
+        for model_name, model_url in model_urls.items():
+            # Đường dẫn lưu mô hình
+            model_path = Path(save_dir) / model_name
+            
+            if model_path.exists():
+                print(f"Model '{model_name}' already exists at '{model_path}'.")
+            else:
+                print(f"Downloading model '{model_name}' from '{model_url}' to '{model_path}'...")
+                try:
+                    # Tải mô hình từ Google Drive
+                    gdown.download(model_url, str(model_path), quiet=False)
+                    print(f"Model '{model_name}' downloaded successfully!")
+                except Exception as e:
+                    print(f"Failed to download model '{model_name}': {e}")
+
 # Tạo instance `config` để sử dụng trong toàn bộ project
 config = Config()
-
-
-
