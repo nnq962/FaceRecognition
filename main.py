@@ -1,7 +1,7 @@
+from config import config
 import argparse
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
-from config import config
 from websocket_server import start_ws_server
 
 def process_source(source_arg):

@@ -41,8 +41,6 @@ class InsightFaceDetector:
                 self.fer_class = FERUtils(gpu_memory_limit=config.vram_limit_for_FER * 1024)
             if self.media_manager.check_small_face:
                 self.gfpgan_model = GFPGANInference(upscale=2)
-            if self.media_manager.streaming:
-                self.media_manager.init_stream()
 
         self.load_model()
 
