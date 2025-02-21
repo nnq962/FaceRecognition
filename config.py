@@ -4,12 +4,36 @@ import os
 import subprocess
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import sys
+import gdown
 
 class Config:
     """ Class chứa toàn bộ cấu hình của ứng dụng """
     
-    # Cấu hình MongoDB
-    MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/")
+    user = ""
+    password = ""
+    host = "localhost"
+    port = "27017"
+    database = ""
+    init_database = True
+    vram_limit_for_FER = 1
+    camera_names = []
+    save_path = str(Path.home()) + "/nnq_static"
+    model_urls = {
+    "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
+    "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2",
+    "GFPGANv1.3.pth": "https://drive.google.com/uc?id=1zmW9g7vaRWuFSUKIS9ShCmP-6WU6Xxan",
+    "detection_Resnet50_Final.pth": "https://drive.google.com/uc?id=1jP3-UU8LhBvG8ArZQNl6kpDUfH_Xan9m",
+    "parsing_parsenet.pth": "https://drive.google.com/uc?id=1ZFqra3Vs4i5fB6B8LkyBo_WQXaPRn77y",
+    "yolov11-face.pt": "https://drive.google.com/uc?id=1Y6syEi7jMbRkiEC-4Wd5cqwOKWtiD2at"
+    }
+    
+    # Tạo MONGO_URI linh hoạt
+    if user and password:
+        MONGO_URI = f"mongodb://{user}:{password}@{host}:{port}/{database}"
+    else:
+        MONGO_URI = f"mongodb://{host}:{port}/"
+
     client = MongoClient(MONGO_URI)
     db = client["my_database"]
 
@@ -19,12 +43,6 @@ class Config:
     camera_collection = db["camera_information"]
     data_collection = db["camera_data"]
 
-    vram_limit_for_FER = 1
-    
-    # Đường dẫn lưu file
-    save_path = str(Path.home()) + "/nnq_static"
-
-    # Chuyển đổi sang pathlib.Path để xử lý thư mục
     SAVE_PATH = Path(save_path)
     UPLOADS_PATH = SAVE_PATH / "uploads"
     DATABASE_PATH = SAVE_PATH / "data_base"
@@ -33,15 +51,14 @@ class Config:
     for folder in [SAVE_PATH, UPLOADS_PATH, DATABASE_PATH]:
         Path(folder).mkdir(parents=True, exist_ok=True)
 
-    init_database = True
-
-    camera_names = ["Test1", "Test2"]
-
     def __init__(self):
-        self.update_import()
+        print("-" * 80)
+        self.update_path = self.find_file_in_anaconda("degradations.py")
+        self.update_import(file_path=self.update_path)
+        self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
+        print("-" * 80)
 
     def get_vietnam_time(self):
-        """Trả về thời gian hiện tại theo múi giờ Việt Nam (UTC+7) với định dạng YYYY-MM-DD HH:MM:SS."""
         vietnam_now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
         return vietnam_now.strftime("%Y-%m-%d %H:%M:%S")
     
@@ -90,19 +107,24 @@ class Config:
         camera_collection = config.camera_collection
 
         # Truy vấn dữ liệu từ MongoDB với _id được cung cấp
-        cameras = camera_collection.find({"_id": {"$in": camera_ids}}, {"MAC_address": 1, "user": 1, "password": 1, "_id": 0})
+        cameras = camera_collection.find(
+            {"_id": {"$in": camera_ids}},
+            {"MAC_address": 1, "user": 1, "password": 1, "camera_name": 1, "_id": 0}
+        )
         credentials = {}
         mac_addresses = []
 
         # Lấy thông tin MAC address, user, và password
         for camera in cameras:
             mac = camera.get("MAC_address", "").lower()
+            camera_name = camera.get("camera_name", "")
             user = camera.get("user", "")
             password = camera.get("password", "")
             if mac:
                 credentials[mac] = (user, password)
                 mac_addresses.append(mac)
-
+            self.camera_names.append(camera_name)
+            
         # Lấy IP từ MAC address
         mac_to_ip = self.get_ip_from_mac(mac_addresses)
 
@@ -111,7 +133,37 @@ class Config:
 
         return rtsp_urls
     
+    def search_file(self, filename, search_path):
+        """Tìm tệp trong thư mục cụ thể."""
+        for root, dirs, files in os.walk(search_path):
+            if filename in files:
+                return os.path.join(root, filename)
+        return None
 
+    def find_file_in_anaconda(self, filename):
+        """
+        Tìm kiếm tệp trong thư mục site-packages của môi trường Anaconda hiện tại.
+
+        Args:
+            filename (str): Tên tệp cần tìm.
+
+        Returns:
+            str | None: Đường dẫn đầy đủ đến tệp nếu tìm thấy, ngược lại trả về None.
+        """
+        # Lấy đường dẫn site-packages trong môi trường Anaconda hiện tại
+        if hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix:
+            # Nếu đang chạy trong môi trường ảo của Anaconda
+            site_packages_path = os.path.join(sys.prefix, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages")
+        else:
+            # Nếu không, tìm site-packages mặc định
+            import site
+            site_packages_path = site.getsitepackages()[0]
+
+        # Tìm tệp trong thư mục site-packages của môi trường hiện tại
+        result = self.search_file(filename, site_packages_path)
+
+        return result
+    
     def update_import(self, file_path="/home/pc/.local/lib/python3.10/site-packages/basicsr/data/degradations.py"):
         # Đường dẫn tới tệp cần chỉnh sửa
 
@@ -119,8 +171,6 @@ class Config:
         old_import = "from torchvision.transforms.functional_tensor import rgb_to_grayscale"
         new_import = "from torchvision.transforms.functional import rgb_to_grayscale"
         
-        print("-" * 80)
-
         # Kiểm tra tệp có tồn tại không
         if not os.path.exists(file_path):
             print(f"File not found: {file_path}")
@@ -141,8 +191,34 @@ class Config:
             except Exception as e:
                 print(f"An error occurred: {e}")
 
+    def prepare_models(self, model_urls, save_dir="~/Models"):
+        """
+        Kiểm tra và tải xuống các mô hình từ Google Drive nếu chưa tồn tại.
+
+        Args:
+            model_urls (dict): Từ điển chứa tên mô hình và URL Google Drive tương ứng.
+                            Ví dụ: {"model1": "https://drive.google.com/uc?id=FILE_ID", ...}
+        """
+        # Chuẩn bị đường dẫn thư mục lưu trữ
+        save_dir = os.path.expanduser(save_dir)
+        os.makedirs(save_dir, exist_ok=True)
+
+        for model_name, model_url in model_urls.items():
+            # Đường dẫn lưu mô hình
+            model_path = Path(save_dir) / model_name
+            
+            if model_path.exists():
+                print(f"Model '{model_name}' already exists at '{model_path}'.")
+            else:
+                print(f"Downloading model '{model_name}' from '{model_url}' to '{model_path}'...")
+                try:
+                    # Tải mô hình từ Google Drive
+                    gdown.download(model_url, str(model_path), quiet=False)
+                    print(f"Model '{model_name}' downloaded successfully!")
+                except Exception as e:
+                    print(f"Failed to download model '{model_name}': {e}")
+
 # Tạo instance `config` để sử dụng trong toàn bộ project
 config = Config()
-
 
 

@@ -22,44 +22,6 @@ elif current_os == "Linux":
     # Skip setting omp_set_num_threads
     pass
 
-def prepare_models(model_urls, save_dir="~/Models"):
-    """
-    Kiểm tra và tải xuống các mô hình từ Google Drive nếu chưa tồn tại.
-
-    Args:
-        model_urls (dict): Từ điển chứa tên mô hình và URL Google Drive tương ứng.
-                           Ví dụ: {"model1": "https://drive.google.com/uc?id=FILE_ID", ...}
-    """
-    # Chuẩn bị đường dẫn thư mục lưu trữ
-    save_dir = os.path.expanduser(save_dir)
-    os.makedirs(save_dir, exist_ok=True)
-
-    for model_name, model_url in model_urls.items():
-        # Đường dẫn lưu mô hình
-        model_path = Path(save_dir) / model_name
-        
-        if model_path.exists():
-            print(f"Model '{model_name}' already exists at '{model_path}'.")
-        else:
-            print(f"Downloading model '{model_name}' from '{model_url}' to '{model_path}'...")
-            try:
-                # Tải mô hình từ Google Drive
-                gdown.download(model_url, str(model_path), quiet=False)
-                print(f"Model '{model_name}' downloaded successfully!")
-            except Exception as e:
-                print(f"Failed to download model '{model_name}': {e}")
-
-
-model_urls = {
-    "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
-    "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2",
-    "GFPGANv1.3.pth": "https://drive.google.com/uc?id=1zmW9g7vaRWuFSUKIS9ShCmP-6WU6Xxan",
-    "detection_Resnet50_Final.pth": "https://drive.google.com/uc?id=1jP3-UU8LhBvG8ArZQNl6kpDUfH_Xan9m",
-    "parsing_parsenet.pth": "https://drive.google.com/uc?id=1ZFqra3Vs4i5fB6B8LkyBo_WQXaPRn77y"
-}
-
-prepare_models(model_urls=model_urls)
-
 def crop_image(image, bbox):
     """
     Crop một vùng ảnh dựa trên bounding box.
