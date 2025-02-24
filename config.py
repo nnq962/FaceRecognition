@@ -63,28 +63,7 @@ class Config:
         self.update_path = self.find_file_in_anaconda("degradations.py")
         self.update_import(file_path=self.update_path)
         self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
-        self.load_ann()
         print("-" * 80)
-
-    def load_ann(self):
-        if not os.path.exists(self.ann_file):
-            print(f"Missing Annoy index file: {self.ann_file}")
-            return
-        
-        if not os.path.exists(self.mapping_file):
-            print(f"Missing mapping file: {self.mapping_file}")
-            return
-
-        print("Loading Annoy index & mapping file...")
-
-        # Load Annoy Index
-        self.annoy_index = AnnoyIndex(self.vector_dim, 'angular')
-        self.annoy_index.load(self.ann_file)
-
-        # Load Mapping từ file .npy
-        self.id_mapping = np.load(self.mapping_file, allow_pickle=True).item()
-
-        print("Annoy index & mapping file loaded successfully!")
 
     def get_vietnam_time(self):
         vietnam_now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))

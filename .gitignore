@@ -5,3 +5,5 @@ __pycache__/
 runs/
 cert_and_key/
 greeting.mp3
+annoy_mapping.npy
+face_index.ann

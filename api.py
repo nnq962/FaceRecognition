@@ -204,20 +204,6 @@ def build_ann_index():
 
 
 # ----------------------------------------------------------------
-def update_annoy_index():
-    """
-    Xây dựng lại Annoy Index và reload vào config.
-    """
-    print("Building new Annoy index...")
-    build_ann_index()  # Cập nhật tệp .ann và .npy
-
-    print("Reloading Annoy index into memory...")
-    config.load_ann()  # Tải lại Annoy index & mapping file vào RAM
-
-    print("Annoy index updated and reloaded successfully!")
-
-
-# ----------------------------------------------------------------
 @app.route('/api/get_all_users', methods=['GET'])
 def get_all_users():
     # Lấy tham số từ query
@@ -296,7 +282,7 @@ def delete_user(user_id):
             shutil.rmtree(folder_path)  # Xóa toàn bộ thư mục và nội dung bên trong
 
             # Cập nhật ann index
-            update_annoy_index()
+            build_ann_index()
 
         return jsonify({"message": "User and folder deleted successfully"}), 200
     except Exception as e:
@@ -357,7 +343,7 @@ def upload_photo(user_id):
                 )
                 
                 # Build ann
-                update_annoy_index()
+                build_ann_index()
 
                 return jsonify({
                     "message": "Photo uploaded and face features saved",
@@ -410,7 +396,7 @@ def delete_photo(user_id):
         )
 
         # Build ann
-        update_annoy_index()
+        build_ann_index()
 
         return jsonify({"message": "Photo and embedding deleted successfully"}), 200
 
@@ -648,7 +634,7 @@ if config.init_database:
     print("-" * 80)
     print("Initialize database")
     generate_all_user_embeddings()
-    update_annoy_index()
+    build_ann_index()
 
 
 # ----------------------------------------------------------------
@@ -659,7 +645,7 @@ def rebuild_all_users_embeddings():
         generate_all_user_embeddings()
         
         # Cập nhật FAISS index
-        update_annoy_index()
+        build_ann_index()
         
         return jsonify({"message": "User photos processed and FAISS index updated"}), 200
     except Exception as e:
