@@ -6,7 +6,6 @@ import os
 import shutil
 from insightface_detector import InsightFaceDetector
 from insightface_utils import process_image
-import faiss
 import numpy as np
 from flask_cors import CORS
 from gtts import gTTS
@@ -644,10 +643,10 @@ def rebuild_all_users_embeddings():
         # Chạy xử lý ảnh người dùng
         generate_all_user_embeddings()
         
-        # Cập nhật FAISS index
+        # Cập nhật ann index
         build_ann_index()
         
-        return jsonify({"message": "User photos processed and FAISS index updated"}), 200
+        return jsonify({"message": "User photos processed and ann index updated"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to process and update: {str(e)}"}), 500
 

@@ -245,7 +245,7 @@ class InsightFaceDetector:
             with dt[1]:
                 if self.media_manager.face_recognition and all_cropped_faces:
                     all_embeddings = self.get_face_embeddings(all_cropped_faces)
-                    ids = search_annoys(all_embeddings, n_neighbors=1, threshold=1)
+                    ids = search_annoys(all_embeddings, n_neighbors=1, threshold=0.5)
 
                     if self.media_manager.face_emotion or self.media_manager.raise_hand:
                         start_idx = 0
