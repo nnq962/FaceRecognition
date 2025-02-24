@@ -26,6 +26,7 @@ class YoloDetector:
         self.rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
         self.det_model = None
         self.rec_model = None
+        self.previous_states = {}
         self.media_manager = media_manager
 
         if self.media_manager is not None:
@@ -96,27 +97,26 @@ class YoloDetector:
     def check_raising_hand(self, frame, bbox, id, timestamp, camera_name):
         if not self.media_manager.raise_hand:
             return
+
         cropped_expand_image = hand_raise_detector.expand_and_crop_image(frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
 
         hand_open = hand_raise_detector.is_hand_opened_in_image(cropped_expand_image)
         hand_raised = hand_raise_detector.is_person_raising_hand_image(cropped_expand_image)
 
-        if hand_open and hand_raised:
+        new_state = "up" if hand_open and hand_raised else "down"
+
+        # Kiểm tra nếu trạng thái có thay đổi không
+        if self.previous_states.get(id) != new_state:
             message = {
                 "user_id": id,
-                "type": "up",
+                "type": new_state,
                 "time": timestamp,
                 "camera": camera_name
             }
             send_notification(message)
-        else:
-            message = {
-                "user_id": id,
-                "type": "down",
-                "time": timestamp,
-                "camera": camera_name
-            }
-            send_notification(message)
+            
+            # Cập nhật trạng thái mới
+            self.previous_states[id] = new_state
 
     def get_face_emotions(self, img, bounding_boxes):
         """
@@ -345,8 +345,13 @@ class YoloDetector:
                         emotion = face["emotion"]
                         emotion_prob = face["emotion_probability"]
 
-                        label = f"{id} {similarity} | {emotion} {emotion_prob}"
-            
+                        label = None
+
+                        if self.media_manager.face_emotion:
+                            label = f"ID: {id} {similarity}, {emotion} {emotion_prob}"
+                        elif self.media_manager.face_recognition:
+                            label = f"ID: {id} {similarity}"
+                                        
                         if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
                             if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
                                 label = None
