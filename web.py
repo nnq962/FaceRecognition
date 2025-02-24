@@ -238,4 +238,4 @@ def export_attendance():
             return jsonify({"error": f"Lỗi xảy ra: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5555)
+    app.run(host="0.0.0.0", port=5556)

@@ -1,7 +1,7 @@
 import argparse
-from insightface_detector import InsightFaceDetector
+from config import config
+from yolo_detector import YoloDetector
 from media_manager import MediaManager
-from get_ip_address_camera import create_rtsp_urls_from_mongo
 from websocket_server import start_ws_server
 
 def process_source(source_arg):
@@ -15,7 +15,7 @@ def process_source(source_arg):
         if source_arg == "0":  # Webcam
             return "0"
         else:  # Single camera
-            rtsp_urls = create_rtsp_urls_from_mongo([int(source_arg)])
+            rtsp_urls = config.create_rtsp_urls_from_mongo([int(source_arg)])
             if rtsp_urls:
                 return rtsp_urls[0]
             else:
@@ -29,7 +29,7 @@ def process_source(source_arg):
                 if device_id.strip() == "0":  # Webcam
                     devices.append("0")
                 else:
-                    rtsp_urls = create_rtsp_urls_from_mongo([int(device_id.strip())])
+                    rtsp_urls = config.create_rtsp_urls_from_mongo([int(device_id.strip())])
                     if rtsp_urls:
                         devices.extend(rtsp_urls)
                     else:
@@ -55,6 +55,7 @@ parser.add_argument("--time_to_save", type=int, default=5, help="Time interval (
 parser.add_argument("--show_time_process", action="store_true", help="Enable display of process time.")
 parser.add_argument("--raise_hand", action="store_true", help="Enable raise hand detection.")
 parser.add_argument("--view_img", action="store_true", help="Enable display.")
+parser.add_argument("--save_crop", action="store_true", help="Enable crop result.")
 
 args = parser.parse_args()
 
@@ -81,11 +82,12 @@ media_manager = MediaManager(
     time_to_save=args.time_to_save,
     show_time_process=args.show_time_process,
     raise_hand=args.raise_hand,
-    view_img=args.view_img
+    view_img=args.view_img,
+    save_crop=args.save_crop
 )
 
 if args.raise_hand:
     start_ws_server()
 
-detector = InsightFaceDetector(media_manager=media_manager)
+detector = YoloDetector(media_manager=media_manager)
 detector.run_inference()

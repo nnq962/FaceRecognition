@@ -4,3 +4,6 @@ __pycache__/
 .idea/
 runs/
 cert_and_key/
+3hinc.jpg
+annoy_mapping.npy
+face_index.ann
