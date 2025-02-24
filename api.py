@@ -184,7 +184,7 @@ def build_ann_index():
     vector_dim = len(embeddings[0])
 
     # Khởi tạo Annoy Index
-    t = AnnoyIndex(vector_dim, 'angular')
+    t = AnnoyIndex(vector_dim, 'euclidean')
 
     # Thêm từng embedding vào Annoy Index
     for i, emb in enumerate(embeddings):
