@@ -7,6 +7,7 @@ from insightface.utils import face_align
 import platform
 import faiss
 from config import config
+from annoy import AnnoyIndex
 
 users_collection = config.users_collection
 save_path = config.save_path
@@ -189,7 +190,7 @@ def search_ids_mongoDB(embeddings, index_path=save_path + "/data_base/face_index
 
 def search_annoy(query_embedding, n_neighbors=1, threshold=None):
     """
-    Tìm kiếm trong Annoy index đã load trước đó.
+    Tìm kiếm trong Annoy index, load dữ liệu mỗi lần gọi.
 
     Parameters:
         - query_embedding: Numpy array chứa vector cần tìm kiếm.
@@ -200,21 +201,34 @@ def search_annoy(query_embedding, n_neighbors=1, threshold=None):
         - Danh sách các user_id và ảnh gần nhất, có lọc theo threshold nếu cần.
     """
 
-    # Tìm n_neighbors gần nhất từ Annoy index đã load sẵn trong config
-    nearest_indices = config.annoy_index.get_nns_by_vector(query_embedding, n_neighbors, include_distances=True)
+    # Kiểm tra file tồn tại trước khi load
+    if not os.path.exists(config.ann_file):
+        print(f"Missing Annoy index file: {config.ann_file}")
+        return []
 
-    # nearest_indices[0] = danh sách index
-    # nearest_indices[1] = danh sách khoảng cách tương ứng
+    if not os.path.exists(config.mapping_file):
+        print(f"Missing mapping file: {config.mapping_file}")
+        return []
+
+    # Load Annoy Index
+    annoy_index = AnnoyIndex(config.vector_dim, 'angular')
+    annoy_index.load(config.ann_file)
+
+    # Load Mapping từ file .npy
+    id_mapping = np.load(config.mapping_file, allow_pickle=True).item()
+
+    # Tìm n_neighbors gần nhất từ Annoy index
+    nearest_indices = annoy_index.get_nns_by_vector(query_embedding, n_neighbors, include_distances=True)
+
     indices, distances = nearest_indices
-
     results = []
+
     for index, distance in zip(indices, distances):
-        if index in config.id_mapping:
-            # Nếu có threshold, chỉ lấy những kết quả có khoảng cách nhỏ hơn threshold
+        if index in id_mapping:
             if threshold is None or distance <= threshold:
                 results.append({
-                    "id": config.id_mapping[index]["id"],
-                    "full_name": config.id_mapping[index]["full_name"],
+                    "id": id_mapping[index]["id"],
+                    "full_name": id_mapping[index]["full_name"],
                     "similarity": distance
                 })
 
@@ -233,7 +247,6 @@ def search_annoys(query_embeddings, n_neighbors=1, threshold=None):
         - Danh sách kết quả [None, result1, None, result2, ...]
     """
     results_list = []
-    
     for query in query_embeddings:
         result = search_annoy(query, n_neighbors, threshold)
         results_list.append(result if result else None)
