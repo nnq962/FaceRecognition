@@ -61,7 +61,7 @@ class Config:
         self.id_mapping = None
         print("-" * 80)
         self.update_path = self.find_file_in_anaconda("degradations.py")
-        self.update_import(file_path=self.update_path)
+        # self.update_import(file_path=self.update_path)
         self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
         print("-" * 80)
 

@@ -190,12 +190,12 @@ def search_ids_mongoDB(embeddings, index_path=save_path + "/data_base/face_index
 
 def search_annoy(query_embedding, n_neighbors=1, threshold=None):
     """
-    Tìm kiếm trong Annoy index, load dữ liệu mỗi lần gọi.
+    Tìm kiếm trong Annoy index sử dụng Euclidean Distance, và chuyển đổi về Cosine Similarity để so sánh với ngưỡng.
 
     Parameters:
-        - query_embedding: Numpy array chứa vector cần tìm kiếm.
+        - query_embedding: Numpy array chứa vector cần tìm kiếm (đã chuẩn hóa trước).
         - n_neighbors: Số lượng hàng xóm gần nhất cần tìm.
-        - threshold: Ngưỡng khoảng cách tối đa (nếu None, không áp dụng).
+        - threshold: Ngưỡng Cosine Similarity tối thiểu (nếu None, không áp dụng).
 
     Returns:
         - Danh sách các user_id và ảnh gần nhất, có lọc theo threshold nếu cần.
@@ -210,26 +210,29 @@ def search_annoy(query_embedding, n_neighbors=1, threshold=None):
         print(f"Missing mapping file: {config.mapping_file}")
         return []
 
-    # Load Annoy Index
-    annoy_index = AnnoyIndex(config.vector_dim, 'angular')
+    # Load Annoy Index (sử dụng Euclidean thay vì Angular)
+    annoy_index = AnnoyIndex(config.vector_dim, 'euclidean')
     annoy_index.load(config.ann_file)
 
     # Load Mapping từ file .npy
     id_mapping = np.load(config.mapping_file, allow_pickle=True).item()
 
     # Tìm n_neighbors gần nhất từ Annoy index
-    nearest_indices = annoy_index.get_nns_by_vector(query_embedding, n_neighbors, include_distances=True)
+    indices, distances = annoy_index.get_nns_by_vector(query_embedding, n_neighbors, include_distances=True)
 
-    indices, distances = nearest_indices
+    # Chuyển đổi toàn bộ khoảng cách Euclidean sang Cosine Similarity bằng NumPy (Nhanh hơn)
+    distances = np.array(distances)  # Chuyển về NumPy array
+    cosine_similarities = 1 - (distances ** 2) / 2  # Vectorized computation
+
+    # Xây dựng danh sách kết quả
     results = []
-
-    for index, distance in zip(indices, distances):
+    for i, index in enumerate(indices):
         if index in id_mapping:
-            if threshold is None or distance <= threshold:
+            if threshold is None or cosine_similarities[i] >= threshold:
                 results.append({
                     "id": id_mapping[index]["id"],
                     "full_name": id_mapping[index]["full_name"],
-                    "similarity": distance
+                    "similarity": cosine_similarities[i]
                 })
 
     return results
