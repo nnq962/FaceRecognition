@@ -10,7 +10,7 @@ from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-from insightface_utils import crop_image, is_small_face, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB, save_data_to_mongo
+from insightface_utils import crop_image, is_small_face, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB, save_data_to_mongo, search_annoys
 from hand_raise_detector import is_person_raising_hand_image, is_hand_opened_in_image, expand_and_crop_image
 from websocket_server import send_notification
 import time
@@ -245,7 +245,7 @@ class InsightFaceDetector:
             with dt[1]:
                 if self.media_manager.face_recognition and all_cropped_faces:
                     all_embeddings = self.get_face_embeddings(all_cropped_faces)
-                    ids = search_ids_mongoDB(all_embeddings, top_k=1, threshold=0.5)
+                    ids = search_annoys(all_embeddings, n_neighbors=1, threshold=1)
 
                     if self.media_manager.face_emotion or self.media_manager.raise_hand:
                         start_idx = 0

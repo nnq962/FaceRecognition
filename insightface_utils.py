@@ -187,6 +187,59 @@ def search_ids_mongoDB(embeddings, index_path=save_path + "/data_base/face_index
 
     return all_results
 
+def search_annoy(query_embedding, n_neighbors=1, threshold=None):
+    """
+    Tìm kiếm trong Annoy index đã load trước đó.
+
+    Parameters:
+        - query_embedding: Numpy array chứa vector cần tìm kiếm.
+        - n_neighbors: Số lượng hàng xóm gần nhất cần tìm.
+        - threshold: Ngưỡng khoảng cách tối đa (nếu None, không áp dụng).
+
+    Returns:
+        - Danh sách các user_id và ảnh gần nhất, có lọc theo threshold nếu cần.
+    """
+
+    # Tìm n_neighbors gần nhất từ Annoy index đã load sẵn trong config
+    nearest_indices = config.annoy_index.get_nns_by_vector(query_embedding, n_neighbors, include_distances=True)
+
+    # nearest_indices[0] = danh sách index
+    # nearest_indices[1] = danh sách khoảng cách tương ứng
+    indices, distances = nearest_indices
+
+    results = []
+    for index, distance in zip(indices, distances):
+        if index in config.id_mapping:
+            # Nếu có threshold, chỉ lấy những kết quả có khoảng cách nhỏ hơn threshold
+            if threshold is None or distance <= threshold:
+                results.append({
+                    "id": config.id_mapping[index]["id"],
+                    "full_name": config.id_mapping[index]["full_name"],
+                    "similarity": distance
+                })
+
+    return results
+
+def search_annoys(query_embeddings, n_neighbors=1, threshold=None):
+    """
+    Tìm kiếm trong Annoy index với danh sách query_embeddings.
+
+    Parameters:
+        - query_embeddings: List các numpy array chứa các query embeddings.
+        - n_neighbors: Số lượng hàng xóm gần nhất cần tìm.
+        - threshold: Ngưỡng khoảng cách tối đa (nếu None, không áp dụng).
+
+    Returns:
+        - Danh sách kết quả [None, result1, None, result2, ...]
+    """
+    results_list = []
+    
+    for query in query_embeddings:
+        result = search_annoy(query, n_neighbors, threshold)
+        results_list.append(result if result else None)
+
+    return results_list
+
 def crop_and_align_faces(img, bboxes, keypoints, conf_threshold=0.5, image_size=112):
     """
     Cắt và chuẩn hóa các khuôn mặt từ ảnh gốc dựa trên bounding boxes và keypoints.

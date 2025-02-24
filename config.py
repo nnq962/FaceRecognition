@@ -6,6 +6,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import sys
 import gdown
+import numpy as np
+from annoy import AnnoyIndex
 
 class Config:
     """ Class chứa toàn bộ cấu hình của ứng dụng """
@@ -15,7 +17,7 @@ class Config:
     host = "localhost"
     port = "27017"
     database = ""
-    init_database = True
+    init_database = False
     vram_limit_for_FER = 1
     camera_names = []
     save_path = str(Path.home()) + "/nnq_static"
@@ -27,6 +29,9 @@ class Config:
     "parsing_parsenet.pth": "https://drive.google.com/uc?id=1ZFqra3Vs4i5fB6B8LkyBo_WQXaPRn77y",
     "yolov11-face.pt": "https://drive.google.com/uc?id=1Y6syEi7jMbRkiEC-4Wd5cqwOKWtiD2at"
     }
+    ann_file = "face_index.ann"
+    mapping_file = "annoy_mapping.npy"
+    vector_dim = 512
     
     # Tạo MONGO_URI linh hoạt
     if user and password:
@@ -52,11 +57,34 @@ class Config:
         Path(folder).mkdir(parents=True, exist_ok=True)
 
     def __init__(self):
+        self.annoy_index = None
+        self.id_mapping = None
         print("-" * 80)
         self.update_path = self.find_file_in_anaconda("degradations.py")
         self.update_import(file_path=self.update_path)
         self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
+        self.load_ann()
         print("-" * 80)
+
+    def load_ann(self):
+        if not os.path.exists(self.ann_file):
+            print(f"Missing Annoy index file: {self.ann_file}")
+            return
+        
+        if not os.path.exists(self.mapping_file):
+            print(f"Missing mapping file: {self.mapping_file}")
+            return
+
+        print("Loading Annoy index & mapping file...")
+
+        # Load Annoy Index
+        self.annoy_index = AnnoyIndex(self.vector_dim, 'angular')
+        self.annoy_index.load(self.ann_file)
+
+        # Load Mapping từ file .npy
+        self.id_mapping = np.load(self.mapping_file, allow_pickle=True).item()
+
+        print("Annoy index & mapping file loaded successfully!")
 
     def get_vietnam_time(self):
         vietnam_now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))

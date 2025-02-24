@@ -11,6 +11,7 @@ import numpy as np
 from flask_cors import CORS
 from gtts import gTTS
 from config import config
+from annoy import AnnoyIndex
 
 app = Flask(__name__)
 CORS(app)
@@ -59,21 +60,25 @@ def calculate_work_hours(entries):
 
 
 # ----------------------------------------------------------------
-def process_user_photos():
+def generate_all_user_embeddings():
+    """
+    Cập nhật toàn bộ face_embeddings trong mongoDB, nếu thư mục hình ảnh của các users bị thay đổi
+    """
     users = users_collection.find()
 
     for user in users:
         user_id = user["_id"]
-        photo_folder = user["photo_folder"]
+        photo_folder = user.get("photo_folder")
 
         print(f"Processing user ID {user_id}...")
 
-        if not os.path.exists(photo_folder):
+        if not photo_folder or not os.path.exists(photo_folder):
             print(f"Photo folder does not exist for user ID {user_id}: {photo_folder}")
             continue
 
         face_embeddings = []
         photo_count = 0
+
         for file_name in os.listdir(photo_folder):
             file_path = os.path.join(photo_folder, file_name)
 
@@ -81,12 +86,16 @@ def process_user_photos():
                 try:
                     # Gọi hàm xử lý để lấy face embedding
                     face_embedding = process_image(file_path, detector)
-                    
-                    # Chuyển face embedding sang dạng danh sách
-                    face_embeddings.append(face_embedding.tolist())
 
-                    photo_count += 1
-                    print(f"Added embedding for file {file_name} (user ID {user_id})")
+                    if face_embedding is not None:
+                        # Lưu theo dạng danh sách {photo_name, embedding}
+                        face_embeddings.append({
+                            "photo_name": file_name,
+                            "embedding": face_embedding.tolist()
+                        })
+
+                        photo_count += 1
+                        print(f"Added embedding for file {file_name} (user ID {user_id})")
 
                 except Exception as e:
                     print(f"Error processing file {file_path}: {e}")
@@ -102,63 +111,110 @@ def process_user_photos():
 
 
 # ----------------------------------------------------------------
-def update_all_faiss_index(output_path=save_path + "/data_base/face_index.faiss"):
-    embeddings = []
-    ids = []
+# def update_all_faiss_index(output_path=save_path + "/data_base/face_index.faiss"):
+#     embeddings = []
+#     ids = []
 
-    # Lấy tất cả người dùng từ MongoDB
-    users = list(users_collection.find())
-    for user in users:
-        user_id = user["_id"]  # ID của người dùng
-        face_embeddings = user.get("face_embeddings", [])  # Lấy danh sách face_embeddings
+#     # Lấy tất cả người dùng từ MongoDB
+#     users = list(users_collection.find())
+#     for user in users:
+#         user_id = user["_id"]  # ID của người dùng
+#         face_embeddings = user.get("face_embeddings", [])  # Lấy danh sách face_embeddings
 
-        # Duyệt qua tất cả face_embeddings và thêm vào danh sách
-        for embedding in face_embeddings:
-            embeddings.append(embedding)  # Thêm embedding vào danh sách
-            ids.append(user_id)  # Dùng MongoDB `_id` làm ID
+#         # Duyệt qua tất cả face_embeddings và thêm vào danh sách
+#         for embedding in face_embeddings:
+#             embeddings.append(embedding)  # Thêm embedding vào danh sách
+#             ids.append(user_id)  # Dùng MongoDB `_id` làm ID
 
-    if len(embeddings) == 0:
-        print("No embeddings found in the database.")
-        return
+#     if len(embeddings) == 0:
+#         print("No embeddings found in the database.")
+#         return
 
-    # Chuyển embeddings thành numpy array
-    embeddings_array = np.array(embeddings, dtype="float32")
-    ids_array = np.array(ids, dtype=np.int64)  # FAISS yêu cầu ID là kiểu số nguyên
+#     # Chuyển embeddings thành numpy array
+#     embeddings_array = np.array(embeddings, dtype="float32")
+#     ids_array = np.array(ids, dtype=np.int64)  # FAISS yêu cầu ID là kiểu số nguyên
 
-    # Tạo FAISS index với Inner Product (cho Cosine Similarity)
-    dimension = embeddings_array.shape[1]
-    index = faiss.IndexFlatIP(dimension)  # Inner Product để tính Cosine Similarity
-    index_with_id = faiss.IndexIDMap(index)
+#     # Tạo FAISS index với Inner Product (cho Cosine Similarity)
+#     dimension = embeddings_array.shape[1]
+#     index = faiss.IndexFlatIP(dimension)  # Inner Product để tính Cosine Similarity
+#     index_with_id = faiss.IndexIDMap(index)
 
-    # Thêm embeddings và IDs vào FAISS
-    index_with_id.add_with_ids(embeddings_array, ids_array)
+#     # Thêm embeddings và IDs vào FAISS
+#     index_with_id.add_with_ids(embeddings_array, ids_array)
 
-    # Ghi FAISS index ra tệp
-    faiss.write_index(index_with_id, output_path)
-    print(f"FAISS index (Cosine Similarity) saved to {output_path}")
+#     # Ghi FAISS index ra tệp
+#     faiss.write_index(index_with_id, output_path)
+#     print(f"FAISS index (Cosine Similarity) saved to {output_path}")
 
 
 # ----------------------------------------------------------------
-def update_faiss_index(new_embedding, user_id, index_path=save_path + "/data_base/face_index.faiss"):
-    # Kiểm tra nếu tệp FAISS index đã tồn tại
-    if os.path.exists(index_path):
-        # Tải FAISS index hiện tại
-        index = faiss.read_index(index_path)
-    else:
-        # Tạo FAISS index mới nếu chưa tồn tại
-        dimension = len(new_embedding)
-        index = faiss.IndexIDMap(faiss.IndexFlatIP(dimension))
+def build_ann_index():
+    """
+    Tạo tệp ann và tệp ánh xạ
+    """
+    embeddings = []
+    id_mapping = {}  # Lưu mapping từ Annoy index → user (_id, full_name)
 
-    # Chuyển đổi embedding và ID sang numpy array
-    embedding_array = np.array([new_embedding], dtype="float32")
-    id_array = np.array([user_id], dtype=np.int64)
+    index_counter = 0  # Đếm số embeddings
 
-    # Thêm embedding mới vào FAISS index
-    index.add_with_ids(embedding_array, id_array)
+    # Lấy thông tin _id, full_name và embeddings từ MongoDB
+    users = users_collection.find({}, {"_id": 1, "full_name": 1, "face_embeddings": 1})
+    
+    for user in users:
+        user_id = user["_id"]
+        full_name = user.get("full_name", "Unknown")  # Nếu không có full_name thì gán "Unknown"
 
-    # Lưu FAISS index vào tệp
-    faiss.write_index(index, index_path)
-    print(f"Updated FAISS index saved to {index_path}")
+        for face_entry in user.get("face_embeddings", []):  # Duyệt qua từng embedding
+            embeddings.append(face_entry["embedding"])
+            id_mapping[index_counter] = {
+                "id": user_id,  # Sử dụng _id thay vì user_id
+                "full_name": full_name  # Lưu full_name thay vì photo_name
+            }
+            index_counter += 1
+
+    # Kiểm tra nếu không có embeddings
+    if not embeddings:
+        print("Không có embeddings nào trong MongoDB!")
+        return
+
+    # Chuyển thành NumPy array để xử lý nhanh hơn
+    embeddings = np.array(embeddings, dtype=np.float32)
+
+    # Xác định số chiều của vector embedding
+    vector_dim = len(embeddings[0])
+
+    # Khởi tạo Annoy Index
+    t = AnnoyIndex(vector_dim, 'angular')
+
+    # Thêm từng embedding vào Annoy Index
+    for i, emb in enumerate(embeddings):
+        t.add_item(i, emb)
+
+    # Xây dựng Annoy Index với 10 cây
+    t.build(10)
+
+    # Lưu file .ann
+    t.save(config.ann_file)
+
+    # Lưu id_mapping thành file .npy
+    np.save(config.mapping_file, id_mapping)
+
+    print(f"Annoy index has been successfully created and saved to '{config.ann_file}'!")
+    print(f"Mapping index → user has been saved to '{config.mapping_file}'!")
+
+
+# ----------------------------------------------------------------
+def update_annoy_index():
+    """
+    Xây dựng lại Annoy Index và reload vào config.
+    """
+    print("Building new Annoy index...")
+    build_ann_index()  # Cập nhật tệp .ann và .npy
+
+    print("Reloading Annoy index into memory...")
+    config.load_ann()  # Tải lại Annoy index & mapping file vào RAM
+
+    print("Annoy index updated and reloaded successfully!")
 
 
 # ----------------------------------------------------------------
@@ -239,11 +295,8 @@ def delete_user(user_id):
         if folder_path and os.path.exists(folder_path):
             shutil.rmtree(folder_path)  # Xóa toàn bộ thư mục và nội dung bên trong
 
-            # Chạy xử lý ảnh người dùng
-            process_user_photos()
-            
-            # Cập nhật FAISS index
-            update_all_faiss_index()
+            # Cập nhật ann index
+            update_annoy_index()
 
         return jsonify({"message": "User and folder deleted successfully"}), 200
     except Exception as e:
@@ -268,32 +321,48 @@ def upload_photo(user_id):
     if not folder_path:
         return jsonify({"error": "User folder not found"}), 500
 
+    # Lấy danh sách ảnh đã tồn tại trong MongoDB
+    existing_photos = {entry["photo_name"] for entry in user.get("face_embeddings", [])}
+
+    filename = photo.filename
+    if filename in existing_photos:
+        return jsonify({"error": "Photo already exists"}), 400
+
     try:
         # Đảm bảo thư mục tồn tại
         os.makedirs(folder_path, exist_ok=True)
 
         # Lưu ảnh vào thư mục
-        filename = f"{photo.filename}"
         file_path = os.path.join(folder_path, filename)
         photo.save(file_path)
 
-        # Lấy đặc trưng khuôn mặt từ hàm `process_image`
+        # Lấy đặc trưng khuôn mặt từ ảnh
         try:
             face_embedding = process_image(file_path, detector)
 
             if face_embedding is not None:
-                # Lưu đặc trưng khuôn mặt vào MongoDB
+                # Chuyển thành danh sách để lưu trong MongoDB
                 face_embedding = face_embedding.tolist()
 
+                # Tạo object lưu embedding kèm tên ảnh
+                embedding_entry = {
+                    "photo_name": filename,
+                    "embedding": face_embedding
+                }
+
+                # Lưu vào MongoDB theo cấu trúc mới
                 users_collection.update_one(
                     {"_id": int(user_id)},
-                    {"$push": {"face_embeddings": face_embedding}}
+                    {"$push": {"face_embeddings": embedding_entry}}
                 )
+                
+                # Build ann
+                update_annoy_index()
 
-                # Cập nhật FAISS index với embedding mới
-                update_faiss_index(face_embedding, int(user_id))
-
-                return jsonify({"message": "Photo uploaded and face features saved"}), 200
+                return jsonify({
+                    "message": "Photo uploaded and face features saved",
+                    "photo_name": filename
+                }), 200
             else:
                 return jsonify({"error": "No face detected in the image"}), 400
 
@@ -309,10 +378,10 @@ def upload_photo(user_id):
 def delete_photo(user_id):
     data = request.get_json()
 
-    if not data or "file_path" not in data:
-        return jsonify({"error": "File path is required"}), 400
+    if not data or "file_name" not in data:
+        return jsonify({"error": "File name is required"}), 400
 
-    file_path = data["file_path"]
+    file_name = data["file_name"]
 
     # Kiểm tra xem user có tồn tại không
     user = users_collection.find_one({"_id": int(user_id)})
@@ -325,7 +394,7 @@ def delete_photo(user_id):
         return jsonify({"error": "User folder not found"}), 500
 
     # Đường dẫn đầy đủ của file cần xóa
-    full_path = os.path.join(folder_path, file_path)
+    full_path = os.path.join(folder_path, file_name)
 
     if not os.path.exists(full_path):
         return jsonify({"error": "File not found"}), 404
@@ -335,19 +404,15 @@ def delete_photo(user_id):
         os.remove(full_path)
 
         # Xóa embedding tương ứng từ MongoDB
-        face_embeddings = user.get("face_embeddings", [])
-        if face_embeddings:
-            users_collection.update_one(
-                {"_id": int(user_id)},
-                {"$set": {"face_embeddings": []}}  # Hoặc xóa phần tử cụ thể nếu có cách ánh xạ
-            )
+        users_collection.update_one(
+            {"_id": int(user_id)},
+            {"$pull": {"face_embeddings": {"photo_name": file_name}}}  # Xóa entry có tên ảnh tương ứng
+        )
 
-        process_user_photos()
+        # Build ann
+        update_annoy_index()
 
-        # Cập nhật FAISS index
-        update_all_faiss_index()
-
-        return jsonify({"message": "Photo deleted successfully"}), 200
+        return jsonify({"message": "Photo and embedding deleted successfully"}), 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to delete photo: {str(e)}"}), 500
@@ -404,52 +469,6 @@ def delete_manager(manager_id):
     if result.deleted_count == 0:
         return jsonify({"error": "Manager not found"}), 404
     return jsonify({"message": "Manager deleted"}), 200
-
-
-# ----------------------------------------------------------------
-@app.route('/add_camera', methods=['POST'])
-def add_camera():
-    data = request.json
-
-    # Kiểm tra dữ liệu đầu vào
-    required_fields = ["id_camera", "camera_name", "camera_address", "camera_location"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    id_camera = data["id_camera"]
-    camera_name = data["camera_name"]
-    camera_address = data["camera_address"]
-    camera_location = data["camera_location"]
-
-    # Kiểm tra id_camera có bị trùng không
-    existing_camera = camera_collection.find_one({"id_camera": id_camera})
-    if existing_camera:
-        return jsonify({"error": "Camera ID already exists"}), 400
-
-    # Tạo ID tự động tăng dần cho camera
-    last_camera = camera_collection.find_one(sort=[("_id", -1)])
-    camera_id = last_camera["_id"] + 1 if last_camera else 1
-
-    # Chuẩn bị dữ liệu để thêm vào MongoDB
-    camera_info = {
-        "_id": camera_id,
-        "id_camera": id_camera,
-        "camera_name": camera_name,
-        "camera_address": camera_address,
-        "camera_location": camera_location,
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-
-    # Thêm camera vào collection
-    camera_collection.insert_one(camera_info)
-    return jsonify({
-        "message": "Camera added successfully",
-        "id": camera_id,
-        "id_camera": id_camera,
-        "camera_name": camera_name,
-        "camera_address": camera_address,
-        "camera_location": camera_location
-    }), 201
 
 
 # ----------------------------------------------------------------
@@ -628,19 +647,19 @@ def export_attendance():
 if config.init_database:
     print("-" * 80)
     print("Initialize database")
-    process_user_photos()
-    update_all_faiss_index()
+    generate_all_user_embeddings()
+    update_annoy_index()
 
 
 # ----------------------------------------------------------------
-@app.route('/api/process_and_update', methods=['POST'])
-def process_and_update():
+@app.route('/api/rebuild_all_users_embeddings', methods=['POST'])
+def rebuild_all_users_embeddings():
     try:
         # Chạy xử lý ảnh người dùng
-        process_user_photos()
+        generate_all_user_embeddings()
         
         # Cập nhật FAISS index
-        update_all_faiss_index()
+        update_annoy_index()
         
         return jsonify({"message": "User photos processed and FAISS index updated"}), 200
     except Exception as e:

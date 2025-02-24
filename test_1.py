@@ -1,12 +1,13 @@
-import requests
+from insightface_detector import InsightFaceDetector
+from insightface_utils import process_image, search_annoy
+from config import config
 
-url = "http://127.0.0.1:6123/api/get_user_data"
-params = {
-    "user_id": 1,
-    "start_date": "2025-01-16 23:53:19",
-    "end_date": "2025-01-16 23:53:24",
-    "camera_name": "webcam_0"
-}
+detector = InsightFaceDetector()
 
-response = requests.get(url, params=params)
-print(response.json())
+img = "data_test/nnq1.jpg"
+query_embedding = process_image(img, detector=detector)
+
+# Chỉ lấy 1 hàng xóm gần nhất cho mỗi query
+results = search_annoy(query_embedding, n_neighbors=3, threshold=None)
+
+print(results)
