@@ -42,10 +42,10 @@ class Config:
     db = client["my_database"]
 
     # Các collection
-    users_collection = db["users"]
-    managers_collection = db["managers"]
-    camera_collection = db["camera_information"]
-    data_collection = db["camera_data"]
+    users_collection = db["users_test"]
+    managers_collection = db["managers_test"]
+    camera_collection = db["camera_information_test"]
+    data_collection = db["camera_data_test"]
 
     SAVE_PATH = Path(save_path)
     UPLOADS_PATH = SAVE_PATH / "uploads"
