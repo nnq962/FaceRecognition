@@ -1,6 +1,6 @@
 from config import config
 import argparse
-from insightface_detector import InsightFaceDetector
+from yolo_detector import YoloDetector
 from media_manager import MediaManager
 from websocket_server import start_ws_server
 
@@ -56,6 +56,7 @@ parser.add_argument("--time_to_save", type=int, default=5, help="Time interval (
 parser.add_argument("--show_time_process", action="store_true", help="Enable display of process time.")
 parser.add_argument("--raise_hand", action="store_true", help="Enable raise hand detection.")
 parser.add_argument("--view_img", action="store_true", help="Enable display.")
+parser.add_argument("--line_thickness", type=int, default=3, help="Line thickness")
 
 args = parser.parse_args()
 
@@ -82,11 +83,12 @@ media_manager = MediaManager(
     time_to_save=args.time_to_save,
     show_time_process=args.show_time_process,
     raise_hand=args.raise_hand,
-    view_img=args.view_img
+    view_img=args.view_img,
+    line_thickness=args.line_thickness
 )
 
 if args.raise_hand:
     start_ws_server()
 
-detector = InsightFaceDetector(media_manager=media_manager)
+detector = YoloDetector(media_manager=media_manager)
 detector.run_inference()

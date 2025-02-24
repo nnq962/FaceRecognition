@@ -1,23 +1,20 @@
-from flask import Flask, request, jsonify, Response, send_file
+from flask import Flask, request, jsonify, send_file
 import mimetypes
 from datetime import datetime, timedelta
 import pandas as pd
 import os
-import io
-import csv
 import shutil
-from insightface_detector import InsightFaceDetector
+from yolo_detector import YoloDetector
 from yolo_detector_utils import process_image
-import faiss
 import numpy as np
 from flask_cors import CORS
-from flask import Flask, request, jsonify
 from gtts import gTTS
 from config import config
+from annoy import AnnoyIndex
 
 app = Flask(__name__)
 CORS(app)
-detector = InsightFaceDetector()
+detector = YoloDetector()
 
 # Kết nối tới MongoDB
 users_collection = config.users_collection
@@ -25,23 +22,62 @@ managers_collection = config.managers_collection
 camera_collection = config.camera_collection
 data_collection = config.data_collection
 save_path = config.save_path
+greeted_employees = {}
+
 
 # ----------------------------------------------------------------
-def process_user_photos():
+def play_greeting(name, greeting_type="chào"):
+    """Phát âm thanh chào mừng hoặc tạm biệt"""
+    text = f"{greeting_type.capitalize()} {name}!"
+    tts = gTTS(text, lang="vi")
+    audio_file = "greeting.mp3"
+    tts.save(audio_file)
+
+    # Phát âm thanh bằng FFmpeg
+    os.system(f"ffplay -nodisp -autoexit {audio_file}")
+
+
+# ----------------------------------------------------------------
+def calculate_work_hours(entries):
+    """Tính tổng giờ công trong ngày và ghi chú nếu đi muộn."""
+    if len(entries) == 0:  # Không có dữ liệu
+        return None, None, None, "Không có dữ liệu"
+    elif len(entries) == 1:  # Chỉ có một mốc thời gian
+        check_in = datetime.strptime(entries[0], "%Y-%m-%d %H:%M:%S")
+        return check_in.strftime("%H:%M:%S"), None, None, "Chỉ có thời gian vào"
+
+    check_in = min(entries)  # Lấy thời gian vào đầu tiên
+    check_out = max(entries)  # Lấy thời gian ra cuối cùng
+    check_in_dt = datetime.strptime(check_in, "%Y-%m-%d %H:%M:%S")
+    check_out_dt = datetime.strptime(check_out, "%Y-%m-%d %H:%M:%S")
+    total_hours = (check_out_dt - check_in_dt).total_seconds() / 3600
+
+    # Ghi chú đi muộn nếu vào sau 08:00
+    late_note = "Đi muộn" if check_in_dt.time() > datetime.strptime("08:00:00", "%H:%M:%S").time() else ""
+
+    return check_in_dt.strftime("%H:%M:%S"), check_out_dt.strftime("%H:%M:%S"), total_hours, late_note
+
+
+# ----------------------------------------------------------------
+def generate_all_user_embeddings():
+    """
+    Cập nhật toàn bộ face_embeddings trong mongoDB, nếu thư mục hình ảnh của các users bị thay đổi
+    """
     users = users_collection.find()
 
     for user in users:
         user_id = user["_id"]
-        photo_folder = user["photo_folder"]
+        photo_folder = user.get("photo_folder")
 
         print(f"Processing user ID {user_id}...")
 
-        if not os.path.exists(photo_folder):
+        if not photo_folder or not os.path.exists(photo_folder):
             print(f"Photo folder does not exist for user ID {user_id}: {photo_folder}")
             continue
 
         face_embeddings = []
         photo_count = 0
+
         for file_name in os.listdir(photo_folder):
             file_path = os.path.join(photo_folder, file_name)
 
@@ -49,12 +85,16 @@ def process_user_photos():
                 try:
                     # Gọi hàm xử lý để lấy face embedding
                     face_embedding = process_image(file_path, detector)
-                    
-                    # Chuyển face embedding sang dạng danh sách
-                    face_embeddings.append(face_embedding.tolist())
 
-                    photo_count += 1
-                    print(f"Added embedding for file {file_name} (user ID {user_id})")
+                    if face_embedding is not None:
+                        # Lưu theo dạng danh sách {photo_name, embedding}
+                        face_embeddings.append({
+                            "photo_name": file_name,
+                            "embedding": face_embedding.tolist()
+                        })
+
+                        photo_count += 1
+                        print(f"Added embedding for file {file_name} (user ID {user_id})")
 
                 except Exception as e:
                     print(f"Error processing file {file_path}: {e}")
@@ -68,63 +108,99 @@ def process_user_photos():
         print(f"Completed processing user ID {user_id}. Total photos processed: {photo_count}")
         print("-" * 80)
 
+
 # ----------------------------------------------------------------
-def update_all_faiss_index(output_path=save_path + "/data_base/face_index.faiss"):
+# def update_all_faiss_index(output_path=save_path + "/data_base/face_index.faiss"):
+#     embeddings = []
+#     ids = []
+
+#     # Lấy tất cả người dùng từ MongoDB
+#     users = list(users_collection.find())
+#     for user in users:
+#         user_id = user["_id"]  # ID của người dùng
+#         face_embeddings = user.get("face_embeddings", [])  # Lấy danh sách face_embeddings
+
+#         # Duyệt qua tất cả face_embeddings và thêm vào danh sách
+#         for embedding in face_embeddings:
+#             embeddings.append(embedding)  # Thêm embedding vào danh sách
+#             ids.append(user_id)  # Dùng MongoDB `_id` làm ID
+
+#     if len(embeddings) == 0:
+#         print("No embeddings found in the database.")
+#         return
+
+#     # Chuyển embeddings thành numpy array
+#     embeddings_array = np.array(embeddings, dtype="float32")
+#     ids_array = np.array(ids, dtype=np.int64)  # FAISS yêu cầu ID là kiểu số nguyên
+
+#     # Tạo FAISS index với Inner Product (cho Cosine Similarity)
+#     dimension = embeddings_array.shape[1]
+#     index = faiss.IndexFlatIP(dimension)  # Inner Product để tính Cosine Similarity
+#     index_with_id = faiss.IndexIDMap(index)
+
+#     # Thêm embeddings và IDs vào FAISS
+#     index_with_id.add_with_ids(embeddings_array, ids_array)
+
+#     # Ghi FAISS index ra tệp
+#     faiss.write_index(index_with_id, output_path)
+#     print(f"FAISS index (Cosine Similarity) saved to {output_path}")
+
+
+# ----------------------------------------------------------------
+def build_ann_index():
+    """
+    Tạo tệp ann và tệp ánh xạ
+    """
     embeddings = []
-    ids = []
+    id_mapping = {}  # Lưu mapping từ Annoy index → user (_id, full_name)
 
-    # Lấy tất cả người dùng từ MongoDB
-    users = list(users_collection.find())
+    index_counter = 0  # Đếm số embeddings
+
+    # Lấy thông tin _id, full_name và embeddings từ MongoDB
+    users = users_collection.find({}, {"_id": 1, "full_name": 1, "face_embeddings": 1})
+    
     for user in users:
-        user_id = user["_id"]  # ID của người dùng
-        face_embeddings = user.get("face_embeddings", [])  # Lấy danh sách face_embeddings
+        user_id = user["_id"]
+        full_name = user.get("full_name", "Unknown")  # Nếu không có full_name thì gán "Unknown"
 
-        # Duyệt qua tất cả face_embeddings và thêm vào danh sách
-        for embedding in face_embeddings:
-            embeddings.append(embedding)  # Thêm embedding vào danh sách
-            ids.append(user_id)  # Dùng MongoDB `_id` làm ID
+        for face_entry in user.get("face_embeddings", []):  # Duyệt qua từng embedding
+            embeddings.append(face_entry["embedding"])
+            id_mapping[index_counter] = {
+                "id": user_id,  # Sử dụng _id thay vì user_id
+                "full_name": full_name  # Lưu full_name thay vì photo_name
+            }
+            index_counter += 1
 
-    if len(embeddings) == 0:
-        print("No embeddings found in the database.")
+    # Kiểm tra nếu không có embeddings
+    if not embeddings:
+        print("Không có embeddings nào trong MongoDB!")
         return
 
-    # Chuyển embeddings thành numpy array
-    embeddings_array = np.array(embeddings, dtype="float32")
-    ids_array = np.array(ids, dtype=np.int64)  # FAISS yêu cầu ID là kiểu số nguyên
+    # Chuyển thành NumPy array để xử lý nhanh hơn
+    embeddings = np.array(embeddings, dtype=np.float32)
 
-    # Tạo FAISS index với Inner Product (cho Cosine Similarity)
-    dimension = embeddings_array.shape[1]
-    index = faiss.IndexFlatIP(dimension)  # Inner Product để tính Cosine Similarity
-    index_with_id = faiss.IndexIDMap(index)
+    # Xác định số chiều của vector embedding
+    vector_dim = len(embeddings[0])
 
-    # Thêm embeddings và IDs vào FAISS
-    index_with_id.add_with_ids(embeddings_array, ids_array)
+    # Khởi tạo Annoy Index
+    t = AnnoyIndex(vector_dim, 'euclidean')
 
-    # Ghi FAISS index ra tệp
-    faiss.write_index(index_with_id, output_path)
-    print(f"FAISS index (Cosine Similarity) saved to {output_path}")
+    # Thêm từng embedding vào Annoy Index
+    for i, emb in enumerate(embeddings):
+        t.add_item(i, emb)
 
-# ----------------------------------------------------------------
-def update_faiss_index(new_embedding, user_id, index_path=save_path + "/data_base/face_index.faiss"):
-    # Kiểm tra nếu tệp FAISS index đã tồn tại
-    if os.path.exists(index_path):
-        # Tải FAISS index hiện tại
-        index = faiss.read_index(index_path)
-    else:
-        # Tạo FAISS index mới nếu chưa tồn tại
-        dimension = len(new_embedding)
-        index = faiss.IndexIDMap(faiss.IndexFlatIP(dimension))
+    # Xây dựng Annoy Index với 10 cây
+    t.build(10)
 
-    # Chuyển đổi embedding và ID sang numpy array
-    embedding_array = np.array([new_embedding], dtype="float32")
-    id_array = np.array([user_id], dtype=np.int64)
+    # Lưu file .ann
+    t.save(config.ann_file)
 
-    # Thêm embedding mới vào FAISS index
-    index.add_with_ids(embedding_array, id_array)
+    # Lưu id_mapping thành file .npy
+    np.save(config.mapping_file, id_mapping)
 
-    # Lưu FAISS index vào tệp
-    faiss.write_index(index, index_path)
-    print(f"Updated FAISS index saved to {index_path}")
+    print(f"Annoy index has been successfully created and saved to '{config.ann_file}'!")
+    print(f"Mapping index → user has been saved to '{config.mapping_file}'!")
+
 
 # ----------------------------------------------------------------
 @app.route('/api/get_all_users', methods=['GET'])
@@ -147,6 +223,7 @@ def get_all_users():
             user.pop('face_embeddings', None)  # Xóa nếu tồn tại
 
     return jsonify(users)
+
 
 # ----------------------------------------------------------------
 @app.route('/api/add_user', methods=['POST'])
@@ -182,6 +259,7 @@ def add_user():
         return jsonify({"message": "User added", "id": user_id, "photo_folder": folder_path}), 201
     except Exception as e:
         return jsonify({"error": f"Failed to add user: {str(e)}"}), 500
+    
 
 # ----------------------------------------------------------------
 @app.route('/api/delete_user/<user_id>', methods=['DELETE'])
@@ -202,15 +280,13 @@ def delete_user(user_id):
         if folder_path and os.path.exists(folder_path):
             shutil.rmtree(folder_path)  # Xóa toàn bộ thư mục và nội dung bên trong
 
-            # Chạy xử lý ảnh người dùng
-            process_user_photos()
-            
-            # Cập nhật FAISS index
-            update_all_faiss_index()
+            # Cập nhật ann index
+            build_ann_index()
 
         return jsonify({"message": "User and folder deleted successfully"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to delete user: {str(e)}"}), 500
+    
 
 # ----------------------------------------------------------------
 @app.route('/api/upload_photo/<user_id>', methods=['POST'])
@@ -230,32 +306,48 @@ def upload_photo(user_id):
     if not folder_path:
         return jsonify({"error": "User folder not found"}), 500
 
+    # Lấy danh sách ảnh đã tồn tại trong MongoDB
+    existing_photos = {entry["photo_name"] for entry in user.get("face_embeddings", [])}
+
+    filename = photo.filename
+    if filename in existing_photos:
+        return jsonify({"error": "Photo already exists"}), 400
+
     try:
         # Đảm bảo thư mục tồn tại
         os.makedirs(folder_path, exist_ok=True)
 
         # Lưu ảnh vào thư mục
-        filename = f"{photo.filename}"
         file_path = os.path.join(folder_path, filename)
         photo.save(file_path)
 
-        # Lấy đặc trưng khuôn mặt từ hàm `process_image`
+        # Lấy đặc trưng khuôn mặt từ ảnh
         try:
             face_embedding = process_image(file_path, detector)
 
             if face_embedding is not None:
-                # Lưu đặc trưng khuôn mặt vào MongoDB
+                # Chuyển thành danh sách để lưu trong MongoDB
                 face_embedding = face_embedding.tolist()
 
+                # Tạo object lưu embedding kèm tên ảnh
+                embedding_entry = {
+                    "photo_name": filename,
+                    "embedding": face_embedding
+                }
+
+                # Lưu vào MongoDB theo cấu trúc mới
                 users_collection.update_one(
                     {"_id": int(user_id)},
-                    {"$push": {"face_embeddings": face_embedding}}
+                    {"$push": {"face_embeddings": embedding_entry}}
                 )
+                
+                # Build ann
+                build_ann_index()
 
-                # Cập nhật FAISS index với embedding mới
-                update_faiss_index(face_embedding, int(user_id))
-
-                return jsonify({"message": "Photo uploaded and face features saved"}), 200
+                return jsonify({
+                    "message": "Photo uploaded and face features saved",
+                    "photo_name": filename
+                }), 200
             else:
                 return jsonify({"error": "No face detected in the image"}), 400
 
@@ -265,15 +357,16 @@ def upload_photo(user_id):
     except Exception as e:
         return jsonify({"error": f"Failed to upload photo: {str(e)}"}), 500
     
+    
 # ----------------------------------------------------------------
 @app.route('/api/delete_photo/<user_id>', methods=['DELETE'])
 def delete_photo(user_id):
     data = request.get_json()
 
-    if not data or "file_path" not in data:
-        return jsonify({"error": "File path is required"}), 400
+    if not data or "file_name" not in data:
+        return jsonify({"error": "File name is required"}), 400
 
-    file_path = data["file_path"]
+    file_name = data["file_name"]
 
     # Kiểm tra xem user có tồn tại không
     user = users_collection.find_one({"_id": int(user_id)})
@@ -286,7 +379,7 @@ def delete_photo(user_id):
         return jsonify({"error": "User folder not found"}), 500
 
     # Đường dẫn đầy đủ của file cần xóa
-    full_path = os.path.join(folder_path, file_path)
+    full_path = os.path.join(folder_path, file_name)
 
     if not os.path.exists(full_path):
         return jsonify({"error": "File not found"}), 404
@@ -296,22 +389,19 @@ def delete_photo(user_id):
         os.remove(full_path)
 
         # Xóa embedding tương ứng từ MongoDB
-        face_embeddings = user.get("face_embeddings", [])
-        if face_embeddings:
-            users_collection.update_one(
-                {"_id": int(user_id)},
-                {"$set": {"face_embeddings": []}}  # Hoặc xóa phần tử cụ thể nếu có cách ánh xạ
-            )
+        users_collection.update_one(
+            {"_id": int(user_id)},
+            {"$pull": {"face_embeddings": {"photo_name": file_name}}}  # Xóa entry có tên ảnh tương ứng
+        )
 
-        process_user_photos()
+        # Build ann
+        build_ann_index()
 
-        # Cập nhật FAISS index
-        update_all_faiss_index()
-
-        return jsonify({"message": "Photo deleted successfully"}), 200
+        return jsonify({"message": "Photo and embedding deleted successfully"}), 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to delete photo: {str(e)}"}), 500
+
 
 # ----------------------------------------------------------------
 @app.route('/api/get_all_managers', methods=['GET'])
@@ -320,6 +410,7 @@ def get_all_managers():
     for manager in managers:
         manager["_id"] = str(manager["_id"])
     return jsonify(managers), 200
+
 
 # ----------------------------------------------------------------
 @app.route('/api/add_manager', methods=['POST'])
@@ -364,217 +455,6 @@ def delete_manager(manager_id):
         return jsonify({"error": "Manager not found"}), 404
     return jsonify({"message": "Manager deleted"}), 200
 
-# ----------------------------------------------------------------
-@app.route('/add_camera', methods=['POST'])
-def add_camera():
-    data = request.json
-
-    # Kiểm tra dữ liệu đầu vào
-    required_fields = ["id_camera", "camera_name", "camera_address", "camera_location"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    id_camera = data["id_camera"]
-    camera_name = data["camera_name"]
-    camera_address = data["camera_address"]
-    camera_location = data["camera_location"]
-
-    # Kiểm tra id_camera có bị trùng không
-    existing_camera = camera_collection.find_one({"id_camera": id_camera})
-    if existing_camera:
-        return jsonify({"error": "Camera ID already exists"}), 400
-
-    # Tạo ID tự động tăng dần cho camera
-    last_camera = camera_collection.find_one(sort=[("_id", -1)])
-    camera_id = last_camera["_id"] + 1 if last_camera else 1
-
-    # Chuẩn bị dữ liệu để thêm vào MongoDB
-    camera_info = {
-        "_id": camera_id,
-        "id_camera": id_camera,
-        "camera_name": camera_name,
-        "camera_address": camera_address,
-        "camera_location": camera_location,
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-
-    # Thêm camera vào collection
-    camera_collection.insert_one(camera_info)
-    return jsonify({
-        "message": "Camera added successfully",
-        "id": camera_id,
-        "id_camera": id_camera,
-        "camera_name": camera_name,
-        "camera_address": camera_address,
-        "camera_location": camera_location
-    }), 201
-
-# ----------------------------------------------------------------
-@app.route('/emotion_summary', methods=['POST'])
-def emotion_summary():
-    data = request.json
-
-    # Kiểm tra đầu vào
-    required_fields = ["timestamp_start", "timestamp_end", "id", "camera_name"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    try:
-        timestamp_start = datetime.strptime(data["timestamp_start"], "%Y-%m-%d %H:%M:%S")
-        timestamp_end = datetime.strptime(data["timestamp_end"], "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return jsonify({"error": "Invalid timestamp format, use 'YYYY-MM-DD HH:MM:SS'"}), 400
-
-    user_id = data["id"]
-    camera_name = data["camera_name"]
-
-    # Lọc dữ liệu theo id, camera_name, và khoảng thời gian
-    tracking_data = list(data_collection.find({
-        "id": user_id,
-        "camera_name": camera_name,
-        "timestamp": {"$gte": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-                      "$lte": timestamp_end.strftime("%Y-%m-%d %H:%M:%S")}
-    }))
-
-    if not tracking_data:
-        return jsonify({"error": "No tracking data found for the given criteria"}), 404
-
-    # Tìm thông tin user
-    user_info = users_collection.find_one({"_id": user_id})
-    if not user_info:
-        return jsonify({"error": f"User with ID {user_id} not found"}), 404
-
-    # Tính tổng cảm xúc
-    emotion_count = {}
-    total_emotions = 0
-    for record in tracking_data:
-        emotion = record["emotion"]
-        emotion_prob = record["emotion_prob"]
-
-        if emotion in emotion_count:
-            emotion_count[emotion] += emotion_prob
-        else:
-            emotion_count[emotion] = emotion_prob
-
-        total_emotions += emotion_prob
-
-    if total_emotions == 0:
-        return jsonify({"error": "No emotions recorded in the tracking data"}), 404
-
-    # Tính phần trăm từng cảm xúc
-    emotion_percentages = {
-        emotion: round((prob / total_emotions) * 100, 2)
-        for emotion, prob in emotion_count.items()
-    }
-
-    # Chuẩn bị dữ liệu trả về
-    result = {
-        "timestamp_start": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-        "timestamp_end": timestamp_end.strftime("%Y-%m-%d %H:%M:%S"),
-        "id": user_id,
-        "full_name": user_info["full_name"],
-        "department_id": user_info["department_id"],
-        "emotion_percentages": emotion_percentages
-    }
-
-    return jsonify(result), 200
-
-# ----------------------------------------------------------------
-@app.route('/get_tracking_data', methods=['POST'])
-def get_tracking_data():
-    data = request.json
-
-    # Kiểm tra đầu vào
-    required_fields = ["timestamp_start", "timestamp_end", "id", "camera_name"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    try:
-        timestamp_start = datetime.strptime(data["timestamp_start"], "%Y-%m-%d %H:%M:%S")
-        timestamp_end = datetime.strptime(data["timestamp_end"], "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return jsonify({"error": "Invalid timestamp format, use 'YYYY-MM-DD HH:MM:SS'"}), 400
-
-    user_id = data["id"]
-    camera_name = data["camera_name"]
-
-    # Lọc dữ liệu trong khoảng thời gian và camera_name
-    tracking_data = list(data_collection.find({
-        "id": user_id,
-        "camera_name": camera_name,
-        "timestamp": {"$gte": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-                      "$lte": timestamp_end.strftime("%Y-%m-%d %H:%M:%S")}
-    }))
-
-    if not tracking_data:
-        return jsonify({"error": "No tracking data found for the given criteria"}), 404
-
-    # Tìm thông tin user
-    user_info = users_collection.find_one({"_id": user_id})
-    if not user_info:
-        return jsonify({"error": f"User with ID {user_id} not found"}), 404
-
-    # Chuyển đổi ObjectId thành chuỗi
-    for record in tracking_data:
-        record["_id"] = str(record["_id"])  # Chuyển ObjectId thành chuỗi
-
-    # Chuẩn bị kết quả trả về
-    result = {
-        "timestamp_start": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-        "timestamp_end": timestamp_end.strftime("%Y-%m-%d %H:%M:%S"),
-        "id": user_id,
-        "full_name": user_info["full_name"],
-        "department_id": user_info["department_id"],
-        "tracking_data": tracking_data
-    }
-    return jsonify(result), 200
-
-# ----------------------------------------------------------------
-@app.route('/get_tracking_data_csv', methods=['POST'])
-def get_tracking_data_csv():
-    data = request.json
-
-    # Kiểm tra đầu vào
-    required_fields = ["timestamp_start", "timestamp_end", "id", "camera_name"]
-    if not all(field in data for field in required_fields):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    try:
-        timestamp_start = datetime.strptime(data["timestamp_start"], "%Y-%m-%d %H:%M:%S")
-        timestamp_end = datetime.strptime(data["timestamp_end"], "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return jsonify({"error": "Invalid timestamp format, use 'YYYY-MM-DD HH:MM:SS'"}), 400
-
-    user_id = data["id"]
-    camera_name = data["camera_name"]
-
-    # Lọc dữ liệu trong khoảng thời gian và camera_name
-    tracking_data = list(data_collection.find({
-        "id": user_id,
-        "camera_name": camera_name,
-        "timestamp": {"$gte": timestamp_start.strftime("%Y-%m-%d %H:%M:%S"),
-                      "$lte": timestamp_end.strftime("%Y-%m-%d %H:%M:%S")}
-    }))
-
-    if not tracking_data:
-        return jsonify({"error": "No tracking data found for the given criteria"}), 404
-
-    # Chuyển đổi ObjectId thành chuỗi
-    for record in tracking_data:
-        record["_id"] = str(record["_id"])
-
-    # Tạo CSV trong bộ nhớ
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=tracking_data[0].keys())
-    writer.writeheader()
-    writer.writerows(tracking_data)
-
-    # Trả về CSV dưới dạng response
-    return Response(
-        output.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": "attachment;filename=tracking_data.csv"}
-    )
 
 # ----------------------------------------------------------------
 @app.route('/api/login', methods=['POST'])
@@ -602,20 +482,7 @@ def login():
         }), 200
     else:
         return jsonify({"success": False, "message": "Incorrect password"}), 401
-    
-# ----------------------------------------------------------------
-# Bộ nhớ tạm lưu trạng thái đã chào
-greeted_employees = {}
 
-def play_greeting(name, greeting_type="chào"):
-    """Phát âm thanh chào mừng hoặc tạm biệt"""
-    text = f"{greeting_type.capitalize()} {name}!"
-    tts = gTTS(text, lang="vi")
-    audio_file = "greeting.mp3"
-    tts.save(audio_file)
-
-    # Phát âm thanh bằng FFmpeg
-    os.system(f"ffplay -nodisp -autoexit {audio_file}")
     
 # ----------------------------------------------------------------
 @app.route('/api/get_attendance', methods=['GET'])
@@ -674,27 +541,9 @@ def get_attendance():
         return jsonify(attendance_list), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
+
+
 # ----------------------------------------------------------------
-def calculate_work_hours(entries):
-    """Tính tổng giờ công trong ngày và ghi chú nếu đi muộn."""
-    if len(entries) == 0:  # Không có dữ liệu
-        return None, None, None, "Không có dữ liệu"
-    elif len(entries) == 1:  # Chỉ có một mốc thời gian
-        check_in = datetime.strptime(entries[0], "%Y-%m-%d %H:%M:%S")
-        return check_in.strftime("%H:%M:%S"), None, None, "Chỉ có thời gian vào"
-
-    check_in = min(entries)  # Lấy thời gian vào đầu tiên
-    check_out = max(entries)  # Lấy thời gian ra cuối cùng
-    check_in_dt = datetime.strptime(check_in, "%Y-%m-%d %H:%M:%S")
-    check_out_dt = datetime.strptime(check_out, "%Y-%m-%d %H:%M:%S")
-    total_hours = (check_out_dt - check_in_dt).total_seconds() / 3600
-
-    # Ghi chú đi muộn nếu vào sau 08:00
-    late_note = "Đi muộn" if check_in_dt.time() > datetime.strptime("08:00:00", "%H:%M:%S").time() else ""
-
-    return check_in_dt.strftime("%H:%M:%S"), check_out_dt.strftime("%H:%M:%S"), total_hours, late_note
-
 @app.route('/api/export_attendance', methods=['POST'])
 def export_attendance():
     try:
@@ -778,26 +627,29 @@ def export_attendance():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
+    
 # ----------------------------------------------------------------
 if config.init_database:
     print("-" * 80)
     print("Initialize database")
-    process_user_photos()
-    update_all_faiss_index()
+    generate_all_user_embeddings()
+    build_ann_index()
+
 
 # ----------------------------------------------------------------
-@app.route('/api/process_and_update', methods=['POST'])
-def process_and_update():
+@app.route('/api/rebuild_all_users_embeddings', methods=['POST'])
+def rebuild_all_users_embeddings():
     try:
         # Chạy xử lý ảnh người dùng
-        process_user_photos()
+        generate_all_user_embeddings()
         
-        # Cập nhật FAISS index
-        update_all_faiss_index()
+        # Cập nhật ann index
+        build_ann_index()
         
-        return jsonify({"message": "User photos processed and FAISS index updated"}), 200
+        return jsonify({"message": "User photos processed and ann index updated"}), 200
     except Exception as e:
         return jsonify({"error": f"Failed to process and update: {str(e)}"}), 500
+
 
 # ----------------------------------------------------------------
 @app.route('/api/get_photos/<user_id>', methods=['GET'])
@@ -824,6 +676,7 @@ def get_photos(user_id):
 
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve photos: {str(e)}"}), 500
+
 
 # ----------------------------------------------------------------
 @app.route('/api/view_photo/<user_id>/<filename>', methods=['GET'])
@@ -853,6 +706,47 @@ def view_photo(user_id, filename):
     except Exception as e:
         return jsonify({"error": f"Failed to load photo: {str(e)}"}), 500
 
-# Chạy ứng dụng Flask
+
+# ----------------------------------------------------------------
+@app.route('/api/get_user_data', methods=['GET'])
+def get_user_data():
+    try:
+        # Lấy tham số từ request
+        user_id = request.args.get("user_id", type=int)
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+        camera_name = request.args.get("camera_name")
+
+        # Kiểm tra tham số bắt buộc
+        if not user_id or not start_date or not end_date or not camera_name:
+            return jsonify({"error": "Missing required parameters"}), 400
+
+        # Chuyển đổi định dạng thời gian sang string để phù hợp với MongoDB
+        try:
+            start_date = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+            end_date = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS"}), 400
+
+        # Truy vấn dữ liệu từ MongoDB
+        user_data = list(data_collection.find(
+            {
+                "id": user_id,
+                "camera_name": camera_name,
+                "timestamp": {"$gte": start_date, "$lte": end_date}
+            },
+            {"_id": 0}  # Bỏ trường _id trong kết quả trả về
+        ))
+
+        if not user_data:
+            return jsonify({"error": "No data found for given criteria"}), 404
+
+        return jsonify(user_data), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch user data: {str(e)}"}), 500
+
+
+# ----------------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=6123)

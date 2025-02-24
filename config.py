@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import sys
 import gdown
 
+
 class Config:
     """ Class chứa toàn bộ cấu hình của ứng dụng """
     
@@ -15,10 +16,10 @@ class Config:
     host = "localhost"
     port = "27017"
     database = ""
-    init_database = True
+    init_database = False
     vram_limit_for_FER = 1
     camera_names = []
-    save_path = str(Path.home()) + "/nnq_static"
+    save_path = str(Path.home()) + "/nnq_static_test"
     model_urls = {
     "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
     "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2",
@@ -27,6 +28,9 @@ class Config:
     "parsing_parsenet.pth": "https://drive.google.com/uc?id=1ZFqra3Vs4i5fB6B8LkyBo_WQXaPRn77y",
     "yolov11-face.pt": "https://drive.google.com/uc?id=1Y6syEi7jMbRkiEC-4Wd5cqwOKWtiD2at"
     }
+    ann_file = "face_index.ann"
+    mapping_file = "annoy_mapping.npy"
+    vector_dim = 512
     
     # Tạo MONGO_URI linh hoạt
     if user and password:
@@ -52,9 +56,11 @@ class Config:
         Path(folder).mkdir(parents=True, exist_ok=True)
 
     def __init__(self):
+        self.annoy_index = None
+        self.id_mapping = None
         print("-" * 80)
         self.update_path = self.find_file_in_anaconda("degradations.py")
-        self.update_import(file_path=self.update_path)
+        # self.update_import(file_path=self.update_path)
         self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
         print("-" * 80)
 
@@ -220,5 +226,3 @@ class Config:
 
 # Tạo instance `config` để sử dụng trong toàn bộ project
 config = Config()
-
-

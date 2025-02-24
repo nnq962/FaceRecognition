@@ -10,8 +10,8 @@ from face_emotion import FERUtils
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
 from GFPGAN.run_gfpgan import GFPGANInference
-from yolo_detector_utils import crop_image, expand_image, is_small_face, search_ids, crop_and_align_faces, normalize_embeddings, search_ids_mongoDB, save_data_to_mongo
-from hand_raise_detector import is_person_raising_hand_image, is_hand_opened_in_image, expand_and_crop_image
+import yolo_detector_utils
+import hand_raise_detector
 from websocket_server import send_notification
 import time
 import onnxruntime as ort
@@ -20,9 +20,9 @@ import numpy as np
 from config import config
 
 
-class YoloFaceDetector:
+class YoloDetector:
     def __init__(self, media_manager=None):
-        self.det_model_path = os.path.expanduser("~/Models/yolov11n-face.pt")
+        self.det_model_path = os.path.expanduser("~/Models/yolov11-face.pt")
         self.rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
         self.det_model = None
         self.rec_model = None
@@ -64,7 +64,7 @@ class YoloFaceDetector:
 
     def get_face_embeddings(self, cropped_images):
         embeddings = self.rec_model.get_feat(cropped_images)
-        return normalize_embeddings(embeddings)
+        return yolo_detector_utils.normalize_embeddings(embeddings)
     
     def crop_faces(self, img, faces, margin=10):
         cropped_faces = []
@@ -96,10 +96,10 @@ class YoloFaceDetector:
     def check_raising_hand(self, frame, bbox, id, timestamp, camera_name):
         if not self.media_manager.raise_hand:
             return
-        cropped_expand_image = expand_and_crop_image(frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
+        cropped_expand_image = hand_raise_detector.expand_and_crop_image(frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
 
-        hand_open = is_hand_opened_in_image(cropped_expand_image)
-        hand_raised = is_person_raising_hand_image(cropped_expand_image)
+        hand_open = hand_raise_detector.is_hand_opened_in_image(cropped_expand_image)
+        hand_raised = hand_raise_detector.is_person_raising_hand_image(cropped_expand_image)
 
         if hand_open and hand_raised:
             message = {
@@ -155,8 +155,8 @@ class YoloFaceDetector:
         Returns:
             numpy.ndarray or None: Restored image if the face is small; otherwise, None.
         """
-        if self.media_manager.check_small_face and is_small_face(bounding_box, min_size):
-            cropped_image = crop_image(img, bounding_box)
+        if self.media_manager.check_small_face and yolo_detector_utils.is_small_face(bounding_box, min_size):
+            cropped_image = yolo_detector_utils.crop_image(img, bounding_box)
             restored_img = self.gfpgan_model.inference(cropped_image)
             return restored_img
         
@@ -182,7 +182,7 @@ class YoloFaceDetector:
             for i, det in enumerate(pred):
                 im0 = self.get_frame(im0s, i, self.media_manager.webcam)
 
-                if det is None:
+                if not det:
                     face_counts.append(0)
                     continue
                 
@@ -204,7 +204,7 @@ class YoloFaceDetector:
             with dt[0]:
                 if self.media_manager.face_recognition and all_cropped_faces:
                     all_embeddings = self.get_face_embeddings(all_cropped_faces)
-                    ids = search_ids_mongoDB(all_embeddings, top_k=1, threshold=0.5)
+                    ids = yolo_detector_utils.search_annoys(all_embeddings, threshold=0.5)
 
                     if self.media_manager.face_emotion or self.media_manager.raise_hand:
                         start_idx = 0
@@ -234,7 +234,7 @@ class YoloFaceDetector:
 
                                     if restored_img:
                                         embedding = self.get_face_embeddings(restored_img)
-                                        new_id = search_ids_mongoDB(embedding, top_k=1, threshold=0.1)
+                                        new_id = yolo_detector_utils.search_annoys(embedding, top_k=1, threshold=0.1)
                                 
                                         if new_id:
                                             ids[start_idx + meta_idx] = new_id[0]
@@ -312,7 +312,7 @@ class YoloFaceDetector:
                                 })
 
                         if data_to_save:
-                            save_data_to_mongo(data_to_save)
+                            yolo_detector_utils.save_data_to_mongo(data_to_save)
 
                     start_time = current_time
                 
@@ -357,7 +357,7 @@ class YoloFaceDetector:
                         if self.media_manager.save_crop:
                             crops_dir = Path(self.save_dir) / 'crops'
                             crops_dir.mkdir(parents=True, exist_ok=True)
-                            face_crop = crop_image(imc, bbox[:4])
+                            face_crop = yolo_detector_utils.crop_image(imc, bbox[:4])
                             cv2.imwrite(str(crops_dir / f'{p.stem}.jpg'), face_crop)
                 
                 # Stream results
