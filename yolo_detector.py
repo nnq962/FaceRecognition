@@ -7,9 +7,6 @@ from pathlib import Path
 from utils.plots import Annotator
 from utils.general import LOGGER, Profile
 from face_emotion import FERUtils
-import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), "GFPGAN"))
-from GFPGAN.run_gfpgan import GFPGANInference
 import yolo_detector_utils
 import hand_raise_detector
 from websocket_server import send_notification
@@ -34,8 +31,6 @@ class YoloDetector:
             self.save_dir = self.media_manager.get_save_directory()
             if self.media_manager.face_emotion:
                 self.fer_class = FERUtils(gpu_memory_limit=config.vram_limit_for_FER * 1024)
-            if self.media_manager.check_small_face:
-                self.gfpgan_model = GFPGANInference(upscale=2)
 
         self.load_model()
 
@@ -94,40 +89,49 @@ class YoloDetector:
             return im0s[i]
         return im0s
     
-    def check_raising_hand(self, frame, bbox, id, timestamp, camera_name):
-        if not self.media_manager.raise_hand:
-            return
+    def check_raising_hand(self, frame, bbox, timestamp, camera_name):
+        """
+        Kiểm tra xem người trong bounding box có giơ tay không.
 
-        cropped_expand_image = hand_raise_detector.expand_and_crop_image(frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
+        Args:
+            frame (numpy.ndarray): Ảnh gốc.
+            bbox (list): Bounding box của người (x1, y1, x2, y2).
+            timestamp (str): Thời gian chụp ảnh.
+            camera_name (str): Tên camera hoặc "Photo".
+
+        Returns:
+            dict: Trả về dict chứa trạng thái tay (luôn luôn trả về, không phụ thuộc vào thay đổi trạng thái).
+        """
+        cropped_expand_image = hand_raise_detector.expand_and_crop_image(
+            frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6
+        )
 
         hand_open = hand_raise_detector.is_hand_opened_in_image(cropped_expand_image)
         hand_raised = hand_raise_detector.is_person_raising_hand_image(cropped_expand_image)
-
         new_state = "up" if hand_open and hand_raised else "down"
 
-        # Kiểm tra nếu trạng thái có thay đổi không
-        if self.previous_states.get(id) != new_state:
-            message = {
-                "user_id": id,
-                "type": new_state,
-                "time": timestamp,
-                "camera": camera_name
-            }
-            send_notification(message)
-            
-            # Cập nhật trạng thái mới
-            self.previous_states[id] = new_state
+        # Luôn trả về trạng thái tay, không kiểm tra thay đổi
+        result = {
+            "state": new_state,
+            "time": timestamp,
+            "camera": camera_name
+        }
+
+        # Cập nhật trạng thái vào previous_states (có thể dùng nếu cần theo dõi thay đổi)
+        self.previous_states[str(bbox)] = new_state
+
+        return result
 
     def get_face_emotions(self, img, bounding_boxes):
         """
         Analyze emotions of faces in an image.
 
         This method detects emotions for faces using the provided bounding boxes 
-        (in [x1, y1, x2, y2] format) and returns the dominant emotion with its probability.
+        (in [x1, y1, x2, y2, conf] format) and returns the dominant emotion with its probability.
 
         Args:
             img (numpy.ndarray): Input image containing faces.
-            bounding_boxes (list or numpy.ndarray): Face bounding boxes in [x1, y1, x2, y2] format.
+            bounding_boxes (list or numpy.ndarray): Face bounding boxes in [x1, y1, x2, y2, conf] format.
 
         Returns:
             list: A list of dictionaries with the dominant emotion and its probability,
@@ -136,188 +140,104 @@ class YoloDetector:
         if not bounding_boxes:
             return []
 
-        if not self.media_manager.face_emotion:
-            return []
-
-        emotions = self.fer_class.analyze_face(img, bounding_boxes)
-        dominant_emotions = self.fer_class.get_dominant_emotions(emotions)
-        return dominant_emotions
-    
-    def restored_image(self, img, bounding_box, min_size=50):
-        """
-        Restore a small face using GFPGAN if it meets the size criteria.
-
-        Args:
-            img (numpy.ndarray): Input image containing the face.
-            bounding_box (list or numpy.ndarray): Bounding box in [x1, y1, x2, y2] format.
-            min_size (int): Minimum size threshold for detecting a small face (default: 50).
-
-        Returns:
-            numpy.ndarray or None: Restored image if the face is small; otherwise, None.
-        """
-        if self.media_manager.check_small_face and yolo_detector_utils.is_small_face(bounding_box, min_size):
-            cropped_image = yolo_detector_utils.crop_image(img, bounding_box)
-            restored_img = self.gfpgan_model.inference(cropped_image)
-            return restored_img
+        # Loại bỏ `conf` để chỉ giữ lại [x1, y1, x2, y2]
+        clean_bboxes = [bbox[:4] for bbox in bounding_boxes]  
         
-        return None
-    
+        # Phân tích cảm xúc
+        emotions = self.fer_class.analyze_face(img, clean_bboxes)
+        dominant_emotions = self.fer_class.get_dominant_emotions(emotions)
+
+        return dominant_emotions
+        
     def run_inference(self):
         """
         Run inference on images/video and display results
         """
         windows = []
-        seen, dt = 0, (Profile(), Profile(), Profile())
         start_time = time.time()
 
         for path, _, im0s, vid_cap, s in self.dataset:
             # Inference
-            pred = self.get_face_detects(im0s, verbose=True, conf=0.65)
+            pred = self.get_face_detects(im0s, verbose=False, conf=0.65)
 
-            all_cropped_faces = []
-            metadata = []
-            face_counts = []
+            face_counts = []  # Lưu số lượng khuôn mặt trong từng ảnh để ghép lại sau này
+            all_crop_faces = []  # Danh sách chứa toàn bộ khuôn mặt đã crop (dạng phẳng)
 
-            # Crop all faces
-            for i, det in enumerate(pred):
-                im0 = self.get_frame(im0s, i, self.media_manager.webcam)
+            for i, faces in enumerate(pred):
+                im0 = self.get_frame(im0s, i, self.media_manager.webcam)  # Lấy ảnh tương ứng
 
-                if not det:
+                if not faces:  # Không có khuôn mặt nào được phát hiện
                     face_counts.append(0)
                     continue
+
+                face_counts.append(len(faces))  # Ghi lại số lượng khuôn mặt đã cắt
                 
-                for bbox in det:
-                    metadata.append({
-                        "image_index": i,
-                        "bbox": bbox
-                    })
-
+                # Crop all faces
                 if self.media_manager.face_recognition:
-                    cropped_faces = self.crop_faces(im0, faces=det, margin=10)
-                    all_cropped_faces.extend(cropped_faces)
+                    cropped_faces = self.crop_faces(im0, faces=faces, margin=10)  # Cắt khuôn mặt
+                    all_crop_faces.extend(cropped_faces)  # Thêm tất cả khuôn mặt vào danh sách chính (dạng phẳng)
 
-                face_counts.append(len(det))
+            if self.media_manager.face_recognition:
+                all_embeddings = self.get_face_embeddings(all_crop_faces)
+                user_infos = yolo_detector_utils.search_annoys(all_embeddings, threshold=0.5)
 
-            ids = []
-            emotions = []
+            # Lấy embeddings & tìm user
+            user_infos = (
+                yolo_detector_utils.search_annoys(self.get_face_embeddings(all_crop_faces), threshold=0.5)
+                if self.media_manager.face_recognition else None
+            )
 
-            with dt[0]:
-                if self.media_manager.face_recognition and all_cropped_faces:
-                    all_embeddings = self.get_face_embeddings(all_cropped_faces)
-                    ids = yolo_detector_utils.search_annoys(all_embeddings, threshold=0.5)
+            # Phân tích cảm xúc
+            if self.media_manager.face_emotion:
+                all_emotions = []
+                for i, faces in enumerate(pred):
+                    im0 = self.get_frame(im0s, i, self.media_manager.webcam)  # Lấy ảnh tương ứng
+                    emotions = self.get_face_emotions(im0, faces)
+                    all_emotions.extend(emotions)
+            
+            # Kiểm tra dơ tay
+            if self.media_manager.raise_hand:
+                all_hand_states = []
+                for i, faces in enumerate(pred):
+                    im0 = self.get_frame(im0s, i, self.media_manager.webcam)  # Lấy ảnh tương ứng
+                    for bbox in faces:
+                        hand_state = self.check_raising_hand(im0, bbox[:4], config.get_vietnam_time(), config.camera_names[i] if self.media_manager.webcam else "Photo")
+                        if hand_state:
+                            all_hand_states.append(hand_state)
 
-                    if self.media_manager.face_emotion or self.media_manager.raise_hand:
-                        start_idx = 0
+            # Ghép kết quả
+            results_per_image = []  # Danh sách kết quả theo từng ảnh
+            start_idx = 0  # Dùng để lấy ID user theo thứ tự embeddings
 
-                        for img_index, im0 in enumerate(im0s):
-                            im0 = self.get_frame(im0s, img_index, self.media_manager.webcam)
-                            
-                            metadata_for_image = [meta for meta in metadata if meta["image_index"] == img_index]
-                            ids_for_image = ids[start_idx:start_idx + len(metadata_for_image)] if self.media_manager.face_recognition else []
-                            
-                            # Prepare for emotion analysis
-                            bboxes_emotion = []
-                            emotion_indices = []
-                            dominant_emotions = [{"dominant_emotion": "unknown", "probability": "N/A"}] * len(metadata_for_image)
-
-                            for meta_idx, (meta, id_info) in enumerate(zip(metadata_for_image, ids_for_image)):
-                                bbox = np.array(meta["bbox"][:4], dtype=int)
-                                
-                                if id_info:
-                                    bboxes_emotion.append(bbox)
-                                    emotion_indices.append(meta_idx)
-
-                                    self.check_raising_hand(im0, bbox, id_info[0]['id'], config.get_vietnam_time(), config.camera_names[img_index] if self.media_manager.webcam else "Photo")
-                                
-                                else:
-                                    restored_img = self.restored_image(im0, bbox, min_size=50)
-
-                                    if restored_img:
-                                        embedding = self.get_face_embeddings(restored_img)
-                                        new_id = yolo_detector_utils.search_annoys(embedding, top_k=1, threshold=0.1)
-                                
-                                        if new_id:
-                                            ids[start_idx + meta_idx] = new_id[0]
-                                
-                            emotions_batch = self.get_face_emotions(im0, bboxes_emotion)
-
-                            for idx, emotion in zip(emotion_indices, emotions_batch):
-                                dominant_emotions[idx] = {"dominant_emotion": emotion["dominant_emotion"], "probability": emotion["probability"]}
-
-                            emotions.extend(dominant_emotions)
-                            start_idx += len(metadata_for_image)
-                            
-            # Return result
-            results_per_image = []
-            start_idx = 0
-
-            for count in face_counts:
-                if self.media_manager.face_recognition and ids:
-                    ids_for_image = ids[start_idx:start_idx + count]
+            for faces, face_count in zip(pred, face_counts):
+                if self.media_manager.face_recognition:
+                    user_infos_for_image = user_infos[start_idx:start_idx + face_count]  # Lấy đúng số lượng user info
                 else:
-                    ids_for_image = [None] * count
+                    user_infos_for_image = [None] * face_count  # Nếu tắt nhận diện, gán toàn bộ là "Unknown"
 
-                if self.media_manager.face_emotion and emotions:
-                    emotions_for_image = [
-                        {
-                            "emotion": emotion["dominant_emotion"],
-                            "probability": f"{float(emotion['probability']) * 100:.2f}%" if isinstance(emotion["probability"], (int, float)) else "N/A"
-                        }
-                        for emotion in emotions[start_idx:start_idx + count]
-                    ]
+                if self.media_manager.face_emotion:
+                    emotions_for_image = all_emotions[start_idx:start_idx + face_count]  # Lấy đúng số lượng cảm xúc
                 else:
-                    emotions_for_image = [{"emotion": "unknown", "probability": "N/A"}] * count
+                    emotions_for_image = [{"dominant_emotion": "unknown", "probability": "N/A"}] * face_count  # Gán mặc định
 
                 results = [
                     {
-                        "bbox": meta["bbox"],
-                        "id": id_info[0]["id"] if id_info else "unknown",
-                        "similarity": f"{id_info[0]['similarity'] * 100:.2f}%" if id_info else "N/A",
-                        "emotion": emotion["emotion"],
-                        "emotion_probability": emotion["probability"]
+                        "bbox": face[:4].tolist(),
+                        "conf": face[4],
+                        "id": id_info["id"] if id_info else "Unknown",
+                        "full_name": id_info["full_name"] if id_info else "Unknown",
+                        "similarity": f"{id_info['similarity'] * 100:.2f}%" if id_info else "N/A",
+                        "emotion": emotion["dominant_emotion"],
+                        "emotion_probability": f"{float(emotion['probability']) * 100:.2f}%" if isinstance(emotion["probability"], (int, float)) else "N/A"
                     }
-                    for meta, id_info, emotion in zip(
-                        metadata[start_idx:start_idx + count],
-                        ids_for_image,
-                        emotions_for_image
-                    )
+                    for face, id_info, emotion in zip(faces, user_infos_for_image, emotions_for_image)
                 ]
 
-                results_per_image.append(results)
-                start_idx += count
+                results_per_image.append(results)  # Lưu kết quả cho từng ảnh
+                start_idx += face_count  # Cập nhật index tiếp theo
 
-            # Export data to MongoDB
-            if self.media_manager.export_data:
-                current_time = time.time()
-
-                if current_time - start_time > self.media_manager.time_to_save:
-                    for img_index, faces in enumerate(results_per_image):
-                        data_to_save = []
-                        camera_name = config.camera_names[img_index]
-
-                        for face in faces:
-                            if face["id"] != "unknown":
-                                name = face["id"]
-                                recognition_prob = float(face["similarity"].replace("%", "")) if face["similarity"] != "N/A" else None
-                                emotion = face["emotion"] if face["emotion"] else "unknown"
-                                emotion_prob = float(face["emotion_probability"].replace("%", "")) if face["emotion_probability"] != "N/A" else None
-
-                                data_to_save.append({
-                                    "timestamp": config.get_vietnam_time(),
-                                    "id": name,
-                                    "similarity": recognition_prob,
-                                    "emotion": emotion,
-                                    "emotion_prob": emotion_prob,
-                                    "camera_name": camera_name
-                                })
-
-                        if data_to_save:
-                            yolo_detector_utils.save_data_to_mongo(data_to_save)
-
-                    start_time = current_time
-                
             # Display results
-            for img_index, faces in enumerate(results_per_image):
+            for img_index, results in enumerate(results_per_image):
                 seen += 1
                 
                 if self.media_manager.webcam:  
@@ -334,29 +254,50 @@ class YoloDetector:
                 imc = im0.copy() if self.media_manager.save_crop else im0
                 annotator = Annotator(im0, line_width=self.media_manager.line_thickness)
                 
-                if len(faces):
-                    n = len(faces)
-                    s += f"{n} {'face' if n == 1 else 'faces'}, "
+                if len(results):
+                    for result in results:
+                        bbox = result["bbox"]
+                        conf = result["conf"]
+                        name = result["full_name"]
+                        similarity = result["similarity"]
+                        id = result["id"]
+                        emotion = result["emotion"]
+                        emotion_probability = result["emotion_probability"]
 
-                    for face in faces:
-                        bbox = face['bbox']
-                        id = face["id"]
-                        similarity = face["similarity"]
-                        emotion = face["emotion"]
-                        emotion_prob = face["emotion_probability"]
+                        import unicodedata
 
-                        label = None
+                        def remove_accents(input_str):
+                            """
+                            Loại bỏ dấu tiếng Việt và chuyển Đ -> D, đ -> d
+                            """
+                            input_str = input_str.replace("Đ", "D").replace("đ", "d")  # Chuyển Đ -> D, đ -> d
+                            nfkd_form = unicodedata.normalize('NFKD', input_str)  # Chuẩn hóa Unicode
+                            return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
 
+                        def shorten_name(full_name):
+                            """
+                            Rút gọn tên thành dạng: N.N.Quyet (bỏ dấu và rút gọn)
+                            """
+                            full_name = remove_accents(full_name)  # Bỏ dấu trước khi rút gọn
+                            words = full_name.split()  # Tách tên theo khoảng trắng
+                            if len(words) >= 2:
+                                short_name = ".".join([w[0] for w in words[:-1]]) + "." + words[-1]
+                            else:
+                                short_name = words[0]  # Nếu chỉ có một từ, giữ nguyên
+                            return short_name
+                        
                         if self.media_manager.face_emotion:
-                            label = f"ID: {id} {similarity}, {emotion} {emotion_prob}"
+                            label = f"{shorten_name(name)} {similarity} | {emotion} {emotion_probability}"
                         elif self.media_manager.face_recognition:
-                            label = f"ID: {id} {similarity}"
+                            label = f"{shorten_name(name)} {similarity}"
+                        else:
+                            label = None
                                         
                         if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
                             if label is None or self.media_manager.hide_labels or self.media_manager.hide_conf:
                                 label = None
 
-                            color = (0, int(255 * bbox[4]), int(255 * (1 - bbox[4])))
+                            color = (0, int(255 * conf), int(255 * (1 - conf)))
                             annotator.box_label(bbox, label, color=color)
 
                         if self.media_manager.save_crop:
@@ -374,7 +315,7 @@ class YoloDetector:
                         cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
 
                     cv2.imshow(str(p), im0)
-                    cv2.waitKey(1)
+                    cv2.waitKey(0)
 
                 # Save results (image with detections)
                 if self.media_manager.save_img:
@@ -400,21 +341,8 @@ class YoloDetector:
 
                         self.media_manager.vid_writer[img_index].write(im0)
 
-            if self.media_manager.show_time_process:
-                # Total processing time for a single frame (inference + processing)
-                frame_time = (dt[0].dt + dt[1].dt) * 1E3  # Frame processing time in milliseconds
-                # Calculate instantaneous FPS for the current frame
-                fps_instant = 1000 / frame_time if frame_time > 0 else float('inf')
-                # Print processing time (inference + processing) and instantaneous FPS
-                LOGGER.info(f"{s}{'' if len(faces) else '(no detections), '}"
-                            f"Inference: {dt[0].dt * 1E3:.1f}ms, Processing: {dt[1].dt * 1E3:.1f}ms, "
-                            f"FPS: {fps_instant:.2f}")
-
         # Ensure release after all frames processed
         for writer in self.media_manager.vid_writer:
             if isinstance(writer, cv2.VideoWriter):
                 writer.release()
                 print("Video writer released successfully.")
-
-        t = dt[0].t / seen * 1E3
-        LOGGER.info(f'Speed: %.1fms inference per image.' % t)

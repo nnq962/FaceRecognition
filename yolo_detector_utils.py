@@ -17,17 +17,17 @@ def search_annoy(query_embedding, n_neighbors=1, threshold=None):
         - threshold: Ngưỡng Cosine Similarity tối thiểu (nếu None, không áp dụng).
 
     Returns:
-        - Danh sách các user_id và ảnh gần nhất, có lọc theo threshold nếu cần.
+        - Dictionary chứa thông tin user nếu tìm thấy, None nếu không tìm thấy.
     """
 
     # Kiểm tra file tồn tại trước khi load
     if not os.path.exists(config.ann_file):
         print(f"Missing Annoy index file: {config.ann_file}")
-        return []
+        return None
 
     if not os.path.exists(config.mapping_file):
         print(f"Missing mapping file: {config.mapping_file}")
-        return []
+        return None
 
     # Load Annoy Index (sử dụng Euclidean thay vì Angular)
     annoy_index = AnnoyIndex(config.vector_dim, 'euclidean')
@@ -39,9 +39,8 @@ def search_annoy(query_embedding, n_neighbors=1, threshold=None):
     # Tìm n_neighbors gần nhất từ Annoy index
     indices, distances = annoy_index.get_nns_by_vector(query_embedding, n_neighbors, include_distances=True)
 
-    # Chuyển đổi toàn bộ khoảng cách Euclidean sang Cosine Similarity bằng NumPy (Nhanh hơn)
-    distances = np.array(distances)  # Chuyển về NumPy array
-    cosine_similarities = 1 - (distances ** 2) / 2  # Vectorized computation
+    # Chuyển đổi toàn bộ khoảng cách Euclidean sang Cosine Similarity
+    cosine_similarities = 1 - (np.array(distances) ** 2) / 2  # Vectorized computation
 
     # Xây dựng danh sách kết quả
     results = []
@@ -54,7 +53,14 @@ def search_annoy(query_embedding, n_neighbors=1, threshold=None):
                     "similarity": cosine_similarities[i]
                 })
 
-    return results
+    # Trả về dictionary nếu có 1 kết quả duy nhất, danh sách nếu có nhiều kết quả, None nếu không có kết quả
+    if len(results) == 0:
+        return None
+    elif len(results) == 1:
+        return results[0]  # Trả về dictionary thay vì list
+    else:
+        return results  # Trả về danh sách nếu có nhiều kết quả
+
 
 def search_annoys(query_embeddings, n_neighbors=1, threshold=None):
     """
@@ -66,14 +72,9 @@ def search_annoys(query_embeddings, n_neighbors=1, threshold=None):
         - threshold: Ngưỡng khoảng cách tối đa (nếu None, không áp dụng).
 
     Returns:
-        - Danh sách kết quả [None, result1, None, result2, ...]
+        - Danh sách kết quả [None, result1, None, result2, ...] (giữ nguyên thứ tự input).
     """
-    results_list = []
-    for query in query_embeddings:
-        result = search_annoy(query, n_neighbors, threshold)
-        results_list.append(result if result else None)
-
-    return results_list
+    return [search_annoy(query, n_neighbors, threshold) for query in query_embeddings]
 
 def crop_image(image, bbox):
     """
