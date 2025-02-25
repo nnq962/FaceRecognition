@@ -237,9 +237,7 @@ class YoloDetector:
                 start_idx += face_count  # Cập nhật index tiếp theo
 
             # Display results
-            for img_index, results in enumerate(results_per_image):
-                seen += 1
-                
+            for img_index, results in enumerate(results_per_image):                
                 if self.media_manager.webcam:  
                     p = path[img_index]
                     s += f'{img_index}: '
@@ -315,7 +313,7 @@ class YoloDetector:
                         cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
 
                     cv2.imshow(str(p), im0)
-                    cv2.waitKey(0)
+                    cv2.waitKey(1)
 
                 # Save results (image with detections)
                 if self.media_manager.save_img:
