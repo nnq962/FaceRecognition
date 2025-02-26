@@ -18,6 +18,7 @@ import onnxruntime as ort
 ort.set_default_logger_severity(3)
 import numpy as np
 from config import config
+from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
 
 
 class InsightFaceDetector:
@@ -34,6 +35,7 @@ class InsightFaceDetector:
         self.rec_model = None
         self.media_manager = media_manager
         self.previous_states = {}
+        self.previous_aruco_marker_states = None
 
         if self.media_manager is not None:
             self.dataset = self.media_manager.get_dataloader()
@@ -194,6 +196,33 @@ class InsightFaceDetector:
             return restored_img
         
         return None
+    
+    def get_aruco_marker(self, img, timestamp, camera_name):
+        corners, ids, _ = self.aruco_detector.detectMarkers(img)
+        results = detect_aruco_answers(corners, ids)  # Nhận danh sách marker
+
+        # Sắp xếp danh sách marker theo ID để đảm bảo so sánh chính xác
+        sorted_markers = sorted(results, key=lambda x: x["ID"])
+
+        # Không gửi nếu markers rỗng []
+        if not sorted_markers:
+            return  
+
+        # So sánh chỉ dựa trên `markers`, bỏ qua timestamp
+        if self.previous_aruco_marker_states == sorted_markers:
+            return  # Không gửi nếu không có thay đổi
+
+        # Nếu có thay đổi, cập nhật trạng thái của markers và gửi thông báo
+        self.previous_aruco_marker_states = sorted_markers  
+
+        # Gửi toàn bộ dữ liệu, nhưng chỉ kiểm tra thay đổi ở `markers`
+        full_results = {
+            "timestamp": timestamp,  # Gửi thời gian mới
+            "camera": camera_name,   # Gửi tên camera
+            "markers": sorted_markers  # Danh sách marker đã sắp xếp
+        }
+
+        send_notification(full_results)  # Gửi toàn bộ thông tin
         
     def run_inference(self):
         """
@@ -216,6 +245,9 @@ class InsightFaceDetector:
             for i, det in enumerate(pred):
                 im0 = self.get_frame(im0s, i, self.media_manager.webcam)
 
+                if self.media_manager.qr_code:
+                    self.get_aruco_marker(im0, config.get_vietnam_time(), config.camera_names[i] if self.media_manager.webcam else "Photo")
+                
                 if det is None:
                     face_counts.append(0)
                     continue

@@ -8,3 +8,6 @@ log_nohup.txt
 main.log
 api.log
 .env
+greeting.mp3
+annoy_mapping.npy
+face_index.ann

@@ -1,3 +1,4 @@
+import io
 from flask import Flask, request, jsonify, send_file
 import mimetypes
 from datetime import datetime, timedelta
@@ -11,6 +12,8 @@ import numpy as np
 from flask_cors import CORS
 from gtts import gTTS
 from config import config
+from qr_code.utils_qr import ARUCO_DICT
+import cv2
 
 app = Flask(__name__)
 CORS(app)
@@ -742,6 +745,47 @@ def get_user_data():
     except Exception as e:
         return jsonify({"error": f"Failed to fetch user data: {str(e)}"}), 500
 
+
+# ----------------------------------------------------------------
+@app.route('/api/get_qr_code', methods=['GET'])
+def get_qr_code():
+    # Lấy loại marker từ request (nếu không có, dùng mặc định DICT_5X5_100)
+    marker_type = request.args.get('type', 'DICT_5X5_100').strip()
+
+    # Kiểm tra xem loại marker có hợp lệ không
+    if marker_type not in ARUCO_DICT:
+        return jsonify({"error": f"Invalid marker type '{marker_type}'. Available types: {list(ARUCO_DICT.keys())}"}), 400
+
+    # Lấy dictionary tương ứng
+    aruco_dict = cv2.aruco.getPredefinedDictionary(ARUCO_DICT[marker_type])
+
+    # Xác định số ID tối đa từ tên dictionary (phần số cuối)
+    try:
+        max_markers = int(marker_type.split("_")[-1])  # Lấy số ID từ tên dictionary
+    except ValueError:
+        return jsonify({"error": f"Could not determine max ID for marker type '{marker_type}'"}), 400
+
+    # Lấy ID từ request
+    marker_id = request.args.get('id', type=int)
+
+    # Kiểm tra ID hợp lệ
+    if marker_id is None or not (0 <= marker_id < max_markers):
+        return jsonify({"error": f"Invalid ID! Please use an ID between 0 and {max_markers - 1} for {marker_type}"}), 400
+
+    # Kích thước marker
+    marker_size = 200  # pixel
+
+    # Tạo ảnh marker
+    marker_img = np.zeros((marker_size, marker_size, 1), dtype="uint8")
+    cv2.aruco.generateImageMarker(aruco_dict, marker_id, marker_size, marker_img, 1)
+
+    # Chuyển ảnh thành PNG trong bộ nhớ
+    is_success, buffer = cv2.imencode(".png", marker_img)
+    if not is_success:
+        return jsonify({"error": "Failed to generate marker"}), 500
+
+    # Trả về ảnh PNG trực tiếp
+    return send_file(io.BytesIO(buffer), mimetype='image/png')
 
 # ----------------------------------------------------------------
 if __name__ == "__main__":

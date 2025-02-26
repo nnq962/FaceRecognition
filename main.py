@@ -5,8 +5,6 @@ from media_manager import MediaManager
 from websocket_server import start_ws_server
 
 def process_source(source_arg):
-    print("source_arg")
-    print(source_arg)
     """
     Process the source argument to determine the type of input.
     - '0': Webcam
@@ -15,6 +13,7 @@ def process_source(source_arg):
     """
     if source_arg.isdigit():  # Single numeric ID (e.g., '0' or '1')
         if source_arg == "0":  # Webcam
+            config.camera_names.append("webcam")
             return "0"
         else:  # Single camera
             rtsp_urls = config.create_rtsp_urls_from_mongo([int(source_arg)])
@@ -57,6 +56,8 @@ parser.add_argument("--time_to_save", type=int, default=5, help="Time interval (
 parser.add_argument("--show_time_process", action="store_true", help="Enable display of process time.")
 parser.add_argument("--raise_hand", action="store_true", help="Enable raise hand detection.")
 parser.add_argument("--view_img", action="store_true", help="Enable display.")
+parser.add_argument("--line_thickness", type=int, default=3, help="Line thickness")
+parser.add_argument("--qr_code", action="store_true", help="Enable qr code detection.")
 
 args = parser.parse_args()
 
@@ -83,10 +84,12 @@ media_manager = MediaManager(
     time_to_save=args.time_to_save,
     show_time_process=args.show_time_process,
     raise_hand=args.raise_hand,
-    view_img=args.view_img
+    view_img=args.view_img,
+    line_thickness=args.line_thickness,
+    qr_code=args.qr_code
 )
 
-if args.raise_hand:
+if args.raise_hand or args.qr_code:
     start_ws_server()
 
 detector = InsightFaceDetector(media_manager=media_manager)
