@@ -25,6 +25,34 @@ ARUCO_DICT = {
 	"DICT_APRILTAG_36h11": cv2.aruco.DICT_APRILTAG_36h11
 }
 
+def convert_angle_to_answer(angle):
+    """
+    Chuyển đổi góc từ 0 đến 360 độ thành đáp án A, B, C, D.
+    
+    - 45° → 135°   -> A
+    - 135° → 225°  -> B
+    - 225° → 315°  -> C
+    - 315° → 45°   -> D
+    """
+    angle = angle % 360  # Đảm bảo góc trong khoảng 0-360
+
+    if 45 <= angle < 135:
+        return "A"
+    elif 135 <= angle < 225:
+        return "B"
+    elif 225 <= angle < 315:
+        return "C"
+    else:  # Trường hợp còn lại: [315, 360) và [0, 45)
+        return "D"
+
+# Kiểm tra với các giá trị góc mẫu
+angles = [10, 50, 140, 200, 250, 330, 360]
+answers = [convert_angle_to_answer(a) for a in angles]
+
+for a, ans in zip(angles, answers):
+    print(f"Góc {a}° -> Đáp án {ans}")
+
+
 def aruco_display(corners, ids, rejected, image):
     marker_list = []
     
@@ -68,3 +96,34 @@ def aruco_display(corners, ids, rejected, image):
             marker_list.append({"ID": int(markerID), "Angle": round(angle, 1)})
     
     return image, marker_list
+
+def detect_aruco_answers(corners, ids):
+    """
+    Nhận diện marker ArUco, tính toán góc xoay và ánh xạ thành đáp án A, B, C, D.
+    
+    - corners: Danh sách tọa độ các góc của marker.
+    - ids: Danh sách ID của các marker.
+    
+    Trả về:
+    - Danh sách chứa dictionary với ID và đáp án tương ứng.
+    """
+    marker_list = []
+
+    if len(corners) > 0:
+        ids = ids.flatten()
+
+        for (markerCorner, markerID) in zip(corners, ids):
+            # Lấy tọa độ 4 góc của marker
+            corners = markerCorner.reshape((4, 2))
+            (topLeft, topRight, bottomRight, bottomLeft) = corners
+
+            # ✅ Tính góc xoay của marker
+            vector = np.array(topRight) - np.array(topLeft)  # Vector từ top-left đến top-right
+            angle = np.degrees(np.arctan2(vector[1], vector[0]))  # Tính góc bằng arctan2
+            if angle < 0:
+                angle += 360  # Chuyển về khoảng [0, 360]
+
+            # Lưu kết quả dưới dạng {ID, Answer}
+            marker_list.append({"ID": int(markerID), "Answer": convert_angle_to_answer(round(angle, 1))})
+    
+    return marker_list
