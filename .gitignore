@@ -11,3 +11,4 @@ api.log
 greeting.mp3
 annoy_mapping.npy
 face_index.ann
+device.txt
