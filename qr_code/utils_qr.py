@@ -45,13 +45,6 @@ def convert_angle_to_answer(angle):
     else:  # Trường hợp còn lại: [315, 360) và [0, 45)
         return "D"
 
-# Kiểm tra với các giá trị góc mẫu
-angles = [10, 50, 140, 200, 250, 330, 360]
-answers = [convert_angle_to_answer(a) for a in angles]
-
-for a, ans in zip(angles, answers):
-    print(f"Góc {a}° -> Đáp án {ans}")
-
 
 def aruco_display(corners, ids, rejected, image):
     marker_list = []
