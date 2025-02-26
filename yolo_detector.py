@@ -59,6 +59,9 @@ class YoloDetector:
         return detections
 
     def get_face_embeddings(self, cropped_images):
+        if not cropped_images:  # Kiểm tra nếu danh sách rỗng
+            return []
+
         embeddings = self.rec_model.get_feat(cropped_images)
         return yolo_detector_utils.normalize_embeddings(embeddings)
     
@@ -261,33 +264,11 @@ class YoloDetector:
                         id = result["id"]
                         emotion = result["emotion"]
                         emotion_probability = result["emotion_probability"]
-
-                        import unicodedata
-
-                        def remove_accents(input_str):
-                            """
-                            Loại bỏ dấu tiếng Việt và chuyển Đ -> D, đ -> d
-                            """
-                            input_str = input_str.replace("Đ", "D").replace("đ", "d")  # Chuyển Đ -> D, đ -> d
-                            nfkd_form = unicodedata.normalize('NFKD', input_str)  # Chuẩn hóa Unicode
-                            return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
-
-                        def shorten_name(full_name):
-                            """
-                            Rút gọn tên thành dạng: N.N.Quyet (bỏ dấu và rút gọn)
-                            """
-                            full_name = remove_accents(full_name)  # Bỏ dấu trước khi rút gọn
-                            words = full_name.split()  # Tách tên theo khoảng trắng
-                            if len(words) >= 2:
-                                short_name = ".".join([w[0] for w in words[:-1]]) + "." + words[-1]
-                            else:
-                                short_name = words[0]  # Nếu chỉ có một từ, giữ nguyên
-                            return short_name
                         
                         if self.media_manager.face_emotion:
-                            label = f"{shorten_name(name)} {similarity} | {emotion} {emotion_probability}"
+                            label = f"{name} {similarity} | {emotion} {emotion_probability}"
                         elif self.media_manager.face_recognition:
-                            label = f"{shorten_name(name)} {similarity}"
+                            label = f"{name} {similarity}"
                         else:
                             label = None
                                         

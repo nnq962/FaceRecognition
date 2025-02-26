@@ -1,3 +1,4 @@
+import unicodedata
 from flask import Flask, request, jsonify, send_file
 import mimetypes
 from datetime import datetime, timedelta
@@ -147,6 +148,30 @@ def generate_all_user_embeddings():
 
 
 # ----------------------------------------------------------------
+def remove_accents(input_str):
+    """
+    Loại bỏ dấu tiếng Việt và chuyển Đ -> D, đ -> d
+    """
+    input_str = input_str.replace("Đ", "D").replace("đ", "d")  # Chuyển Đ -> D, đ -> d
+    nfkd_form = unicodedata.normalize('NFKD', input_str)  # Chuẩn hóa Unicode
+    return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
+
+
+# ----------------------------------------------------------------
+def shorten_name(full_name):
+    """
+    Rút gọn tên thành dạng: N.N.Quyet (bỏ dấu và rút gọn)
+    """
+    full_name = remove_accents(full_name)  # Bỏ dấu trước khi rút gọn
+    words = full_name.split()  # Tách tên theo khoảng trắng
+    if len(words) >= 2:
+        short_name = ".".join([w[0] for w in words[:-1]]) + "." + words[-1]
+    else:
+        short_name = words[0]  # Nếu chỉ có một từ, giữ nguyên
+    return short_name
+
+
+# ----------------------------------------------------------------
 def build_ann_index():
     """
     Tạo tệp ann và tệp ánh xạ
@@ -167,7 +192,7 @@ def build_ann_index():
             embeddings.append(face_entry["embedding"])
             id_mapping[index_counter] = {
                 "id": user_id,  # Sử dụng _id thay vì user_id
-                "full_name": full_name  # Lưu full_name thay vì photo_name
+                "full_name": shorten_name(full_name)  # Lưu full_name thay vì photo_name
             }
             index_counter += 1
 
