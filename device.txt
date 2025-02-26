@@ -1,2 +1,2 @@
 rtsp://admin:L2B92F47@192.168.5.142:554/cam/realmonitor?channel=1&subtype=0
-rtsp://admin:L26B7CBE@192.168.5.102:554/cam/realmonitor?channel=1&subtype=0
+rtsp://admin:L26B7CBE@192.168.5.107:554/cam/realmonitor?channel=1&subtype=0

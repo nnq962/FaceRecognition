@@ -19,6 +19,7 @@ ort.set_default_logger_severity(3)
 import numpy as np
 from config import config
 from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
+import api_edulive
 
 
 class InsightFaceDetector:
@@ -37,6 +38,7 @@ class InsightFaceDetector:
         self.previous_states = {}
         self.previous_aruco_marker_states = None
         self.arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
+        self.attendance_log = {}
 
         if self.arucoDictType is None:
             print(f"[Error] ArUCo tag type arucoDictType is not supported")
@@ -140,7 +142,7 @@ class InsightFaceDetector:
         if not self.media_manager.raise_hand:
             return
 
-        cropped_expand_image = expand_and_crop_image(frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
+        cropped_expand_image = expand_and_crop_image(frame, bbox, left=2.6, right=2.6, top=2.6, bottom=2.6)
 
         hand_open = is_hand_opened_in_image(cropped_expand_image)
         hand_raised = is_person_raising_hand_image(cropped_expand_image)
@@ -230,6 +232,32 @@ class InsightFaceDetector:
         }
 
         send_notification(full_results)  # Gửi toàn bộ thông tin
+
+    def send_student_attendance(self, student_id, image, bbox):
+        imc = image.copy()
+
+        # Bỏ qua nếu ID là "unknown"
+        if student_id == "unknown":
+            return
+
+        # Lấy thời gian hiện tại theo định dạng "YYYY-MM-DD HH:MM:SS"
+        current_time = config.get_vietnam_time()
+        today_date = current_time.split()[0]  # Lấy phần ngày "YYYY-MM-DD"
+
+        # Nếu hôm nay chưa có log, khởi tạo danh sách mới
+        if today_date not in self.attendance_log:
+            self.attendance_log[today_date] = set()
+
+        # Kiểm tra nếu ID chưa được thông báo hôm nay thì vẽ bbox, hiển thị ảnh và lưu vào danh sách
+        if student_id not in self.attendance_log[today_date]:
+            x1, y1, x2, y2 = map(int, bbox)  # Chuyển bbox sang dạng integer
+            cv2.rectangle(imc, (x1, y1), (x2, y2), (0, 255, 0), 2)  # Vẽ bbox
+
+            # Gửi ảnh có bbox qua API
+            api_edulive.send_student_attendance_cv2(image_cv2=imc, attendance_id=student_id, date=current_time)
+
+            # Lưu ID vào log
+            self.attendance_log[today_date].add(student_id)
         
     def run_inference(self):
         """
@@ -426,6 +454,7 @@ class InsightFaceDetector:
                         emotion = face["emotion"]
                         emotion_prob = face["emotion_probability"]
 
+                        self.send_student_attendance(id, im0, bbox[:4])
                         label = f"{id} {similarity} | {emotion} {emotion_prob}"
             
                         if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
