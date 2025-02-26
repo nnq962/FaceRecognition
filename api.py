@@ -772,8 +772,12 @@ def get_qr_code():
     if marker_id is None or not (0 <= marker_id < max_markers):
         return jsonify({"error": f"Invalid ID! Please use an ID between 0 and {max_markers - 1} for {marker_type}"}), 400
 
-    # Kích thước marker
-    marker_size = 200  # pixel
+    # Lấy kích thước từ request, mặc định là 300
+    marker_size = request.args.get('size', 300, type=int)
+
+    # Kiểm tra kích thước hợp lệ
+    if marker_size <= 0:
+        return jsonify({"error": "Size must be a positive integer"}), 400
 
     # Tạo ảnh marker
     marker_img = np.zeros((marker_size, marker_size, 1), dtype="uint8")
