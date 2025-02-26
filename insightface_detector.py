@@ -18,7 +18,7 @@ import onnxruntime as ort
 ort.set_default_logger_severity(3)
 import numpy as np
 from config import config
-from QRDetection.utils_qr import ARUCO_DICT, detect_aruco_answers
+from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
 
 class InsightFaceDetector:
     """

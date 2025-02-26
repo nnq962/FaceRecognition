@@ -12,7 +12,7 @@ from flask_cors import CORS
 from gtts import gTTS
 from config import config
 from annoy import AnnoyIndex
-from QRDetection.utils_qr import ARUCO_DICT
+from qr_code.utils_qr import ARUCO_DICT
 import cv2
 
 app = Flask(__name__)
