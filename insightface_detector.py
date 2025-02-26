@@ -18,7 +18,7 @@ import onnxruntime as ort
 ort.set_default_logger_severity(3)
 import numpy as np
 from config import config
-
+from QRDetection.utils_qr import ARUCO_DICT, detect_aruco_answers
 
 class InsightFaceDetector:
     """
@@ -32,7 +32,16 @@ class InsightFaceDetector:
         self.rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
         self.det_model = None
         self.rec_model = None
+        self.previous_hand_states = {}
+        self.previous_aruco_marker_states = None
         self.media_manager = media_manager
+        self.arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
+
+        if self.arucoDictType is None:
+            print(f"[Error] ArUCo tag type arucoDictType is not supported")
+        self.arucoDict = cv2.aruco.getPredefinedDictionary(self.arucoDictType)
+        self.arucoParams = cv2.aruco.DetectorParameters()
+        self.aruco_detector = cv2.aruco.ArucoDetector(self.arucoDict, self.arucoParams)
 
         if self.media_manager is not None:
             self.dataset = self.media_manager.get_dataloader()
@@ -129,27 +138,26 @@ class InsightFaceDetector:
     def check_raising_hand(self, frame, bbox, id, timestamp, camera_name):
         if not self.media_manager.raise_hand:
             return
+
         cropped_expand_image = expand_and_crop_image(frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6)
 
         hand_open = is_hand_opened_in_image(cropped_expand_image)
         hand_raised = is_person_raising_hand_image(cropped_expand_image)
 
-        if hand_open and hand_raised:
+        new_state = "up" if hand_open and hand_raised else "down"
+
+        # Kiểm tra nếu trạng thái có thay đổi không
+        if self.previous_hand_states.get(id) != new_state:
             message = {
                 "user_id": id,
-                "type": "up",
+                "type": new_state,
                 "time": timestamp,
                 "camera": camera_name
             }
             send_notification(message)
-        else:
-            message = {
-                "user_id": id,
-                "type": "down",
-                "time": timestamp,
-                "camera": camera_name
-            }
-            send_notification(message)
+            
+            # Cập nhật trạng thái mới
+            self.previous_hand_states[id] = new_state
 
     def get_face_emotions(self, img, bounding_boxes):
         """
@@ -194,7 +202,34 @@ class InsightFaceDetector:
             return restored_img
         
         return None
-        
+    
+    def get_aruco_marker(self, img, timestamp, camera_name):
+        corners, ids, _ = self.aruco_detector.detectMarkers(img)
+        results = detect_aruco_answers(corners, ids)  # Nhận danh sách marker
+
+        # Sắp xếp danh sách marker theo ID để đảm bảo so sánh chính xác
+        sorted_markers = sorted(results, key=lambda x: x["ID"])
+
+        # Không gửi nếu markers rỗng []
+        if not sorted_markers:
+            return  
+
+        # So sánh chỉ dựa trên `markers`, bỏ qua timestamp
+        if self.previous_aruco_marker_states == sorted_markers:
+            return  # Không gửi nếu không có thay đổi
+
+        # Nếu có thay đổi, cập nhật trạng thái của markers và gửi thông báo
+        self.previous_aruco_marker_states = sorted_markers  
+
+        # Gửi toàn bộ dữ liệu, nhưng chỉ kiểm tra thay đổi ở `markers`
+        full_results = {
+            "timestamp": timestamp,  # Gửi thời gian mới
+            "camera": camera_name,   # Gửi tên camera
+            "markers": sorted_markers  # Danh sách marker đã sắp xếp
+        }
+
+        send_notification(full_results)  # Gửi toàn bộ thông tin
+
     def run_inference(self):
         """
         Run inference on images/video and display results
@@ -215,6 +250,9 @@ class InsightFaceDetector:
             # Crop all faces
             for i, det in enumerate(pred):
                 im0 = self.get_frame(im0s, i, self.media_manager.webcam)
+
+                if self.media_manager.qr_code:
+                    self.get_aruco_marker(im0, config.get_vietnam_time(), config.camera_names[i] if self.media_manager.webcam else "Photo")
 
                 if det is None:
                     face_counts.append(0)

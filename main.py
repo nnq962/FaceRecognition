@@ -57,6 +57,7 @@ parser.add_argument("--show_time_process", action="store_true", help="Enable dis
 parser.add_argument("--raise_hand", action="store_true", help="Enable raise hand detection.")
 parser.add_argument("--view_img", action="store_true", help="Enable display.")
 parser.add_argument("--line_thickness", type=int, default=3, help="Line thickness")
+parser.add_argument("--qr_code", action="store_true", help="Enable qr code detection.")
 
 args = parser.parse_args()
 
@@ -84,10 +85,11 @@ media_manager = MediaManager(
     show_time_process=args.show_time_process,
     raise_hand=args.raise_hand,
     view_img=args.view_img,
-    line_thickness=args.line_thickness
+    line_thickness=args.line_thickness,
+    qr_code=args.qr_code
 )
 
-if args.raise_hand:
+if args.raise_hand or args.qr_code:
     start_ws_server()
 
 detector = InsightFaceDetector(media_manager=media_manager)

@@ -3,14 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <title>Test WebSocket Client</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f4f4f4;
+      margin: 20px;
+    }
+    
+    h1 {
+      color: #333;
+    }
+
+    #messages {
+      width: 80%;
+      max-width: 600px;
+      height: 400px; /* Tăng kích thước */
+      overflow-y: auto;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      padding: 15px;
+      box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .message {
+      background: #e3f2fd;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 5px;
+      white-space: pre-wrap; /* Đảm bảo JSON hiển thị đúng */
+      font-family: monospace;
+    }
+  </style>
 </head>
 <body>
-  <h1>Thông báo giơ tay</h1>
+  <h1>Test WebSocket Client</h1>
   <div id="messages"></div>
 
   <script>
-    // Kết nối tới server Python
-    // Nếu chạy local, dùng localhost. Nếu server ở máy khác, thay IP tương ứng
     const socket = new WebSocket('ws://localhost:8765');
 
     socket.addEventListener('open', () => {
@@ -21,7 +54,21 @@
     socket.addEventListener('message', (event) => {
       console.log('Nhận tin nhắn:', event.data);
       const msgDiv = document.getElementById('messages');
-      msgDiv.innerHTML += `<p>${event.data}</p>`;
+      
+      let formattedMessage;
+      try {
+        const jsonData = JSON.parse(event.data);
+        formattedMessage = JSON.stringify(jsonData, null, 2); // Định dạng JSON đẹp hơn
+      } catch (error) {
+        formattedMessage = event.data; // Nếu không phải JSON, hiển thị nguyên bản
+      }
+
+      const messageElement = document.createElement('div');
+      messageElement.classList.add('message');
+      messageElement.textContent = formattedMessage;
+
+      msgDiv.appendChild(messageElement);
+      msgDiv.scrollTop = msgDiv.scrollHeight;
     });
 
     socket.addEventListener('close', () => {

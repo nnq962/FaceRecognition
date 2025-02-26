@@ -1,41 +1,29 @@
-import numpy as np
-import time
-from annoy import AnnoyIndex
+def convert_angle_to_answer(angle):
+    """
+    Chuyển đổi góc từ 0 đến 360 độ thành đáp án A, B, C, D.
+    
+    Quy ước:
+    - 0° → 90°  -> A
+    - 90° → 180° -> B
+    - 180° → 270° -> C
+    - 270° → 360° -> D
+    
+    Nếu góc ngoài phạm vi, sẽ điều chỉnh về [0, 360] bằng mod 360.
+    """
+    angle = angle % 360  # Đảm bảo góc nằm trong phạm vi 0-360
 
-# Số lượng vector và số chiều
-num_vectors = 100000
-dim = 512
+    if 0 <= angle < 90:
+        return "A"
+    elif 90 <= angle < 180:
+        return "B"
+    elif 180 <= angle < 270:
+        return "C"
+    else:
+        return "D"
 
-# Tạo dataset ngẫu nhiên và chuẩn hóa
-vectors = np.random.rand(num_vectors, dim).astype(np.float32)
-vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)  # Chuẩn hóa
+# Ví dụ sử dụng
+angles = [10, 95, 185, 275, 360, 450, -45]
+answers = [convert_angle_to_answer(a) for a in angles]
 
-# Chọn một vector truy vấn
-query_vec = np.random.rand(dim).astype(np.float32)
-query_vec /= np.linalg.norm(query_vec)  # Chuẩn hóa
-
-# Khởi tạo Annoy với Euclidean
-annoy_euclidean = AnnoyIndex(dim, 'euclidean')
-for i, vec in enumerate(vectors):
-    annoy_euclidean.add_item(i, vec)
-annoy_euclidean.build(10)
-
-# Khởi tạo Annoy với Angular
-annoy_angular = AnnoyIndex(dim, 'angular')
-for i, vec in enumerate(vectors):
-    annoy_angular.add_item(i, vec)
-annoy_angular.build(10)
-
-# Tìm kiếm với Euclidean
-start_time = time.time()
-euclidean_results = annoy_euclidean.get_nns_by_vector(query_vec, 10, include_distances=True)
-euclidean_time = time.time() - start_time
-
-# Tìm kiếm với Angular
-start_time = time.time()
-angular_results = annoy_angular.get_nns_by_vector(query_vec, 10, include_distances=True)
-angular_time = time.time() - start_time
-
-# In kết quả
-print(f"Annoy Euclidean Search Time: {euclidean_time:.6f} seconds")
-print(f"Annoy Angular Search Time: {angular_time:.6f} seconds")
+for a, ans in zip(angles, answers):
+    print(f"Góc {a}° -> Đáp án {ans}")
