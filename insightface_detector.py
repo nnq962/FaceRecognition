@@ -36,6 +36,13 @@ class InsightFaceDetector:
         self.media_manager = media_manager
         self.previous_states = {}
         self.previous_aruco_marker_states = None
+        self.arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
+
+        if self.arucoDictType is None:
+            print(f"[Error] ArUCo tag type arucoDictType is not supported")
+        self.arucoDict = cv2.aruco.getPredefinedDictionary(self.arucoDictType)
+        self.arucoParams = cv2.aruco.DetectorParameters()
+        self.aruco_detector = cv2.aruco.ArucoDetector(self.arucoDict, self.arucoParams)
 
         if self.media_manager is not None:
             self.dataset = self.media_manager.get_dataloader()
