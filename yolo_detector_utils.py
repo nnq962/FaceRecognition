@@ -3,6 +3,8 @@ import cv2
 from config import config
 import os
 from annoy import AnnoyIndex
+import faiss
+import pickle
 
 users_collection = config.users_collection
 save_path = config.save_path
