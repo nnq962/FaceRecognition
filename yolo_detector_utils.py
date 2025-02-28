@@ -7,6 +7,48 @@ from annoy import AnnoyIndex
 users_collection = config.users_collection
 save_path = config.save_path
 
+def search_ids(embeddings, index_path="face_index.faiss", mapping_path="id_mapping.pkl", top_k=1, threshold=0.5):
+    """
+    Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
+
+    Args:
+        embeddings (numpy.ndarray): Mảng các embeddings đã chuẩn hóa (shape: (n_embeddings, 512)).
+        index_path (str): Đường dẫn tới FAISS index file.
+        mapping_path (str): Đường dẫn tới file ánh xạ index -> ID.
+        top_k (int): Số lượng kết quả gần nhất cần trả về cho mỗi embedding.
+        threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
+
+    Returns:
+        list of list of dict: Danh sách kết quả cho mỗi embedding, mỗi kết quả bao gồm ID, tên ảnh và độ tương đồng.
+    """
+    # Load FAISS index
+    index = faiss.read_index(index_path)
+
+    # Load ánh xạ index -> ID
+    with open(mapping_path, "rb") as f:
+        index_to_id = pickle.load(f)
+
+    # Đảm bảo embeddings là 2D để phù hợp với FAISS input
+    query_embeddings = np.array(embeddings).astype('float32')
+
+    # Tìm kiếm với FAISS
+    D, I = index.search(query_embeddings, k=top_k)  # D: Độ tương đồng, I: Chỉ số
+
+    all_results = []  # Kết quả cho tất cả embeddings
+    for query_idx in range(len(query_embeddings)):
+        query_results = [
+            {
+                "id": index_to_id[idx]["id"],
+                "full_name": index_to_id[idx]["full_name"],
+                "similarity": float(similarity)
+            }
+            for idx, similarity in zip(I[query_idx], D[query_idx])
+            if idx != -1 and similarity >= threshold  # Loại bỏ index không hợp lệ và kết quả dưới ngưỡng
+        ]
+        all_results.append(query_results)
+
+    return all_results
+
 def search_annoy(query_embedding, n_neighbors=1, threshold=None):
     """
     Tìm kiếm trong Annoy index sử dụng Euclidean Distance, và chuyển đổi về Cosine Similarity để so sánh với ngưỡng.
@@ -60,7 +102,6 @@ def search_annoy(query_embedding, n_neighbors=1, threshold=None):
         return results[0]  # Trả về dictionary thay vì list
     else:
         return results  # Trả về danh sách nếu có nhiều kết quả
-
 
 def search_annoys(query_embeddings, n_neighbors=1, threshold=None):
     """

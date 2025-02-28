@@ -186,7 +186,7 @@ class YoloDetector:
 
             # Lấy embeddings & tìm user
             user_infos = (
-                yolo_detector_utils.search_annoys(self.get_face_embeddings(all_crop_faces), threshold=0.5)
+                yolo_detector_utils.search_ids(self.get_face_embeddings(all_crop_faces), threshold=0.5)
                 if self.media_manager.face_recognition else None
             )
 

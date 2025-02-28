@@ -12,6 +12,8 @@ from flask_cors import CORS
 from gtts import gTTS
 from config import config
 from annoy import AnnoyIndex
+import faiss
+import pickle
 
 app = Flask(__name__)
 CORS(app)
@@ -111,43 +113,6 @@ def generate_all_user_embeddings():
 
 
 # ----------------------------------------------------------------
-# def update_all_faiss_index(output_path=save_path + "/data_base/face_index.faiss"):
-#     embeddings = []
-#     ids = []
-
-#     # Lấy tất cả người dùng từ MongoDB
-#     users = list(users_collection.find())
-#     for user in users:
-#         user_id = user["_id"]  # ID của người dùng
-#         face_embeddings = user.get("face_embeddings", [])  # Lấy danh sách face_embeddings
-
-#         # Duyệt qua tất cả face_embeddings và thêm vào danh sách
-#         for embedding in face_embeddings:
-#             embeddings.append(embedding)  # Thêm embedding vào danh sách
-#             ids.append(user_id)  # Dùng MongoDB `_id` làm ID
-
-#     if len(embeddings) == 0:
-#         print("No embeddings found in the database.")
-#         return
-
-#     # Chuyển embeddings thành numpy array
-#     embeddings_array = np.array(embeddings, dtype="float32")
-#     ids_array = np.array(ids, dtype=np.int64)  # FAISS yêu cầu ID là kiểu số nguyên
-
-#     # Tạo FAISS index với Inner Product (cho Cosine Similarity)
-#     dimension = embeddings_array.shape[1]
-#     index = faiss.IndexFlatIP(dimension)  # Inner Product để tính Cosine Similarity
-#     index_with_id = faiss.IndexIDMap(index)
-
-#     # Thêm embeddings và IDs vào FAISS
-#     index_with_id.add_with_ids(embeddings_array, ids_array)
-
-#     # Ghi FAISS index ra tệp
-#     faiss.write_index(index_with_id, output_path)
-#     print(f"FAISS index (Cosine Similarity) saved to {output_path}")
-
-
-# ----------------------------------------------------------------
 def remove_accents(input_str):
     """
     Loại bỏ dấu tiếng Việt và chuyển Đ -> D, đ -> d
@@ -169,6 +134,59 @@ def shorten_name(full_name):
     else:
         short_name = words[0]  # Nếu chỉ có một từ, giữ nguyên
     return short_name
+
+
+# ----------------------------------------------------------------
+def build_faiss_index():
+    """
+    Tạo FAISS index (.faiss) và tệp ánh xạ ID (.pkl) từ MongoDB
+    """
+    embeddings = []
+    id_mapping = {}  # Lưu mapping từ FAISS index → user (_id, full_name)
+
+    index_counter = 0  # Đếm số embeddings
+
+    # Lấy thông tin từ MongoDB
+    users = users_collection.find({}, {"_id": 1, "full_name": 1, "face_embeddings": 1})
+    
+    for user in users:
+        user_id = user["_id"]
+        full_name = user.get("full_name", "Unknown")  # Nếu không có full_name thì gán "Unknown"
+
+        for face_entry in user.get("face_embeddings", []):  # Duyệt qua từng embedding
+            embeddings.append(face_entry["embedding"])
+            id_mapping[index_counter] = {
+                "id": user_id,
+                "full_name": shorten_name(full_name)
+            }
+            index_counter += 1
+
+    # Kiểm tra nếu không có embeddings
+    if not embeddings:
+        print("Không có embeddings nào trong MongoDB!")
+        return
+
+    # Chuyển thành NumPy array
+    embeddings = np.array(embeddings, dtype=np.float32)
+
+    # Xác định số chiều vector
+    vector_dim = embeddings.shape[1]
+
+    # Sử dụng FAISS với Inner Product (vì vector đã chuẩn hóa)
+    index = faiss.IndexFlatIP(vector_dim)
+
+    # Thêm vector vào FAISS Index
+    index.add(embeddings)
+
+    # Lưu FAISS Index
+    faiss.write_index(index, "face_index.faiss")
+
+    # Lưu id_mapping thành file .pkl
+    with open("id_mapping.pkl", "wb") as f:
+        pickle.dump(id_mapping, f)
+
+    print(f"FAISS index đã được tạo và lưu vào 'face_index.faiss'!")
+    print(f"Mapping index → user đã được lưu vào 'id_mapping.pkl'!")
 
 
 # ----------------------------------------------------------------
