@@ -21,7 +21,7 @@ def search_ids(embeddings, index_path="face_index.faiss", mapping_path="id_mappi
         threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
 
     Returns:
-        list of list of dict: Danh sách kết quả cho mỗi embedding, mỗi kết quả bao gồm ID, tên ảnh và độ tương đồng.
+        list: Danh sách kết quả, với mỗi phần tử là một dictionary hoặc None nếu không có kết quả hợp lệ.
     """
     # Load FAISS index
     index = faiss.read_index(index_path)
@@ -30,13 +30,14 @@ def search_ids(embeddings, index_path="face_index.faiss", mapping_path="id_mappi
     with open(mapping_path, "rb") as f:
         index_to_id = pickle.load(f)
 
-    # Đảm bảo embeddings là 2D để phù hợp với FAISS input
-    query_embeddings = np.array(embeddings).astype('float32')
+    # Chuyển đổi embeddings thành dạng float32 và chuẩn hóa
+    query_embeddings = np.array(embeddings, dtype=np.float32)
+    query_embeddings /= np.linalg.norm(query_embeddings, axis=1, keepdims=True)
 
-    # Tìm kiếm với FAISS
-    D, I = index.search(query_embeddings, k=top_k)  # D: Độ tương đồng, I: Chỉ số
+    # Thực hiện tìm kiếm với FAISS
+    D, I = index.search(query_embeddings, k=top_k)  # D: Độ tương đồng, I: Chỉ số index FAISS
 
-    all_results = []  # Kết quả cho tất cả embeddings
+    results = []
     for query_idx in range(len(query_embeddings)):
         query_results = [
             {
@@ -45,11 +46,12 @@ def search_ids(embeddings, index_path="face_index.faiss", mapping_path="id_mappi
                 "similarity": float(similarity)
             }
             for idx, similarity in zip(I[query_idx], D[query_idx])
-            if idx != -1 and similarity >= threshold  # Loại bỏ index không hợp lệ và kết quả dưới ngưỡng
+            if idx != -1 and similarity >= threshold  # Lọc bỏ kết quả không hợp lệ
         ]
-        all_results.append(query_results)
+        # Nếu không có kết quả hợp lệ, trả về None
+        results.append(query_results[0] if query_results else None)
 
-    return all_results
+    return results
 
 def search_annoy(query_embedding, n_neighbors=1, threshold=None):
     """
