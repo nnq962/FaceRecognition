@@ -32,8 +32,8 @@ The **InsightFaceDetector** project is an advanced image detection and analysis 
   - `onnxruntime`: Efficient ONNX model execution.  
   - `numpy`: Numerical data processing.  
 - **Models**:  
-  - `det_10g.onnx`: Face detection model.  
-  - `w600k_r50.onnx`: Face recognition model.  
+  - `Retinaface`: Face detection model.  
+  - `Arcface`: Face recognition model.  
 - **Hardware Support**: Optimized for CPU and GPU (InsightFace).  
 
 ## Installation
