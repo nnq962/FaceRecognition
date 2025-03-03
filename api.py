@@ -324,7 +324,7 @@ def delete_user(user_id):
             shutil.rmtree(folder_path)  # Xóa toàn bộ thư mục và nội dung bên trong
 
             # Cập nhật ann index
-            build_ann_index()
+            build_faiss_index()
 
         return jsonify({"message": "User and folder deleted successfully"}), 200
     except Exception as e:
@@ -385,7 +385,7 @@ def upload_photo(user_id):
                 )
                 
                 # Build ann
-                build_ann_index()
+                build_faiss_index()
 
                 return jsonify({
                     "message": "Photo uploaded and face features saved",
@@ -438,7 +438,7 @@ def delete_photo(user_id):
         )
 
         # Build ann
-        build_ann_index()
+        build_faiss_index()
 
         return jsonify({"message": "Photo and embedding deleted successfully"}), 200
 
@@ -676,7 +676,7 @@ if config.init_database:
     print("-" * 80)
     print("Initialize database")
     generate_all_user_embeddings()
-    build_ann_index()
+    build_faiss_index()
 
 
 # ----------------------------------------------------------------
@@ -687,7 +687,7 @@ def rebuild_all_users_embeddings():
         generate_all_user_embeddings()
         
         # Cập nhật ann index
-        build_ann_index()
+        build_faiss_index()
         
         return jsonify({"message": "User photos processed and ann index updated"}), 200
     except Exception as e:
@@ -792,7 +792,4 @@ def get_user_data():
 
 # ----------------------------------------------------------------
 if __name__ == "__main__":
-    # app.run(host="0.0.0.0", port=6123)
-    generate_all_user_embeddings()
-    build_faiss_index()
-    build_ann_index()
+    app.run(host="0.0.0.0", port=6123)
