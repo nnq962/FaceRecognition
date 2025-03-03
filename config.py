@@ -24,10 +24,10 @@ class Config:
     "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
     "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2"
     }
-    ann_file = "face_index.ann"
-    mapping_file = "annoy_mapping.npy"
-    faiss_file = "face_index.faiss"
-    faiss_mapping_file = "id_mapping.pkl"
+    ann_file = "data_base/face_index.ann"
+    mapping_file = "data_base/annoy_mapping.npy"
+    faiss_file = "data_base/face_index.faiss"
+    faiss_mapping_file = "data_base/faiss_mapping.pkl"
     vector_dim = 512
     
     # Tạo MONGO_URI linh hoạt

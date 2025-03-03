@@ -37,7 +37,7 @@ def search_ids(embeddings, top_k=1, threshold=0.5):
     index = faiss.read_index(config.faiss_file)
 
     # Load ánh xạ index -> ID
-    with open(config.mapping_file, "rb") as f:
+    with open(config.faiss_mapping_file, "rb") as f:
         index_to_id = pickle.load(f)
 
     # Chuyển đổi embeddings thành dạng float32

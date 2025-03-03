@@ -26,6 +26,7 @@ class InsightFaceDetector:
         self.rec_model = None
         self.previous_qr_results = {}
         self.previous_hand_states = {}
+        self.attendance_log = {}
         self.media_manager = media_manager
         self.previous_aruco_marker_states = None
         self.arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
@@ -131,30 +132,34 @@ class InsightFaceDetector:
         sorted_markers = sorted(results, key=lambda x: x["ID"])
 
         return sorted_markers
+    
+    def send_student_attendance(self, student_id, image, bbox):
+        imc = image.copy()
 
-    def _save_video(self, img_index, save_path, vid_cap, im0):
-        """
-        Function to save video frames
-        """
-        if self.media_manager.vid_path[img_index] != save_path:
-            self.media_manager.vid_path[img_index] = save_path
-            if isinstance(self.media_manager.vid_writer[img_index], cv2.VideoWriter):
-                self.media_manager.vid_writer[img_index].release()
-            fps = vid_cap.get(cv2.CAP_PROP_FPS) if vid_cap else 10
-            w, h = (int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))) if vid_cap else (im0.shape[1], im0.shape[0])
-            save_path = str(Path(save_path).with_suffix('.mp4'))
-            self.media_manager.vid_writer[img_index] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
-        self.media_manager.vid_writer[img_index].write(im0)
+        # Bỏ qua nếu ID là "Unknown"
+        if student_id == "Unknown":
+            return
 
-    def _release_writers(self):
-        """
-        Function to release video writers
-        """
-        for writer in self.media_manager.vid_writer:
-            if isinstance(writer, cv2.VideoWriter):
-                writer.release()
-                print("Video writer released successfully.")
-        
+        # Lấy thời gian hiện tại theo định dạng "YYYY-MM-DD HH:MM:SS"
+        current_time = config.get_vietnam_time()
+        today_date = current_time.split()[0]  # Lấy phần ngày "YYYY-MM-DD"
+
+        # Nếu hôm nay chưa có log, khởi tạo danh sách mới
+        if today_date not in self.attendance_log:
+            self.attendance_log[today_date] = set()
+
+        # Kiểm tra nếu ID chưa được thông báo hôm nay thì vẽ bbox, hiển thị ảnh và lưu vào danh sách
+        if student_id not in self.attendance_log[today_date]:
+            x1, y1, x2, y2 = map(int, bbox)  # Chuyển bbox sang dạng integer
+            cv2.rectangle(imc, (x1, y1), (x2, y2), (0, 255, 0), 2)  # Vẽ bbox
+
+            # Gửi ảnh có bbox qua API
+            # api_edulive.send_student_attendance_cv2(image_cv2=imc, attendance_id=student_id, date=current_time)
+            cv2.imwrite(f"attendance_images/{current_time}_{student_id}.jpg", imc)
+
+            # Lưu ID vào log
+            self.attendance_log[today_date].add(student_id)
+
     def run_inference(self):
         """
         Run inference on images/video and display results
@@ -264,6 +269,9 @@ class InsightFaceDetector:
                     id = result["id"]
                     emotion = result["emotion"]
                     emotion_probability = result["emotion_probability"]
+
+                    # Gửi ảnh điểm danh
+                    self.send_student_attendance(id, im0, bbox)
                     
                     if self.media_manager.raise_hand and id != "Unknown":
                         hand_raised = get_raising_hand(im0, bbox)
@@ -341,3 +349,26 @@ class InsightFaceDetector:
 
         # Đảm bảo release sau khi xử lý tất cả các khung hình
         self._release_writers()
+
+    def _save_video(self, img_index, save_path, vid_cap, im0):
+        """
+        Function to save video frames
+        """
+        if self.media_manager.vid_path[img_index] != save_path:
+            self.media_manager.vid_path[img_index] = save_path
+            if isinstance(self.media_manager.vid_writer[img_index], cv2.VideoWriter):
+                self.media_manager.vid_writer[img_index].release()
+            fps = vid_cap.get(cv2.CAP_PROP_FPS) if vid_cap else 10
+            w, h = (int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))) if vid_cap else (im0.shape[1], im0.shape[0])
+            save_path = str(Path(save_path).with_suffix('.mp4'))
+            self.media_manager.vid_writer[img_index] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+        self.media_manager.vid_writer[img_index].write(im0)
+
+    def _release_writers(self):
+        """
+        Function to release video writers
+        """
+        for writer in self.media_manager.vid_writer:
+            if isinstance(writer, cv2.VideoWriter):
+                writer.release()
+                print("Video writer released successfully.")
