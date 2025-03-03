@@ -5,8 +5,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import os
 import shutil
-from yolo_detector import YoloDetector
-from yolo_detector_utils import process_image
+from insightface_detector import InsightFaceDetector
+from insightface_utils import process_image
 import numpy as np
 from flask_cors import CORS
 from gtts import gTTS
@@ -17,7 +17,7 @@ import pickle
 
 app = Flask(__name__)
 CORS(app)
-detector = YoloDetector()
+detector = InsightFaceDetector()
 
 # Kết nối tới MongoDB
 users_collection = config.users_collection
@@ -792,4 +792,7 @@ def get_user_data():
 
 # ----------------------------------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=6123)
+    # app.run(host="0.0.0.0", port=6123)
+    generate_all_user_embeddings()
+    build_faiss_index()
+    build_ann_index()

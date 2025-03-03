@@ -1,6 +1,6 @@
 from config import config
 import argparse
-from yolo_detector import YoloDetector
+from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
 from websocket_server import start_ws_server
 
@@ -92,5 +92,5 @@ media_manager = MediaManager(
 if args.raise_hand or args.qr_code:
     start_ws_server()
 
-detector = YoloDetector(media_manager=media_manager)
+detector = InsightFaceDetector(media_manager=media_manager)
 detector.run_inference()

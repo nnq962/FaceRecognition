@@ -1,12 +1,10 @@
-from yolo_detector import YoloDetector
-from yolo_detector_utils import process_image
-import cv2
+import onnx
+from onnx import helper
+import os
+model_path = os.path.expanduser("~/Models/det_10g.onnx")
+model = onnx.load(model_path)
 
-img1 = "data_test/nnq1.jpg"
-img2 = "data_test/2person.jpg"
-
-detector = YoloDetector()
-
-result = process_image(img1, detector=detector)
-
-print(result)
+graph = model.graph
+input_tensor = graph.input[0]
+input_tensor.type.tensor_type.shape.dim[0].dim_param = ''  # Đặt batch size thành dynamic
+onnx.save(model, "retinaface_batch.onnx")
