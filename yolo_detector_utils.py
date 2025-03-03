@@ -5,6 +5,15 @@ import os
 from annoy import AnnoyIndex
 import faiss
 import pickle
+import platform
+
+current_os = platform.system()
+
+if current_os == "Darwin":  # macOS
+    faiss.omp_set_num_threads(1)  # Limit FAISS to use 1 thread
+elif current_os == "Linux":
+    # Skip setting omp_set_num_threads
+    pass
 
 users_collection = config.users_collection
 save_path = config.save_path
@@ -30,9 +39,8 @@ def search_ids(embeddings, index_path="face_index.faiss", mapping_path="id_mappi
     with open(mapping_path, "rb") as f:
         index_to_id = pickle.load(f)
 
-    # Chuyển đổi embeddings thành dạng float32 và chuẩn hóa
+    # Chuyển đổi embeddings thành dạng float32
     query_embeddings = np.array(embeddings, dtype=np.float32)
-    query_embeddings /= np.linalg.norm(query_embeddings, axis=1, keepdims=True)
 
     # Thực hiện tìm kiếm với FAISS
     D, I = index.search(query_embeddings, k=top_k)  # D: Độ tương đồng, I: Chỉ số index FAISS

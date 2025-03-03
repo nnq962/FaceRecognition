@@ -1,8 +1,10 @@
 from config import config
 import argparse
-from yolo_detector import YoloDetector
 from media_manager import MediaManager
-from websocket_server import start_ws_server
+import cv2
+from qr_code.utils_qr import ARUCO_DICT, aruco_display
+import sys
+import platform
 
 def process_source(source_arg):
     """
@@ -57,7 +59,6 @@ parser.add_argument("--show_time_process", action="store_true", help="Enable dis
 parser.add_argument("--raise_hand", action="store_true", help="Enable raise hand detection.")
 parser.add_argument("--view_img", action="store_true", help="Enable display.")
 parser.add_argument("--line_thickness", type=int, default=3, help="Line thickness")
-parser.add_argument("--qr_code", action="store_true", help="Enable qr code.")
 
 args = parser.parse_args()
 
@@ -73,6 +74,19 @@ if isinstance(processed_source, str) and processed_source == "device.txt":
 else:
     print(f"\nProcessing source: {processed_source}\n")
 
+
+# Kiểm tra loại ArUco marker hợp lệ
+arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
+if arucoDictType is None:
+    print(f"[Error] ArUCo tag type '{args['type']}' is not supported")
+    sys.exit(1)
+
+# Khởi tạo ArUco detector
+arucoDict = cv2.aruco.getPredefinedDictionary(arucoDictType)
+arucoParams = cv2.aruco.DetectorParameters()
+aruco_detector = cv2.aruco.ArucoDetector(arucoDict, arucoParams)
+    
+
 media_manager = MediaManager(
     source=processed_source,
     save=args.save,
@@ -85,12 +99,37 @@ media_manager = MediaManager(
     show_time_process=args.show_time_process,
     raise_hand=args.raise_hand,
     view_img=args.view_img,
-    line_thickness=args.line_thickness,
-    qr_code=args.qr_code
+    line_thickness=args.line_thickness
 )
+path = ["webcam", "camip"]
 
-if args.raise_hand or args.qr_code:
-    start_ws_server()
 
-detector = YoloDetector(media_manager=media_manager)
-detector.run_inference()
+def run_inference():
+    windows = []
+
+    for path, _, im0s, vid_cap, s in media_manager.dataset:
+
+
+        for img_index, faces in enumerate(im0s):
+            p = path[img_index]
+
+            im0 = im0s[img_index]
+
+
+            # Phát hiện marker
+            corners, ids, rejected = aruco_detector.detectMarkers(im0)
+            image, marker_list = aruco_display(corners, ids, rejected, im0)  
+            if marker_list:
+                print("-" * 80)
+                print(len(marker_list))   
+                            
+            # Stream results
+            if platform.system() == 'Linux' and p not in windows:
+                windows.append(p)
+                cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
+                cv2.resizeWindow(str(p), im0.shape[1], im0.shape[0])
+
+            cv2.imshow(str(p), im0)
+            cv2.waitKey(1)
+
+run_inference()
