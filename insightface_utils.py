@@ -19,7 +19,7 @@ elif current_os == "Linux":
 users_collection = config.users_collection
 save_path = config.save_path
 
-def search_ids(embeddings, index_path="face_index.faiss", mapping_path="id_mapping.pkl", top_k=1, threshold=0.5):
+def search_ids(embeddings, top_k=1, threshold=0.5):
     """
     Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
 
@@ -34,10 +34,10 @@ def search_ids(embeddings, index_path="face_index.faiss", mapping_path="id_mappi
         list: Danh sách kết quả, với mỗi phần tử là một dictionary hoặc None nếu không có kết quả hợp lệ.
     """
     # Load FAISS index
-    index = faiss.read_index(index_path)
+    index = faiss.read_index(config.faiss_file)
 
     # Load ánh xạ index -> ID
-    with open(mapping_path, "rb") as f:
+    with open(config.mapping_file, "rb") as f:
         index_to_id = pickle.load(f)
 
     # Chuyển đổi embeddings thành dạng float32

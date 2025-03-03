@@ -17,19 +17,17 @@ class Config:
     port = "27017"
     database = ""
     init_database = False
-    vram_limit_for_FER = 1
+    vram_limit_for_FER = 2
     camera_names = []
     save_path = str(Path.home()) + "/nnq_static_test"
     model_urls = {
     "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
-    "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2",
-    "GFPGANv1.3.pth": "https://drive.google.com/uc?id=1zmW9g7vaRWuFSUKIS9ShCmP-6WU6Xxan",
-    "detection_Resnet50_Final.pth": "https://drive.google.com/uc?id=1jP3-UU8LhBvG8ArZQNl6kpDUfH_Xan9m",
-    "parsing_parsenet.pth": "https://drive.google.com/uc?id=1ZFqra3Vs4i5fB6B8LkyBo_WQXaPRn77y",
-    "yolov11-face.pt": "https://drive.google.com/uc?id=1Y6syEi7jMbRkiEC-4Wd5cqwOKWtiD2at"
+    "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2"
     }
     ann_file = "face_index.ann"
     mapping_file = "annoy_mapping.npy"
+    faiss_file = "face_index.faiss"
+    faiss_mapping_file = "id_mapping.pkl"
     vector_dim = 512
     
     # Tạo MONGO_URI linh hoạt
@@ -42,22 +40,19 @@ class Config:
     db = client["my_database"]
 
     # Các collection
-    users_collection = db["users_test"]
-    managers_collection = db["managers_test"]
+    users_collection = db["users"]
+    managers_collection = db["managers"]
     camera_collection = db["camera_information"]
-    data_collection = db["camera_data_test"]
+    data_collection = db["camera_data"]
 
     SAVE_PATH = Path(save_path)
     UPLOADS_PATH = SAVE_PATH / "uploads"
-    DATABASE_PATH = SAVE_PATH / "data_base"
 
     # Tạo thư mục nếu chưa tồn tại
-    for folder in [SAVE_PATH, UPLOADS_PATH, DATABASE_PATH]:
+    for folder in [SAVE_PATH, UPLOADS_PATH]:
         Path(folder).mkdir(parents=True, exist_ok=True)
 
     def __init__(self):
-        self.annoy_index = None
-        self.id_mapping = None
         print("-" * 80)
         self.update_path = self.find_file_in_anaconda("degradations.py")
         # self.update_import(file_path=self.update_path)
@@ -120,7 +115,7 @@ class Config:
         credentials = {}
         mac_addresses = []
 
-        # Lấy thông tin MAC address, user, và password
+        # Lấy thông tin MAC address, user, password và thêm camera_name
         for camera in cameras:
             mac = camera.get("MAC_address", "").lower()
             camera_name = camera.get("camera_name", "")
@@ -129,8 +124,9 @@ class Config:
             if mac:
                 credentials[mac] = (user, password)
                 mac_addresses.append(mac)
-            self.camera_names.append(camera_name)
-            
+                # Thêm camera_name vào config.camera_names
+                config.camera_names.append(camera_name if camera_name else f"Camera IP{camera_ids[0]}")
+
         # Lấy IP từ MAC address
         mac_to_ip = self.get_ip_from_mac(mac_addresses)
 

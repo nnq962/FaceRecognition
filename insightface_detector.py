@@ -211,9 +211,7 @@ class InsightFaceDetector:
             # Lấy embeddings và truy xuất thông tin
             if all_crop_faces:
                 all_embeddings = self.get_face_embeddings(all_crop_faces)
-                user_infos = insightface_utils.search_annoys(all_embeddings, threshold=0.5)
-                # TODO: Replace search_annoys with sreach_ids
-                # user_infos = insightface_utils.search_ids(all_embeddings, threshold=0.5)
+                user_infos = insightface_utils.search_ids(all_embeddings, threshold=0.5)
             
             # Ghép kết quả
             results_per_image = []  # Danh sách kết quả theo từng ảnh

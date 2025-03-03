@@ -11,6 +11,9 @@ def process_source(source_arg):
     - Single camera ID: Generate RTSP URL
     - Multiple camera IDs: Write RTSP URLs or webcam ID to device.txt
     """
+    # Reset camera_names để tránh tích lũy từ các lần gọi trước
+    config.camera_names = []
+
     if source_arg.isdigit():  # Single numeric ID (e.g., '0' or '1')
         if source_arg == "0":  # Webcam
             config.camera_names.append("webcam")
@@ -22,19 +25,21 @@ def process_source(source_arg):
             else:
                 raise ValueError(f"Could not retrieve RTSP URL for camera ID: {source_arg}")
 
-    if "," in source_arg:  # Multiple IDs (e.g., '0,1,2')
+    if "," in source_arg:  # Multiple IDs (e.g., '0,1')
         device_ids = source_arg.split(",")
         devices = []
         for device_id in device_ids:
-            if device_id.strip().isdigit():  # Webcam or camera ID
-                if device_id.strip() == "0":  # Webcam
+            device_id = device_id.strip()
+            if device_id.isdigit():
+                if device_id == "0":  # Webcam
+                    config.camera_names.append("webcam")
                     devices.append("0")
-                else:
-                    rtsp_urls = config.create_rtsp_urls_from_mongo([int(device_id.strip())])
+                else:  # Camera IP
+                    rtsp_urls = config.create_rtsp_urls_from_mongo([int(device_id)])
                     if rtsp_urls:
                         devices.extend(rtsp_urls)
                     else:
-                        raise ValueError(f"Could not retrieve RTSP URL for camera ID: {device_id.strip()}")
+                        raise ValueError(f"Could not retrieve RTSP URL for camera ID: {device_id}")
         # Write to device.txt
         with open("device.txt", "w") as f:
             for device in devices:
