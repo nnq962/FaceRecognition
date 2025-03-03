@@ -271,7 +271,7 @@ def process_image(image_path, detector):
             print(f"Multiple faces detected in this image ({num_faces} faces)")
             return None
 
-        cropped_faces = detector.crop_faces(img, faces=face_data, margin=10)
+        cropped_faces = detector.crop_faces(img, faces=face_data, margin=0)
         embedding = detector.get_face_embeddings(cropped_faces)
     
         return embedding[0]

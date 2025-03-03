@@ -112,7 +112,7 @@ class YoloDetector:
             dict: Trả về dict chứa trạng thái tay (luôn luôn trả về, không phụ thuộc vào thay đổi trạng thái).
         """
         cropped_expand_image = hand_raise_detector.expand_and_crop_image(
-            frame, bbox, left=2.6, right=2.6, top=1.6, bottom=2.6
+            frame, bbox, left=2.8, right=2.8, top=4.6, bottom=1.6
         )
 
         hand_open = hand_raise_detector.is_hand_opened_in_image(cropped_expand_image)
@@ -232,9 +232,9 @@ class YoloDetector:
             # Lấy embeddings và truy xuất thông tin
             if all_crop_faces:
                 all_embeddings = self.get_face_embeddings(all_crop_faces)
-                user_infos = yolo_detector_utils.search_annoys(all_embeddings, threshold=0.3)
+                user_infos = yolo_detector_utils.search_annoys(all_embeddings, threshold=0.5)
                 # TODO: Replace search_annoys with sreach_ids
-                # user_infos = yolo_detector_utils.search_ids(all_embeddings, threshold=0.3)
+                # user_infos = yolo_detector_utils.search_ids(all_embeddings, threshold=0.5)
             
             # Ghép kết quả
             results_per_image = []  # Danh sách kết quả theo từng ảnh
