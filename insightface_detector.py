@@ -317,9 +317,9 @@ class InsightFaceDetector:
                         })
 
                     if self.media_manager.face_emotion:
-                        label = f"{name} {similarity} | {emotion} {emotion_probability}"
+                        label = f"{id} {similarity} | {emotion} {emotion_probability}"
                     elif self.media_manager.face_recognition:
-                        label = f"{name} {similarity}"
+                        label = f"{id} {similarity}"
                     else:
                         label = None
 

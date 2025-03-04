@@ -158,7 +158,7 @@ def build_faiss_index():
             embeddings.append(face_entry["embedding"])
             id_mapping[index_counter] = {
                 "id": user_id,
-                "full_name": shorten_name(full_name)
+                "full_name": full_name
             }
             index_counter += 1
 
