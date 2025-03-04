@@ -2,10 +2,8 @@ import cv2
 import os
 import platform
 from insightface.model_zoo import model_zoo
-from ultralytics import YOLO
 from pathlib import Path
 from utils.plots import Annotator
-from utils.general import LOGGER, Profile
 from face_emotion import FERUtils
 import insightface_utils
 from hand_raise_detector import get_raising_hand
