@@ -180,14 +180,14 @@ def build_faiss_index():
     index.add(embeddings)
 
     # Lưu FAISS Index
-    faiss.write_index(index, "face_index.faiss")
+    faiss.write_index(index, config.faiss_file)
 
     # Lưu id_mapping thành file .pkl
-    with open("id_mapping.pkl", "wb") as f:
+    with open(config.faiss_mapping_file, "wb") as f:
         pickle.dump(id_mapping, f)
 
-    print(f"FAISS index đã được tạo và lưu vào 'face_index.faiss'!")
-    print(f"Mapping index → user đã được lưu vào 'id_mapping.pkl'!")
+    print(f"FAISS index đã được tạo và lưu vào {config.faiss_file}!")
+    print(f"Mapping index → user đã được lưu vào {config.faiss_mapping_file}!")
 
 
 # ----------------------------------------------------------------
@@ -572,8 +572,8 @@ def get_attendance():
             
             # Kiểm tra xem đã chào trong ngày chưa
             if emp_id not in greeted_employees or greeted_employees[emp_id] != today:
-                text = f"Xin chào, {name}!"
-                send_notification(text)
+                # text = f"Xin chào, {name}!"
+                # send_notification(text)
                 greeted_employees[emp_id] = today  # Lưu trạng thái chào trong bộ nhớ
 
             attendance_list.append({

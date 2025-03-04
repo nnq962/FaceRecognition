@@ -44,6 +44,7 @@ class Config:
     managers_collection = db["managers"]
     camera_collection = db["camera_information"]
     data_collection = db["camera_data"]
+    attendance_collection = db["attendance"]
 
     SAVE_PATH = Path(save_path)
     UPLOADS_PATH = SAVE_PATH / "uploads"

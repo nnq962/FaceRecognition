@@ -14,6 +14,7 @@ ort.set_default_logger_severity(3)
 import numpy as np
 from config import config
 from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
+from notification_server import send_notification as ns_send_notification
 
 
 class InsightFaceDetector:
@@ -24,7 +25,6 @@ class InsightFaceDetector:
         self.rec_model = None
         self.previous_qr_results = {}
         self.previous_hand_states = {}
-        self.attendance_log = {}
         self.media_manager = media_manager
         self.previous_aruco_marker_states = None
         self.arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
@@ -131,32 +131,50 @@ class InsightFaceDetector:
 
         return sorted_markers
     
-    def send_student_attendance(self, student_id, image, bbox):
-        imc = image.copy()
-
-        # Bỏ qua nếu ID là "Unknown"
+    def send_student_attendance(self, student_id, image, bbox, name):
+        # Kiểm tra trường hợp không nhận dạng được sinh viên
         if student_id == "Unknown":
             return
 
-        # Lấy thời gian hiện tại theo định dạng "YYYY-MM-DD HH:MM:SS"
         current_time = config.get_vietnam_time()
         today_date = current_time.split()[0]  # Lấy phần ngày "YYYY-MM-DD"
 
-        # Nếu hôm nay chưa có log, khởi tạo danh sách mới
-        if today_date not in self.attendance_log:
-            self.attendance_log[today_date] = set()
+        # Kiểm tra xem sinh viên đã điểm danh trong ngày hôm nay chưa
+        student_record = config.attendance_collection.find_one({
+            "date": today_date,
+            "attendances.student_id": student_id
+        })
 
-        # Kiểm tra nếu ID chưa được thông báo hôm nay thì vẽ bbox, hiển thị ảnh và lưu vào danh sách
-        if student_id not in self.attendance_log[today_date]:
-            x1, y1, x2, y2 = map(int, bbox)  # Chuyển bbox sang dạng integer
-            cv2.rectangle(imc, (x1, y1), (x2, y2), (0, 255, 0), 2)  # Vẽ bbox
+        if student_record:
+            return  # Sinh viên đã điểm danh, thoát hàm
 
-            # Gửi ảnh có bbox qua API
-            # api_edulive.send_student_attendance_cv2(image_cv2=imc, attendance_id=student_id, date=current_time)
-            cv2.imwrite(f"attendance_images/{current_time}_{student_id}.jpg", imc)
+        # Xử lý ảnh chỉ khi sinh viên chưa điểm danh
+        imc = image.copy()
+        x1, y1, x2, y2 = map(int, bbox)
+        cv2.rectangle(imc, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-            # Lưu ID vào log
-            self.attendance_log[today_date].add(student_id)
+        # Lưu ảnh vào thư mục
+        image_path = f"attendance_images/{current_time}_{student_id}.jpg"
+        cv2.imwrite(image_path, imc)
+
+        # Gửi thông báo
+        notification = f"Xin chào, {name}"
+        ns_send_notification(notification)
+
+        # Thêm thông tin điểm danh vào MongoDB
+        attendance_entry = {
+            "student_id": student_id,
+            "name": name,
+            "timestamp": current_time,
+            "image_path": image_path
+        }
+
+        # Sử dụng $push để thêm một bản ghi mới mà không cần tải toàn bộ array
+        config.attendance_collection.update_one(
+            {"date": today_date},
+            {"$push": {"attendances": attendance_entry}},
+            upsert=True  # Tạo mới nếu chưa có
+        )
 
     def run_inference(self):
         """
