@@ -149,3 +149,25 @@ def is_person_raising_hand_image(image):
         return True
     else:
         return False
+    
+def get_raising_hand(frame, bbox):
+    """
+    Kiểm tra xem người trong bounding box có giơ tay không.
+
+    Args:
+        frame (numpy.ndarray): Ảnh gốc.
+        bbox (list): Bounding box của người (x1, y1, x2, y2).
+
+    Returns:
+        dict: Trả về dict chứa trạng thái tay (luôn luôn trả về, không phụ thuộc vào thay đổi trạng thái).
+    """
+    cropped_expand_image = expand_and_crop_image(
+        frame, bbox, left=2.8, right=2.8, top=4.6, bottom=1.6
+    )
+
+    hand_open = is_hand_opened_in_image(cropped_expand_image)
+    hand_raised = is_person_raising_hand_image(cropped_expand_image)
+    if hand_open and hand_raised:
+        return True
+    
+    return False

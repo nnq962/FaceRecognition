@@ -5,8 +5,8 @@ __pycache__/
 runs/
 cert_and_key/
 log_nohup.txt
-main.log
-api.log
+log_main.log
+log_api.log
 .env
 greeting.mp3
 annoy_mapping.npy

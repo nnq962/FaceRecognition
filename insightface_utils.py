@@ -1,19 +1,13 @@
-import os
-import gdown
-from pathlib import Path
 import numpy as np
 import cv2
-import pickle
-from insightface.utils import face_align
-# from deepface import DeepFace
-import platform
-import faiss
 from config import config
+import os
+from annoy import AnnoyIndex
+import faiss
+import pickle
+import platform
+from insightface.utils import face_align
 
-users_collection = config.users_collection
-save_path = config.save_path
-
-# Detect the operating system
 current_os = platform.system()
 
 if current_os == "Darwin":  # macOS
@@ -22,43 +16,119 @@ elif current_os == "Linux":
     # Skip setting omp_set_num_threads
     pass
 
-def prepare_models(model_urls, save_dir="~/Models"):
+users_collection = config.users_collection
+save_path = config.save_path
+
+def search_ids(embeddings, top_k=1, threshold=0.5):
     """
-    Kiểm tra và tải xuống các mô hình từ Google Drive nếu chưa tồn tại.
+    Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
 
     Args:
-        model_urls (dict): Từ điển chứa tên mô hình và URL Google Drive tương ứng.
-                           Ví dụ: {"model1": "https://drive.google.com/uc?id=FILE_ID", ...}
+        embeddings (numpy.ndarray): Mảng các embeddings đã chuẩn hóa (shape: (n_embeddings, 512)).
+        index_path (str): Đường dẫn tới FAISS index file.
+        mapping_path (str): Đường dẫn tới file ánh xạ index -> ID.
+        top_k (int): Số lượng kết quả gần nhất cần trả về cho mỗi embedding.
+        threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
+
+    Returns:
+        list: Danh sách kết quả, với mỗi phần tử là một dictionary hoặc None nếu không có kết quả hợp lệ.
     """
-    # Chuẩn bị đường dẫn thư mục lưu trữ
-    save_dir = os.path.expanduser(save_dir)
-    os.makedirs(save_dir, exist_ok=True)
+    # Load FAISS index
+    index = faiss.read_index(config.faiss_file)
 
-    for model_name, model_url in model_urls.items():
-        # Đường dẫn lưu mô hình
-        model_path = Path(save_dir) / model_name
-        
-        if model_path.exists():
-            print(f"Model '{model_name}' already exists at '{model_path}'.")
-        else:
-            print(f"Downloading model '{model_name}' from '{model_url}' to '{model_path}'...")
-            try:
-                # Tải mô hình từ Google Drive
-                gdown.download(model_url, str(model_path), quiet=False)
-                print(f"Model '{model_name}' downloaded successfully!")
-            except Exception as e:
-                print(f"Failed to download model '{model_name}': {e}")
+    # Load ánh xạ index -> ID
+    with open(config.faiss_mapping_file, "rb") as f:
+        index_to_id = pickle.load(f)
 
+    # Chuyển đổi embeddings thành dạng float32
+    query_embeddings = np.array(embeddings, dtype=np.float32)
 
-model_urls = {
-    "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
-    "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2",
-    "GFPGANv1.3.pth": "https://drive.google.com/uc?id=1zmW9g7vaRWuFSUKIS9ShCmP-6WU6Xxan",
-    "detection_Resnet50_Final.pth": "https://drive.google.com/uc?id=1jP3-UU8LhBvG8ArZQNl6kpDUfH_Xan9m",
-    "parsing_parsenet.pth": "https://drive.google.com/uc?id=1ZFqra3Vs4i5fB6B8LkyBo_WQXaPRn77y"
-}
+    # Thực hiện tìm kiếm với FAISS
+    D, I = index.search(query_embeddings, k=top_k)  # D: Độ tương đồng, I: Chỉ số index FAISS
 
-prepare_models(model_urls=model_urls)
+    results = []
+    for query_idx in range(len(query_embeddings)):
+        query_results = [
+            {
+                "id": index_to_id[idx]["id"],
+                "full_name": index_to_id[idx]["full_name"],
+                "similarity": float(similarity)
+            }
+            for idx, similarity in zip(I[query_idx], D[query_idx])
+            if idx != -1 and similarity >= threshold  # Lọc bỏ kết quả không hợp lệ
+        ]
+        # Nếu không có kết quả hợp lệ, trả về None
+        results.append(query_results[0] if query_results else None)
+
+    return results
+
+def search_annoy(query_embedding, n_neighbors=1, threshold=None):
+    """
+    Tìm kiếm trong Annoy index sử dụng Euclidean Distance, và chuyển đổi về Cosine Similarity để so sánh với ngưỡng.
+
+    Parameters:
+        - query_embedding: Numpy array chứa vector cần tìm kiếm (đã chuẩn hóa trước).
+        - n_neighbors: Số lượng hàng xóm gần nhất cần tìm.
+        - threshold: Ngưỡng Cosine Similarity tối thiểu (nếu None, không áp dụng).
+
+    Returns:
+        - Dictionary chứa thông tin user nếu tìm thấy, None nếu không tìm thấy.
+    """
+
+    # Kiểm tra file tồn tại trước khi load
+    if not os.path.exists(config.ann_file):
+        print(f"Missing Annoy index file: {config.ann_file}")
+        return None
+
+    if not os.path.exists(config.mapping_file):
+        print(f"Missing mapping file: {config.mapping_file}")
+        return None
+
+    # Load Annoy Index (sử dụng Euclidean thay vì Angular)
+    annoy_index = AnnoyIndex(config.vector_dim, 'euclidean')
+    annoy_index.load(config.ann_file)
+
+    # Load Mapping từ file .npy
+    id_mapping = np.load(config.mapping_file, allow_pickle=True).item()
+
+    # Tìm n_neighbors gần nhất từ Annoy index
+    indices, distances = annoy_index.get_nns_by_vector(query_embedding, n_neighbors, include_distances=True)
+
+    # Chuyển đổi toàn bộ khoảng cách Euclidean sang Cosine Similarity
+    cosine_similarities = 1 - (np.array(distances) ** 2) / 2  # Vectorized computation
+
+    # Xây dựng danh sách kết quả
+    results = []
+    for i, index in enumerate(indices):
+        if index in id_mapping:
+            if threshold is None or cosine_similarities[i] >= threshold:
+                results.append({
+                    "id": id_mapping[index]["id"],
+                    "full_name": id_mapping[index]["full_name"],
+                    "similarity": cosine_similarities[i]
+                })
+
+    # Trả về dictionary nếu có 1 kết quả duy nhất, danh sách nếu có nhiều kết quả, None nếu không có kết quả
+    if len(results) == 0:
+        return None
+    elif len(results) == 1:
+        return results[0]  # Trả về dictionary thay vì list
+    else:
+        return results  # Trả về danh sách nếu có nhiều kết quả
+
+def search_annoys(query_embeddings, n_neighbors=1, threshold=None):
+    """
+    Tìm kiếm trong Annoy index với danh sách query_embeddings.
+
+    Parameters:
+        - query_embeddings: List các numpy array chứa các query embeddings.
+        - n_neighbors: Số lượng hàng xóm gần nhất cần tìm.
+        - threshold: Ngưỡng khoảng cách tối đa (nếu None, không áp dụng).
+
+    Returns:
+        - Danh sách kết quả [None, result1, None, result2, ...] (giữ nguyên thứ tự input).
+    """
+    return [search_annoy(query, n_neighbors, threshold) for query in query_embeddings]
 
 def crop_image(image, bbox):
     """
@@ -135,121 +205,6 @@ def is_small_face(bbox, min_size=50):
 
     return width < min_size or height < min_size
 
-def search_ids(embeddings, index_path="data_base/face_index.faiss", mapping_path="data_base/index_to_id.pkl", top_k=1, threshold=0.5):
-    """
-    Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
-
-    Args:
-        embeddings (numpy.ndarray): Mảng các embeddings đã chuẩn hóa (shape: (n_embeddings, 512)).
-        index_path (str): Đường dẫn tới FAISS index file.
-        mapping_path (str): Đường dẫn tới file ánh xạ index -> ID.
-        top_k (int): Số lượng kết quả gần nhất cần trả về cho mỗi embedding.
-        threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
-
-    Returns:
-        list of list of dict: Danh sách kết quả cho mỗi embedding, mỗi kết quả bao gồm ID, tên ảnh và độ tương đồng.
-    """
-    # Load FAISS index
-    index = faiss.read_index(index_path)
-
-    # Load ánh xạ index -> ID
-    with open(mapping_path, "rb") as f:
-        index_to_id = pickle.load(f)
-
-    # Đảm bảo embeddings là 2D để phù hợp với FAISS input
-    query_embeddings = np.array(embeddings).astype('float32')
-
-    # Tìm kiếm với FAISS
-    D, I = index.search(query_embeddings, k=top_k)  # D: Độ tương đồng, I: Chỉ số
-
-    all_results = []  # Kết quả cho tất cả embeddings
-    for query_idx, (distances, indices) in enumerate(zip(D, I)):
-        query_results = []
-        for i in range(top_k):
-            idx = indices[i]  # Chỉ số trong FAISS index
-            similarity = distances[i]
-            if idx < 0 or similarity < threshold:  # Bỏ qua nếu không tìm thấy hoặc không đạt ngưỡng
-                continue
-            id_mapping = index_to_id[idx]
-            query_results.append({
-                "id": id_mapping["id"],
-                "image": id_mapping["image"],
-                "similarity": similarity
-            })
-        all_results.append(query_results)
-
-    return all_results
-
-def search_ids_mongoDB(embeddings, index_path=save_path + "/data_base/face_index.faiss", top_k=1, threshold=0.5):
-    """
-    Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu MongoDB dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
-
-    Args:
-        embeddings (numpy.ndarray): Mảng các embeddings đã chuẩn hóa (shape: (n_embeddings, 512)).
-        index_path (str): Đường dẫn tới FAISS index file.
-        top_k (int): Số lượng kết quả gần nhất cần trả về cho mỗi embedding.
-        threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
-
-    Returns:
-        list of list of dict: Danh sách kết quả cho mỗi embedding, mỗi kết quả bao gồm ID, tên ảnh và độ tương đồng.
-    """
-    # Kiểm tra tệp FAISS index
-    if not os.path.exists(index_path):
-        print(f"FAISS index file không tồn tại tại: {index_path}")
-        return []
-
-    # Load FAISS index
-    index = faiss.read_index(index_path)
-
-    # Đảm bảo embeddings là 2D để phù hợp với FAISS input
-    query_embeddings = np.array(embeddings).astype('float32')
-
-    # Tìm kiếm với FAISS
-    D, I = index.search(query_embeddings, k=top_k)  # D: Độ tương đồng, I: Chỉ số
-
-    # Kết quả cho tất cả embeddings
-    all_results = []
-    for distances, indices in zip(D, I):
-        query_results = []
-        for idx, similarity in zip(indices, distances):
-            if idx < 0 or similarity < threshold:  # Bỏ qua nếu không tìm thấy hoặc không đạt ngưỡng
-                continue
-
-            # Truy vấn MongoDB để lấy thông tin người dùng
-            user = users_collection.find_one({"_id": int(idx)})
-            if user:
-                query_results.append({
-                    "id": user["_id"],
-                    "full_name": user["full_name"],
-                    "similarity": similarity
-                })
-        all_results.append(query_results)
-
-    return all_results
-
-def crop_and_align_faces(img, bboxes, keypoints, conf_threshold=0.5, image_size=112):
-    """
-    Cắt và chuẩn hóa các khuôn mặt từ ảnh gốc dựa trên bounding boxes và keypoints.
-    
-    Args:
-        img (numpy.ndarray): Ảnh gốc.
-        bboxes (numpy.ndarray): Bounding boxes, mỗi box có định dạng [x1, y1, x2, y2, conf].
-        keypoints (numpy.ndarray): Landmarks (keypoints) của khuôn mặt.
-        conf_threshold (float): Ngưỡng độ tin cậy (confidence) để lọc khuôn mặt.
-        image_size (int): Kích thước ảnh sau khi chuẩn hóa (ví dụ: 112x112).
-        
-    Returns:
-        list: Danh sách các ảnh khuôn mặt đã cắt và chuẩn hóa.
-    """
-    cropped_faces = []
-
-    for bbox, kps in zip(bboxes, keypoints):
-        if bbox[4] >= conf_threshold:
-            cropped_face = face_align.norm_crop(img, landmark=kps, image_size=image_size)
-            cropped_faces.append(cropped_face)
-    
-    return cropped_faces
-
 def normalize_embeddings(embeddings):
     """
     Chuẩn hóa danh sách các embedding.
@@ -289,6 +244,29 @@ def save_data_to_mongo(data):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+def crop_and_align_faces(img, bboxes, keypoints, conf_threshold=0.5, image_size=112):
+    """
+    Cắt và chuẩn hóa các khuôn mặt từ ảnh gốc dựa trên bounding boxes và keypoints.
+    
+    Args:
+        img (numpy.ndarray): Ảnh gốc.
+        bboxes (numpy.ndarray): Bounding boxes, mỗi box có định dạng [x1, y1, x2, y2, conf].
+        keypoints (numpy.ndarray): Landmarks (keypoints) của khuôn mặt.
+        conf_threshold (float): Ngưỡng độ tin cậy (confidence) để lọc khuôn mặt.
+        image_size (int): Kích thước ảnh sau khi chuẩn hóa (ví dụ: 112x112).
+        
+    Returns:
+        list: Danh sách các ảnh khuôn mặt đã cắt và chuẩn hóa.
+    """
+    cropped_faces = []
+
+    for bbox, kps in zip(bboxes, keypoints):
+        if bbox[4] >= conf_threshold:
+            cropped_face = face_align.norm_crop(img, landmark=kps, image_size=image_size)
+            cropped_faces.append(cropped_face)
+    
+    return cropped_faces
+
 def process_image(image_path, detector):
     """
     Trích xuất embedding từ hình ảnh.
@@ -306,48 +284,36 @@ def process_image(image_path, detector):
         return None
 
     try:
-        # Gọi hàm phát hiện khuôn mặt
-        result = detector.get_face_detect(img)
-        if not result or not result[0]:
-            print(f"No face detected in {image_path}.")
+        result = detector.get_face_detects(img)
+
+        # Lấy bounding boxes và keypoints (luôn có thể unpack)
+        bounding_boxes, keypoints = result[0]
+        num_faces = len(bounding_boxes)
+
+        if num_faces == 0:
+            print("No face in this image")
+            return None
+        elif num_faces > 1:
+            print(f"Multiple faces detected in this image ({num_faces} faces)")
             return None
 
-        # Lấy tọa độ khuôn mặt đầu tiên
-        face_box = result[0][0]
+        # Gọi hàm crop_and_align_faces với khuôn mặt đầu tiên
+        cropped_faces = crop_and_align_faces(
+            img,
+            bboxes=bounding_boxes[:1],
+            keypoints=keypoints[:1],
+            conf_threshold=0.65,
+            image_size=112
+        )
+
+        if not cropped_faces:
+            print("No face passed the confidence threshold.")
+            return None
 
         # Trích xuất embedding
-        embedding = detector.get_face_embedding(img, face_box[0], face_box[1], face_box[2])
-
-        return embedding
+        embedding = detector.get_face_embeddings(cropped_faces)
+        return embedding[0]
 
     except Exception as e:
         print(f"Error processing {image_path}: {e}")
         return None
-
-# def is_real_face(img, threshold=0.65):
-#     """
-#     Check if a face in the image is real based on the anti-spoofing score.
-
-#     Args:
-#         img (str or numpy.ndarray): Path to the image or image data.
-#         threshold (float): Threshold to determine if the face is real.
-
-#     Returns:
-#         list: [True, antispoof_score] if the score exceeds the threshold; 
-#               [False, antispoof_score] otherwise.
-#     """
-#     try:
-#         # Call extract_faces with anti-spoofing enabled
-#         result = DeepFace.extract_faces(img_path=img, anti_spoofing=True, detector_backend='skip')
-
-#         # Check the result
-#         antispoof_score = result[0].get('antispoof_score', None)
-#         if antispoof_score is not None:
-#             # Return the result as a list
-#             return [antispoof_score > threshold, antispoof_score]
-#         else:
-#             print("antispoof_score not found.")
-#             return [False, None]
-#     except Exception as e:
-#         print(f"An error occurred: {str(e)}")
-#         return [False, None]

@@ -1,26 +1,26 @@
-import os
-import sys
+import faiss
+import numpy as np
+import time
 
-def find_file(filename, search_path):
-    """Tìm tệp trong thư mục cụ thể"""
-    for root, dirs, files in os.walk(search_path):
-        if filename in files:
-            return os.path.join(root, filename)
-    return None
+# Load FAISS index
+index = faiss.read_index("face_index.faiss")
 
-# Tìm thư mục site-packages của môi trường Anaconda hiện tại
-if hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix:
-    # Nếu đang trong môi trường ảo (Anaconda hoặc venv)
-    site_packages_path = os.path.join(sys.prefix, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages")
-else:
-    # Nếu không, lấy thư mục site-packages mặc định
-    import site
-    site_packages_path = site.getsitepackages()[0]
+# Load ID mapping từ .npy
+start_load = time.time()
+user_ids = np.load("id_mapping.npy")
+end_load = time.time()
+print(f"Thời gian load ID mapping từ .npy: {end_load - start_load:.6f} giây")
 
-# Tìm tệp `degradations.py`
-result = find_file("degradations.py", site_packages_path)
+# Tạo vector truy vấn
+d = index.d
+query_vector = np.random.rand(1, d).astype('float32')
+query_vector /= np.linalg.norm(query_vector)
 
-if result:
-    print("📌 Tệp tìm thấy tại:", result)
-else:
-    print("⚠️ Không tìm thấy tệp `degradations.py` trong môi trường Anaconda.")
+# Đo thời gian tìm kiếm
+start_search = time.time()
+D, I = index.search(query_vector, k=1)
+end_search = time.time()
+matched_id = user_ids[I[0][0]]
+
+print(f"Người được xác minh: {matched_id}, độ tương đồng: {D[0][0]}")
+print(f"Thời gian tìm kiếm: {end_search - start_search:.6f} giây")

@@ -19,9 +19,11 @@ class Config:
     MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD", "password")
     MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "my_database")
 
-    init_database = True
+    init_database = False
     camera_names = []
     vram_limit_for_FER = 1
+    faiss_file = "data_base/face_index.faiss"
+    faiss_mapping_file = "data_base/faiss_mapping.pkl"
 
     # URI kết nối đến MongoDB
     MONGO_URI = f"mongodb://{MONGODB_USERNAME}:{MONGODB_PASSWORD}@{MONGODB_HOST}:{MONGODB_PORT}/{MONGODB_DATABASE}?authSource=admin"
@@ -42,6 +44,7 @@ class Config:
     managers_collection = db["managers"]
     camera_collection = db["camera_information"]
     data_collection = db["camera_data"]
+    attendance_collection = db["attendance"]
     
     # Đường dẫn lưu file
     save_path = str(Path.home()) + "/nnq_static"
