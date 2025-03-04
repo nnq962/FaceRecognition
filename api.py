@@ -14,6 +14,7 @@ from config import config
 from annoy import AnnoyIndex
 import faiss
 import pickle
+from notification_server import send_notification
 
 app = Flask(__name__)
 CORS(app)
@@ -571,7 +572,8 @@ def get_attendance():
             
             # Kiểm tra xem đã chào trong ngày chưa
             if emp_id not in greeted_employees or greeted_employees[emp_id] != today:
-                play_greeting(name, "Xin chào")
+                text = f"Xin chào, {name}!"
+                send_notification(text)
                 greeted_employees[emp_id] = today  # Lưu trạng thái chào trong bộ nhớ
 
             attendance_list.append({
