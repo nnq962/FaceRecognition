@@ -3,8 +3,10 @@ import os
 from gtts import gTTS
 import subprocess
 
+host = '192.168.1.142'
+
 class NotificationClient:
-    def __init__(self, host='192.168.1.58', port=9999):
+    def __init__(self, host=host, port=9999):
         self.host = host
         self.port = port
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

@@ -2,8 +2,10 @@ import socket
 import time
 import threading
 
+host = '192.168.1.142'
+
 class NotificationServer:
-    def __init__(self, host='192.168.1.58', port=9999, control_port=9998):
+    def __init__(self, host=host, port=9999, control_port=9998):
         self.host = host
         self.port = port
         self.control_port = control_port  # Port để nhận lệnh từ process khác
@@ -92,7 +94,7 @@ class NotificationServer:
 # Instance toàn cục
 server_instance = None
 
-def start_server(host='192.168.1.58', port=9999, control_port=9998):
+def start_server(host=host, port=9999, control_port=9998):
     global server_instance
     if server_instance is None or not server_instance.running:
         server_instance = NotificationServer(host, port, control_port)
@@ -102,7 +104,7 @@ def start_server(host='192.168.1.58', port=9999, control_port=9998):
         print("Server đã khởi động")
     return server_instance
 
-def send_notification(message, host='192.168.1.58', control_port=9998):
+def send_notification(message, host=host, control_port=9998):
     # Gửi thông báo tới control socket của server
     try:
         control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
