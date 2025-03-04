@@ -287,7 +287,7 @@ class InsightFaceDetector:
                     emotion_probability = result["emotion_probability"]
 
                     # Gửi ảnh điểm danh
-                    self.send_student_attendance(id, im0, bbox)
+                    self.send_student_attendance(id, im0, bbox, name)
                     
                     if self.media_manager.raise_hand and id != "Unknown":
                         hand_raised = get_raising_hand(im0, bbox)
