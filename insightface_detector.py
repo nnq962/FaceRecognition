@@ -134,7 +134,7 @@ class InsightFaceDetector:
     def send_student_attendance(self, student_id, image, bbox, name):
         # Kiểm tra trường hợp không nhận dạng được sinh viên
         if student_id == "Unknown":
-            return
+            return False
 
         current_time = config.get_vietnam_time()
         today_date = current_time.split()[0]  # Lấy phần ngày "YYYY-MM-DD"
@@ -146,7 +146,7 @@ class InsightFaceDetector:
         })
 
         if student_record:
-            return  # Sinh viên đã điểm danh, thoát hàm
+            return False
 
         # Xử lý ảnh chỉ khi sinh viên chưa điểm danh
         imc = image.copy()
@@ -156,10 +156,6 @@ class InsightFaceDetector:
         # Lưu ảnh vào thư mục
         image_path = f"attendance_images/{current_time}_{student_id}.jpg"
         cv2.imwrite(image_path, imc)
-
-        # Gửi thông báo
-        notification = f"Xin chào, {name}"
-        ns_send_notification(notification)
 
         # Thêm thông tin điểm danh vào MongoDB
         attendance_entry = {
@@ -175,6 +171,8 @@ class InsightFaceDetector:
             {"$push": {"attendances": attendance_entry}},
             upsert=True  # Tạo mới nếu chưa có
         )
+
+        return True
 
     def run_inference(self):
         """
@@ -261,6 +259,7 @@ class InsightFaceDetector:
             # Kiểm tra có xuất dữ liệu không
             should_export = self.media_manager.export_data and (time.time() - start_time > self.media_manager.time_to_save)
             export_data_list = []  # Danh sách chứa dữ liệu mới để gửi đi
+            names = [] # Danh sách điểm danh
 
             # Duyệt qua từng ảnh để hiển thị và thu thập dữ liệu
             for img_index, results in enumerate(results_per_image):
@@ -287,7 +286,8 @@ class InsightFaceDetector:
                     emotion_probability = result["emotion_probability"]
 
                     # Gửi ảnh điểm danh
-                    self.send_student_attendance(id, im0, bbox, name)
+                    if self.send_student_attendance(id, im0, bbox, name):
+                        names.append(name)
                     
                     if self.media_manager.raise_hand and id != "Unknown":
                         hand_raised = get_raising_hand(im0, bbox)
@@ -362,6 +362,11 @@ class InsightFaceDetector:
                 insightface_utils.save_data_to_mongo(export_data_list)
                 export_data_list.clear()
                 start_time = time.time()
+
+            # Gửi thông báo điểm danh
+            if names:
+                message = f"Xin chào {', '.join(names)}."
+                print(message)
 
         # Đảm bảo release sau khi xử lý tất cả các khung hình
         self._release_writers()
