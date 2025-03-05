@@ -186,8 +186,8 @@ def build_faiss_index():
     with open(config.faiss_mapping_file, "wb") as f:
         pickle.dump(id_mapping, f)
 
-    print(f"FAISS index đã được tạo và lưu vào {config.faiss_file}!")
-    print(f"Mapping index → user đã được lưu vào {config.faiss_mapping_file}!")
+    print(f"FAISS index đã được tạo và lưu vào {config.faiss_file}.")
+    print(f"Mapping index → user đã được lưu vào {config.faiss_mapping_file}.")
 
 
 # ----------------------------------------------------------------
@@ -211,7 +211,7 @@ def build_ann_index():
             embeddings.append(face_entry["embedding"])
             id_mapping[index_counter] = {
                 "id": user_id,  # Sử dụng _id thay vì user_id
-                "full_name": shorten_name(full_name)  # Lưu full_name thay vì photo_name
+                "full_name": full_name  # Lưu full_name thay vì photo_name
             }
             index_counter += 1
 
@@ -242,8 +242,8 @@ def build_ann_index():
     # Lưu id_mapping thành file .npy
     np.save(config.mapping_file, id_mapping)
 
-    print(f"Annoy index has been successfully created and saved to '{config.ann_file}'!")
-    print(f"Mapping index → user has been saved to '{config.mapping_file}'!")
+    print(f"Annoy index has been successfully created and saved to {config.ann_file}.")
+    print(f"Mapping index → user has been saved to {config.mapping_file}.")
 
 
 # ----------------------------------------------------------------

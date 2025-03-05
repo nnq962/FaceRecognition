@@ -131,48 +131,62 @@ class InsightFaceDetector:
 
         return sorted_markers
     
-    def send_student_attendance(self, student_id, image, bbox, name):
-        # Kiểm tra trường hợp không nhận dạng được sinh viên
-        if student_id == "Unknown":
+    def log_user_attendance(self, user_id, image, bbox, name):
+        # Kiểm tra trường hợp không nhận dạng được người dùng
+        if user_id == "Unknown":
             return False
 
         current_time = config.get_vietnam_time()
         today_date = current_time.split()[0]  # Lấy phần ngày "YYYY-MM-DD"
+        current_hour = int(current_time.split()[1].split(':')[0])
+        current_minute = int(current_time.split()[1].split(':')[1])
 
-        # Kiểm tra xem sinh viên đã điểm danh trong ngày hôm nay chưa
-        student_record = config.attendance_collection.find_one({
+        # Kiểm tra xem người dùng đã có record trong ngày chưa
+        user_record = config.attendance_collection.find_one({
             "date": today_date,
-            "attendances.student_id": student_id
+            "user_id": user_id
         })
 
-        if student_record:
-            return False
-
-        # Xử lý ảnh chỉ khi sinh viên chưa điểm danh
+        # Xử lý ảnh
         imc = image.copy()
         x1, y1, x2, y2 = map(int, bbox)
         cv2.rectangle(imc, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         # Lưu ảnh vào thư mục
-        image_path = f"attendance_images/{current_time}_{student_id}.jpg"
+        image_path = f"attendance_images/{current_time}_{user_id}.jpg"
         cv2.imwrite(image_path, imc)
 
-        # Thêm thông tin điểm danh vào MongoDB
-        attendance_entry = {
-            "student_id": student_id,
-            "name": name,
-            "timestamp": current_time,
-            "image_path": image_path
-        }
+        # Nếu chưa có record cho ngày hôm nay
+        if not user_record:
+            # Tạo record mới với thời gian đến
+            new_record = {
+                "date": today_date,
+                "user_id": user_id,
+                "name": name,
+                "check_in_time": current_time,
+                "check_in_image": image_path,
+                "check_out_time": None,
+                "check_out_image": None
+            }
+            
+            config.attendance_collection.insert_one(new_record)
+            return True
 
-        # Sử dụng $push để thêm một bản ghi mới mà không cần tải toàn bộ array
-        config.attendance_collection.update_one(
-            {"date": today_date},
-            {"$push": {"attendances": attendance_entry}},
-            upsert=True  # Tạo mới nếu chưa có
-        )
+        # Nếu đã có record nhưng chưa có check_out_time
+        if not user_record.get('check_out_time'):
+            # Kiểm tra điều kiện check out sau 17h30
+            if current_hour > 17 or (current_hour == 17 and current_minute >= 30):
+                # Cập nhật thời gian và ảnh check out
+                config.attendance_collection.update_one(
+                    {"date": today_date, "user_id": user_id},
+                    {"$set": {
+                        "check_out_time": current_time,
+                        "check_out_image": image_path
+                    }}
+                )
+                return True
 
-        return True
+        return False
 
     def run_inference(self):
         """
@@ -230,7 +244,7 @@ class InsightFaceDetector:
             # Lấy embeddings và truy xuất thông tin
             if all_crop_faces:
                 all_embeddings = self.get_face_embeddings(all_crop_faces)
-                user_infos = insightface_utils.search_ids(all_embeddings, threshold=0.5)
+                user_infos = insightface_utils.search_annoys(all_embeddings, threshold=0.5)
             
             # Ghép kết quả
             results_per_image = []  # Danh sách kết quả theo từng ảnh
@@ -286,7 +300,7 @@ class InsightFaceDetector:
                     emotion_probability = result["emotion_probability"]
 
                     # Gửi ảnh điểm danh
-                    if self.send_student_attendance(id, im0, bbox, name):
+                    if self.log_user_attendance(id, im0, bbox, name):
                         names.append(name)
                     
                     if self.media_manager.raise_hand and id != "Unknown":
@@ -365,9 +379,17 @@ class InsightFaceDetector:
 
             # Gửi thông báo điểm danh
             if names:
-                message = f"Xin chào {', '.join(names)}."
-                print(message)
+                current_time = config.get_vietnam_time()
+                current_hour = int(current_time.split()[1].split(':')[0])
+                current_minute = int(current_time.split()[1].split(':')[1])
 
+                if current_hour > 17 or (current_hour == 17 and current_minute >= 30):
+                    message = f"Chào tạm biệt {', '.join(names)}"
+                    ns_send_notification(message)
+                else:
+                    message = f"Xin chào {', '.join(names)}"
+                    ns_send_notification(message)
+                    
         # Đảm bảo release sau khi xử lý tất cả các khung hình
         self._release_writers()
 
