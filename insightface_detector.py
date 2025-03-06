@@ -147,17 +147,20 @@ class InsightFaceDetector:
             "user_id": user_id
         })
 
-        # Xử lý ảnh
-        imc = image.copy()
-        x1, y1, x2, y2 = map(int, bbox)
-        cv2.rectangle(imc, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        # Tạo thư mục lưu ảnh theo ngày nếu chưa tồn tại
+        image_folder = f"attendance_images/{today_date.replace('-', '_')}"
+        if not os.path.exists(image_folder):
+            os.makedirs(image_folder)
 
-        # Lưu ảnh vào thư mục
-        image_path = f"attendance_images/{current_time}_{user_id}.jpg"
-        cv2.imwrite(image_path, imc)
-
-        # Nếu chưa có record cho ngày hôm nay
+        # Xử lý ảnh chỉ khi cần lưu (check-in lần đầu hoặc check-out sau 17:30)
+        save_image = False
+        
+        # Trường hợp 1: Lần đầu tiên trong ngày (check-in)
         if not user_record:
+            save_image = True
+            image_filename = f"{user_id}_{current_time.split()[1].replace(':', '_')}_check_in.jpg"
+            image_path = f"{image_folder}/{image_filename}"
+            
             # Tạo record mới với thời gian đến
             new_record = {
                 "date": today_date,
@@ -170,22 +173,33 @@ class InsightFaceDetector:
             }
             
             config.attendance_collection.insert_one(new_record)
+        
+        # Trường hợp 2: Đã có record nhưng chưa check-out và thời gian sau 17:30
+        elif not user_record.get('check_out_time') and (current_hour > 17 or (current_hour == 17 and current_minute >= 30)):
+            save_image = True
+            image_filename = f"{user_id}_{current_time.split()[1].replace(':', '_')}_check_out.jpg"
+            image_path = f"{image_folder}/{image_filename}"
+            
+            # Cập nhật thời gian và ảnh check out
+            config.attendance_collection.update_one(
+                {"date": today_date, "user_id": user_id},
+                {"$set": {
+                    "check_out_time": current_time,
+                    "check_out_image": image_path
+                }}
+            )
+        else:
+            # Không cần lưu ảnh trong các trường hợp khác
+            return False
+        
+        # Lưu ảnh nếu cần
+        if save_image:
+            imc = image.copy()
+            x1, y1, x2, y2 = map(int, bbox)
+            cv2.rectangle(imc, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.imwrite(image_path, imc)
             return True
-
-        # Nếu đã có record nhưng chưa có check_out_time
-        if not user_record.get('check_out_time'):
-            # Kiểm tra điều kiện check out sau 17h30
-            if current_hour > 17 or (current_hour == 17 and current_minute >= 30):
-                # Cập nhật thời gian và ảnh check out
-                config.attendance_collection.update_one(
-                    {"date": today_date, "user_id": user_id},
-                    {"$set": {
-                        "check_out_time": current_time,
-                        "check_out_image": image_path
-                    }}
-                )
-                return True
-
+            
         return False
 
     def run_inference(self):
@@ -244,7 +258,7 @@ class InsightFaceDetector:
             # Lấy embeddings và truy xuất thông tin
             if all_crop_faces:
                 all_embeddings = self.get_face_embeddings(all_crop_faces)
-                user_infos = insightface_utils.search_annoys(all_embeddings, threshold=0.5)
+                user_infos = insightface_utils.search_ids(all_embeddings, threshold=0.5)
             
             # Ghép kết quả
             results_per_image = []  # Danh sách kết quả theo từng ảnh
@@ -385,10 +399,11 @@ class InsightFaceDetector:
 
                 if current_hour > 17 or (current_hour == 17 and current_minute >= 30):
                     message = f"Chào tạm biệt {', '.join(names)}"
-                    ns_send_notification(message)
+                    # ns_send_notification(message)
                 else:
                     message = f"Xin chào {', '.join(names)}"
-                    ns_send_notification(message)
+                    # ns_send_notification(message)
+                    print(message)
                     
         # Đảm bảo release sau khi xử lý tất cả các khung hình
         self._release_writers()
