@@ -15,6 +15,7 @@ import numpy as np
 from config import config
 from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
 from notification_server import send_notification as ns_send_notification
+import face_mask_detection
 
 
 class InsightFaceDetector:
@@ -25,6 +26,8 @@ class InsightFaceDetector:
         self.rec_model = None
         self.previous_qr_results = {}
         self.previous_hand_states = {}
+        self.mask_thresh = 30
+        self.mask_detected_frames = 0
         self.media_manager = media_manager
         self.previous_aruco_marker_states = None
         self.arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
@@ -229,8 +232,18 @@ class InsightFaceDetector:
                     face_counts.append(0)
                     continue
                 
-                face_counts.append(len(bounding_boxes))  # Ghi lại số lượng khuôn mặt đã cắt
-                
+                face_counts.append(len(bounding_boxes))  # Ghi lại số lượng khuôn mặt
+
+                # Đếm số người đeo khẩu trang
+                if self.media_manager.face_mask:
+                    mask_count = face_mask_detection.inference(im0, target_shape=(360, 360))
+                    if mask_count:
+                        self.mask_detected_frames += 1
+                    else:
+                        self.mask_detected_frames = 0
+                    if self.mask_detected_frames >= self.mask_thresh:
+                        ns_send_notification("Vui lòng tháo khẩu trang")
+                        
                 # Kiểm tra QR code
                 if self.media_manager.qr_code:
                     qr_result = self.get_aruco_marker(im0)
@@ -316,6 +329,10 @@ class InsightFaceDetector:
                     # Gửi ảnh điểm danh
                     if self.log_user_attendance(id, im0, bbox, name):
                         names.append(name)
+
+                    # Test backend
+                    if id == 1 and get_raising_hand(im0, bbox):
+                        ns_send_notification("Vẫn ổn sếp ơi")
                     
                     if self.media_manager.raise_hand and id != "Unknown":
                         hand_raised = get_raising_hand(im0, bbox)
@@ -399,11 +416,10 @@ class InsightFaceDetector:
 
                 if current_hour > 17 or (current_hour == 17 and current_minute >= 30):
                     message = f"Chào tạm biệt {', '.join(names)}"
-                    # ns_send_notification(message)
+                    ns_send_notification(message)
                 else:
                     message = f"Xin chào {', '.join(names)}"
-                    # ns_send_notification(message)
-                    print(message)
+                    ns_send_notification(message)
                     
         # Đảm bảo release sau khi xử lý tất cả các khung hình
         self._release_writers()

@@ -27,7 +27,8 @@ class MediaManager:
                  time_to_save=5,
                  show_time_process=False,
                  raise_hand=False,
-                 qr_code=False):
+                 qr_code=False,
+                 face_mask=False):
         """
         Khởi tạo MediaManager với thông tin về nguồn đầu vào và cấu hình thư mục lưu kết quả.
         """
@@ -54,6 +55,7 @@ class MediaManager:
         self.show_time_process = show_time_process
         self.raise_hand = raise_hand
         self.qr_code = qr_code
+        self.face_mask = face_mask
 
         self.save_dir = None
         self.dataset = None

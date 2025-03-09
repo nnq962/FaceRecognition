@@ -4,51 +4,6 @@ from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
 from websocket_server import start_ws_server
 
-def process_source(source_arg):
-    """
-    Process the source argument to determine the type of input.
-    - '0': Webcam
-    - Single camera ID: Generate RTSP URL
-    - Multiple camera IDs: Write RTSP URLs or webcam ID to device.txt
-    """
-    # Reset camera_names để tránh tích lũy từ các lần gọi trước
-    config.camera_names = []
-
-    if source_arg.isdigit():  # Single numeric ID (e.g., '0' or '1')
-        if source_arg == "0":  # Webcam
-            config.camera_names.append("webcam")
-            return "0"
-        else:  # Single camera
-            rtsp_urls = config.create_rtsp_urls_from_mongo([int(source_arg)])
-            if rtsp_urls:
-                return rtsp_urls[0]
-            else:
-                raise ValueError(f"Could not retrieve RTSP URL for camera ID: {source_arg}")
-
-    if "," in source_arg:  # Multiple IDs (e.g., '0,1')
-        device_ids = source_arg.split(",")
-        devices = []
-        for device_id in device_ids:
-            device_id = device_id.strip()
-            if device_id.isdigit():
-                if device_id == "0":  # Webcam
-                    config.camera_names.append("webcam")
-                    devices.append("0")
-                else:  # Camera IP
-                    rtsp_urls = config.create_rtsp_urls_from_mongo([int(device_id)])
-                    if rtsp_urls:
-                        devices.extend(rtsp_urls)
-                    else:
-                        raise ValueError(f"Could not retrieve RTSP URL for camera ID: {device_id}")
-        # Write to device.txt
-        with open("device.txt", "w") as f:
-            for device in devices:
-                f.write(f"{device}\n")
-        return "device.txt"
-
-    return source_arg  # If it's not numeric or a list, assume it's a file path
-
-
 parser = argparse.ArgumentParser(description="Run face detection and analysis.")
 parser.add_argument("--source", type=str, required=True, help="Source for the media (e.g., '0' for webcam or a video file path).")
 parser.add_argument("--save", action="store_true", help="Enable saving processed media.")
@@ -63,20 +18,12 @@ parser.add_argument("--raise_hand", action="store_true", help="Enable raise hand
 parser.add_argument("--view_img", action="store_true", help="Enable display.")
 parser.add_argument("--line_thickness", type=int, default=3, help="Line thickness")
 parser.add_argument("--qr_code", action="store_true", help="Enable qr code.")
+parser.add_argument("--face_mask", action="store_true", help="Enable face mask detection.")
 
 args = parser.parse_args()
-
-processed_source = process_source(args.source)
-if processed_source is None:
-    print("Failed to process --source. Exiting.")
-    exit(1)
-
-if isinstance(processed_source, str) and processed_source == "device.txt":
-    print("\nGenerated device.txt with the following sources:")
-    with open(processed_source, "r") as f:
-        print(f.read())
-else:
-    print(f"\nProcessing source: {processed_source}\n")
+print("-" * 80)
+processed_source = config.process_camera_input(args.source)
+print("-" * 80)
 
 media_manager = MediaManager(
     source=processed_source,
@@ -91,7 +38,8 @@ media_manager = MediaManager(
     raise_hand=args.raise_hand,
     view_img=args.view_img,
     line_thickness=args.line_thickness,
-    qr_code=args.qr_code
+    qr_code=args.qr_code,
+    face_mask=args.face_mask
 )
 
 if args.raise_hand or args.qr_code:

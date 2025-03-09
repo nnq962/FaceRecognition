@@ -60,81 +60,21 @@ class Config:
         self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
         print("-" * 80)
 
+    def get_rtsp_by_id(self, camera_id):
+        # Tìm document theo _id
+        camera = self.camera_collection.find_one({"_id": camera_id}, {"RTSP": 1, "_id": 0})
+
+        # Trả về đường dẫn RTSP hoặc None nếu không tìm thấy
+        return camera["RTSP"] if camera else None
+    
+    def get_camera_name_by_id(self, camera_id):
+        # Tìm document theo _id
+        camera = self.camera_collection.find_one({"_id": camera_id}, {"camera_name": 1, "_id": 0})
+        return camera["camera_name"] if camera else None
+
     def get_vietnam_time(self):
         vietnam_now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
         return vietnam_now.strftime("%Y-%m-%d %H:%M:%S")
-    
-    def get_ip_from_mac(self, mac_addresses):
-        try:
-            # Chạy lệnh `arp -a` để lấy danh sách các thiết bị trong mạng
-            result = subprocess.check_output(['arp', '-a'], text=True)
-            
-            # Tạo dictionary để lưu kết quả
-            mac_to_ip = {mac.lower(): None for mac in mac_addresses}
-            
-            # Duyệt qua các dòng trong kết quả để tìm địa chỉ MAC
-            for line in result.splitlines():
-                for mac in mac_to_ip.keys():
-                    if mac in line.lower():
-                        # Tách địa chỉ IP từ dòng chứa MAC
-                        parts = line.split()
-                        ip_address = [part for part in parts if "(" in part and ")" in part]
-                        if ip_address:
-                            mac_to_ip[mac] = ip_address[0].strip("()")  # Lấy địa chỉ IP
-            return mac_to_ip
-        except Exception as e:
-            print(f"Error: {e}")
-            return None
-
-    def generate_rtsp_urls(self, mac_to_ip, credentials):
-        rtsp_urls = []
-        for mac, ip in mac_to_ip.items():
-            if ip:
-                # Lấy thông tin tài khoản từ credentials
-                username, password = credentials.get(mac, ("", ""))
-                rtsp_url = f"rtsp://{username}:{password}@{ip}:554/cam/realmonitor?channel=1&subtype=0"
-                rtsp_urls.append(rtsp_url)
-        return rtsp_urls
-
-    def create_rtsp_urls_from_mongo(self, camera_ids):
-        """
-        Tạo danh sách RTSP URLs dựa trên danh sách _id của camera trong MongoDB.
-
-        Args:
-            camera_ids (list): Danh sách _id của các camera cần lấy RTSP URLs.
-
-        Returns:
-            list: Danh sách các URL RTSP tương ứng với các _id.
-        """
-        camera_collection = config.camera_collection
-
-        # Truy vấn dữ liệu từ MongoDB với _id được cung cấp
-        cameras = camera_collection.find(
-            {"_id": {"$in": camera_ids}},
-            {"MAC_address": 1, "user": 1, "password": 1, "camera_name": 1, "_id": 0}
-        )
-        credentials = {}
-        mac_addresses = []
-
-        # Lấy thông tin MAC address, user, password và thêm camera_name
-        for camera in cameras:
-            mac = camera.get("MAC_address", "").lower()
-            camera_name = camera.get("camera_name", "")
-            user = camera.get("user", "")
-            password = camera.get("password", "")
-            if mac:
-                credentials[mac] = (user, password)
-                mac_addresses.append(mac)
-                # Thêm camera_name vào config.camera_names
-                config.camera_names.append(camera_name if camera_name else f"Camera IP{camera_ids[0]}")
-
-        # Lấy IP từ MAC address
-        mac_to_ip = self.get_ip_from_mac(mac_addresses)
-
-        # Tạo đường dẫn RTSP
-        rtsp_urls = self.generate_rtsp_urls(mac_to_ip, credentials)
-
-        return rtsp_urls
     
     def search_file(self, filename, search_path):
         """Tìm tệp trong thư mục cụ thể."""
@@ -220,6 +160,105 @@ class Config:
                     print(f"Model '{model_name}' downloaded successfully!")
                 except Exception as e:
                     print(f"Failed to download model '{model_name}': {e}")
+
+    def process_camera_input(self, source):
+        """
+        Xử lý đầu vào camera từ tham số --source.
+        
+        Args:
+            source (str): Chuỗi chứa các ID camera, phân tách bởi dấu phẩy (ví dụ: "0,1,2") 
+                        hoặc đường dẫn đến tệp device.txt            
+        Returns:
+            str: Đường dẫn tới nguồn video hoặc tên tệp chứa đường dẫn các nguồn
+        """
+        # Kiểm tra nếu source là tệp device.txt
+        if source.endswith('.txt'):
+            print(f"Đọc nguồn camera từ tệp: {source}")
+            
+            # Kiểm tra xem tệp tồn tại
+            import os
+            if not os.path.exists(source):
+                raise FileNotFoundError(f"Không tìm thấy tệp: {source}")
+            
+            # Đọc tệp và xử lý các nguồn camera
+            with open(source, 'r') as f:
+                lines = f.readlines()
+            
+            # Xử lý từng dòng trong tệp
+            for line in lines:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue  # Bỏ qua dòng trống hoặc bình luận
+                    
+                if line == "0":
+                    self.camera_names.append("webcam")
+                    print(f"Đã thiết lập camera: webcam (ID: 0)")
+                elif line.startswith('rtsp://') or line.startswith('http://'):
+                    # Nếu là đường dẫn RTSP/HTTP trực tiếp
+                    self.camera_names.append(f"camera_{len(self.camera_names)}")
+                    print(f"Đã thiết lập camera: camera_{len(self.camera_names)-1} (URL: {line})")
+                else:
+                    try:
+                        # Giả định là ID camera
+                        camera_id = int(line)
+                        rtsp_url = self.get_rtsp_by_id(camera_id)
+                        camera_name = self.get_camera_name_by_id(camera_id)
+                        self.camera_names.append(camera_name)
+                        print(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
+                    except ValueError:
+                        print(f"Cảnh báo: Không thể xử lý nguồn camera: {line}")
+            
+            return source
+        
+        # Tách chuỗi đầu vào thành danh sách các ID camera
+        camera_ids = source.split(',')
+        
+        # Nếu chỉ có một camera
+        if len(camera_ids) == 1:
+            camera_id = camera_ids[0].strip()
+            
+            # Nếu camera là webcam (ID = 0)
+            if camera_id == "0":
+                self.camera_names.append("webcam")
+                print("Đã thiết lập camera: webcam (ID: 0)")
+                return "0"
+            
+            # Nếu camera là RTSP (ID > 0)
+            else:
+                try:
+                    camera_id = int(camera_id)
+                    rtsp_url = self.get_rtsp_by_id(camera_id)
+                    camera_name = self.get_camera_name_by_id(camera_id)
+                    self.camera_names.append(camera_name)
+                    print(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
+                    return rtsp_url
+                except ValueError:
+                    raise ValueError(f"Camera ID không hợp lệ: {camera_id}")
+        
+        # Nếu có nhiều camera
+        else:
+            # Tạo tệp device.txt chứa các đường dẫn camera
+            with open("device.txt", "w") as f:
+                for camera_id in camera_ids:
+                    camera_id = camera_id.strip()
+                    
+                    if camera_id == "0":
+                        f.write("0\n")
+                        self.camera_names.append("webcam")
+                        print("Đã thiết lập camera: webcam (ID: 0)")
+                    else:
+                        try:
+                            camera_id = int(camera_id)
+                            rtsp_url = self.get_rtsp_by_id(camera_id)
+                            camera_name = self.get_camera_name_by_id(camera_id)
+                            f.write(f"{rtsp_url}\n")
+                            self.camera_names.append(camera_name)
+                            print(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
+                        except ValueError:
+                            raise ValueError(f"Camera ID không hợp lệ: {camera_id}")
+            
+            print(f"Đã tạo tệp device.txt với {len(camera_ids)} nguồn camera")
+            return "device.txt"
 
 # Tạo instance `config` để sử dụng trong toàn bộ project
 config = Config()
