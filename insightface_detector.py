@@ -242,6 +242,7 @@ class InsightFaceDetector:
                     else:
                         self.mask_detected_frames = 0
                     if self.mask_detected_frames >= self.mask_thresh:
+                        self.mask_detected_frames = 0
                         ns_send_notification("Vui lòng tháo khẩu trang")
                         
                 # Kiểm tra QR code
@@ -332,7 +333,12 @@ class InsightFaceDetector:
 
                     # Test backend
                     if id == 1 and get_raising_hand(im0, bbox):
-                        ns_send_notification("Vẫn ổn sếp ơi")
+                        self.mask_detected_frames += 1
+                    else:
+                        self.mask_detected_frames = 0
+                    if self.mask_detected_frames >= self.mask_thresh:
+                        self.mask_detected_frames = 0
+                        ns_send_notification("Ok sếp ơi")
                     
                     if self.media_manager.raise_hand and id != "Unknown":
                         hand_raised = get_raising_hand(im0, bbox)
