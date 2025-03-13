@@ -793,5 +793,121 @@ def get_user_data():
 
 
 # ----------------------------------------------------------------
+@app.route('/api/get_all_cameras', methods=['GET'])
+def get_all_cameras():
+    cameras = list(camera_collection.find({}, {'_id': False}))
+    return jsonify(cameras)
+
+
+# ----------------------------------------------------------------
+@app.route('/api/get_camera', methods=['GET'])
+def get_camera():
+    _id = request.args.get('_id')
+    location = request.args.get('camera_location')
+
+    if _id and location:
+        return jsonify({"error": "Only filtering by _id or camera_location is allowed, not both."}), 400
+    
+    if _id:
+        try:
+            _id = int(_id)
+        except ValueError:
+            return jsonify({"error": "_id must be a number."}), 400
+        camera = camera_collection.find_one({'_id': _id}, {'_id': False})
+        if camera:
+            return jsonify(camera)
+        else:
+            return jsonify({"error": "No camera found with the given _id."}), 404
+
+    elif location:
+        cameras = list(camera_collection.find({'camera_location': location}, {'_id': False}))
+        if cameras:
+            return jsonify(cameras)
+        else:
+            return jsonify({"error": "No cameras found with the given camera_location."}), 404
+    
+    else:
+        return jsonify({"error": "Please provide either _id or camera_location for filtering."}), 400
+    
+
+# ----------------------------------------------------------------
+@app.route('/api/add_camera', methods=['POST'])
+def add_camera():
+    data = request.get_json()
+
+    # Auto increment _id
+    last_camera = camera_collection.find_one(sort=[("_id", -1)])
+    new_id = last_camera['_id'] + 1 if last_camera else 1
+
+    camera = {
+        "_id": new_id,
+        "camera_name": data.get("camera_name"),
+        "camera_location": data.get("camera_location"),
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "user": data.get("user"),
+        "password": data.get("password"),
+        "MAC_address": data.get("MAC_address"),
+        "IP": data.get("IP"),
+        "RTSP": data.get("RTSP")
+    }
+
+    # Set missing fields to None
+    for key in camera:
+        if camera[key] is None:
+            camera[key] = None
+
+    camera_collection.insert_one(camera)
+    return jsonify({"message": "Camera added successfully.", "camera": camera}), 201
+    
+
+# ----------------------------------------------------------------
+@app.route('/api/delete_camera', methods=['DELETE'])
+def delete_camera():
+    _id = request.args.get('_id')
+
+    if not _id:
+        return jsonify({"error": "_id is required for deletion."}), 400
+
+    try:
+        _id = int(_id)
+    except ValueError:
+        return jsonify({"error": "_id must be a number."}), 400
+
+    result = camera_collection.delete_one({'_id': _id})
+
+    if result.deleted_count == 0:
+        return jsonify({"error": "No camera found with the given _id."}), 404
+
+    return jsonify({"message": "Camera deleted successfully."}), 200
+
+
+# ----------------------------------------------------------------
+@app.route('/api/update_camera', methods=['PUT'])
+def update_camera():
+    _id = request.args.get('_id')
+    data = request.get_json()
+
+    if not _id:
+        return jsonify({"error": "_id is required for updating."}), 400
+
+    try:
+        _id = int(_id)
+    except ValueError:
+        return jsonify({"error": "_id must be a number."}), 400
+
+    update_fields = {key: data[key] for key in data if key != 'created_at'}
+
+    if not update_fields:
+        return jsonify({"error": "No valid fields provided for update."}), 400
+
+    result = camera_collection.update_one({'_id': _id}, {'$set': update_fields})
+
+    if result.matched_count == 0:
+        return jsonify({"error": "No camera found with the given _id."}), 404
+
+    return jsonify({"message": "Camera updated successfully."}), 200
+
+
+# ----------------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=6123)

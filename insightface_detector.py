@@ -28,6 +28,8 @@ class InsightFaceDetector:
         self.previous_hand_states = {}
         self.mask_thresh = 30
         self.mask_detected_frames = 0
+        self.hand_detected_frames = 0
+        self.count = 0
         self.media_manager = media_manager
         self.previous_aruco_marker_states = None
         self.arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
@@ -333,12 +335,10 @@ class InsightFaceDetector:
 
                     # Test backend
                     if id == 1 and get_raising_hand(im0, bbox):
-                        self.mask_detected_frames += 1
-                    else:
-                        self.mask_detected_frames = 0
-                    if self.mask_detected_frames >= self.mask_thresh:
-                        self.mask_detected_frames = 0
-                        ns_send_notification("Ok sếp ơi")
+                        self.hand_detected_frames += 1
+                        if self.hand_detected_frames >= 40:
+                            self.hand_detected_frames = 0
+                            ns_send_notification("Ok sếp ơi")
                     
                     if self.media_manager.raise_hand and id != "Unknown":
                         hand_raised = get_raising_hand(im0, bbox)

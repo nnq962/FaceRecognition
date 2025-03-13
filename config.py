@@ -11,11 +11,11 @@ import gdown
 class Config:
     """ Class chứa toàn bộ cấu hình của ứng dụng """
     
-    user = ""
-    password = ""
-    host = "localhost"
-    port = "27017"
-    database = ""
+    user = "quyetnguyen"
+    password = "061223%40bC"
+    host = "27.72.62.241"
+    port = "7017"
+    database = "admin"
     init_database = False
     vram_limit_for_FER = 2
     camera_names = []

@@ -1,14 +1,14 @@
 import cv2
 import argparse
 import numpy as np
-from face_mask_detection.utils.anchor_generator import generate_anchors
-from face_mask_detection.utils.anchor_decode import decode_bbox
-from face_mask_detection.utils.nms import single_class_non_max_suppression
-from face_mask_detection.pytorch_loader import load_pytorch_model, pytorch_inference
+from face_mask.utils.anchor_generator import generate_anchors
+from face_mask.utils.anchor_decode import decode_bbox
+from face_mask.utils.nms import single_class_non_max_suppression
+from face_mask.pytorch_loader import load_pytorch_model, pytorch_inference
 
 
 # model = load_pytorch_model('models/face_mask_detection.pth');
-model = load_pytorch_model('Face_mask_detection/model360.pth')
+model = load_pytorch_model('face_mask/model360.pth')
 # anchor configuration
 #feature_map_sizes = [[33, 33], [17, 17], [9, 9], [5, 5], [3, 3]]
 feature_map_sizes = [[45, 45], [23, 23], [12, 12], [6, 6], [4, 4]]

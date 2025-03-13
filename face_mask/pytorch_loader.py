@@ -6,7 +6,7 @@ from torch.serialization import SourceChangeWarning
 # Tắt cảnh báo SourceChangeWarning
 warnings.filterwarnings("ignore", category=SourceChangeWarning)
 
-sys.path.append('Face_mask_detection/')
+sys.path.append('face_mask/')
 
 def load_pytorch_model(model_path):
     model = torch.load(model_path, weights_only=False)
