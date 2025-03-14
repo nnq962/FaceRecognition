@@ -19,7 +19,7 @@ class Config:
     init_database = False
     vram_limit_for_FER = 2
     camera_names = []
-    save_path = str(Path.home()) + "/nnq_static_test"
+    save_path = str(Path.home()) + "/nnq_static"
     model_urls = {
     "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
     "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2"
@@ -167,16 +167,23 @@ class Config:
         
         Args:
             source (str): Chuỗi chứa các ID camera, phân tách bởi dấu phẩy (ví dụ: "0,1,2") 
-                        hoặc đường dẫn đến tệp device.txt            
+                        hoặc đường dẫn đến tệp device.txt
+                        hoặc đường dẫn đến tệp media (video, hình ảnh)           
         Returns:
             str: Đường dẫn tới nguồn video hoặc tên tệp chứa đường dẫn các nguồn
         """
+        # Kiểm tra nếu source là đường dẫn tới một tệp (không phải device.txt)
+        import os
+        if os.path.isfile(source) and not source.endswith('.txt'):
+            print(f"Đọc nguồn từ tệp: {source}")
+            self.camera_names.append(os.path.basename(source))
+            return source
+        
         # Kiểm tra nếu source là tệp device.txt
         if source.endswith('.txt'):
             print(f"Đọc nguồn camera từ tệp: {source}")
             
             # Kiểm tra xem tệp tồn tại
-            import os
             if not os.path.exists(source):
                 raise FileNotFoundError(f"Không tìm thấy tệp: {source}")
             

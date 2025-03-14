@@ -26,7 +26,7 @@ class InsightFaceDetector:
         self.rec_model = None
         self.previous_qr_results = {}
         self.previous_hand_states = {}
-        self.mask_thresh = 30
+        self.mask_thresh = 40
         self.mask_detected_frames = 0
         self.hand_detected_frames = 0
         self.count = 0
