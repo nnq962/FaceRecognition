@@ -795,7 +795,7 @@ def get_user_data():
 # ----------------------------------------------------------------
 @app.route('/api/get_all_cameras', methods=['GET'])
 def get_all_cameras():
-    cameras = list(camera_collection.find({}, {'_id': False}))
+    cameras = list(camera_collection.find({}))
     return jsonify(cameras)
 
 
@@ -813,14 +813,14 @@ def get_camera():
             _id = int(_id)
         except ValueError:
             return jsonify({"error": "_id must be a number."}), 400
-        camera = camera_collection.find_one({'_id': _id}, {'_id': False})
+        camera = camera_collection.find_one({'_id': _id})
         if camera:
             return jsonify(camera)
         else:
             return jsonify({"error": "No camera found with the given _id."}), 404
 
     elif location:
-        cameras = list(camera_collection.find({'camera_location': location}, {'_id': False}))
+        cameras = list(camera_collection.find({'camera_location': location}))
         if cameras:
             return jsonify(cameras)
         else:
