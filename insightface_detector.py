@@ -120,7 +120,7 @@ class InsightFaceDetector:
         windows = []
         start_time = time.time()
 
-        for path, _, im0s, vid_cap, s in self.dataset:
+        for path, im0s, vid_cap, s in self.dataset:
             # Phát hiện khuôn mặt
             pred = self.get_face_detects(im0s)
 
