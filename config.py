@@ -1,7 +1,6 @@
 from pymongo import MongoClient
 from pathlib import Path
 import os
-import subprocess
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import sys
@@ -44,7 +43,6 @@ class Config:
     managers_collection = db["managers"]
     camera_collection = db["camera_information"]
     data_collection = db["camera_data"]
-    attendance_collection = db["attendance"]
 
     SAVE_PATH = Path(save_path)
     UPLOADS_PATH = SAVE_PATH / "uploads"
@@ -173,7 +171,6 @@ class Config:
             str: Đường dẫn tới nguồn video hoặc tên tệp chứa đường dẫn các nguồn
         """
         # Kiểm tra nếu source là đường dẫn tới một tệp (không phải device.txt)
-        import os
         if os.path.isfile(source) and not source.endswith('.txt'):
             print(f"Đọc nguồn từ tệp: {source}")
             self.camera_names.append(os.path.basename(source))

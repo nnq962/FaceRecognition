@@ -4,7 +4,7 @@ import platform
 from insightface.model_zoo import model_zoo
 from pathlib import Path
 from utils.plots import Annotator
-from face_emotion import FERUtils
+from face_emotion import FaceEmotion
 import insightface_utils
 from hand_raise_detector import get_raising_hand
 from websocket_server import send_notification
@@ -16,6 +16,7 @@ from config import config
 from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
 from notification_server import send_notification as ns_send_notification
 import face_mask_detection
+from pymongo.operations import InsertOne, UpdateOne
 
 
 class InsightFaceDetector:
@@ -41,7 +42,7 @@ class InsightFaceDetector:
             self.dataset = self.media_manager.get_dataloader()
             self.save_dir = self.media_manager.get_save_directory()
             if self.media_manager.face_emotion:
-                self.fer_class = FERUtils(gpu_memory_limit=config.vram_limit_for_FER * 1024)
+                self.fer = FaceEmotion()
 
         self.load_model()
 
@@ -99,31 +100,7 @@ class InsightFaceDetector:
         if webcam:
             return im0s[i]
         return im0s
-    
-    def get_face_emotions(self, img, bounding_boxes):
-        """
-        Analyze emotions of faces in an image.
-
-        This method detects emotions for faces using the provided bounding boxes 
-        (in [x1, y1, x2, y2, conf] format) and returns the dominant emotion with its probability.
-
-        Args:
-            img (numpy.ndarray): Input image containing faces.
-            bounding_boxes (list or numpy.ndarray): Face bounding boxes in [x1, y1, x2, y2, conf] format.
-
-        Returns:
-            list: A list of dictionaries with the dominant emotion and its probability,
-                or an empty list if `bounding_boxes` is empty.
-        """
-        # Loại bỏ `conf` để chỉ giữ lại [x1, y1, x2, y2]
-        clean_bboxes = [bbox[:4] for bbox in bounding_boxes]  
         
-        # Phân tích cảm xúc
-        emotions = self.fer_class.analyze_face(img, clean_bboxes)
-        dominant_emotions = self.fer_class.get_dominant_emotions(emotions)
-
-        return dominant_emotions
-    
     def get_aruco_marker(self, img):
         corners, ids, _ = self.aruco_detector.detectMarkers(img)
         results = detect_aruco_answers(corners, ids)  # Nhận danh sách marker
@@ -136,77 +113,6 @@ class InsightFaceDetector:
 
         return sorted_markers
     
-    def log_user_attendance(self, user_id, image, bbox, name):
-        # Kiểm tra trường hợp không nhận dạng được người dùng
-        if user_id == "Unknown":
-            return False
-
-        current_time = config.get_vietnam_time()
-        today_date = current_time.split()[0]  # Lấy phần ngày "YYYY-MM-DD"
-        current_hour = int(current_time.split()[1].split(':')[0])
-        current_minute = int(current_time.split()[1].split(':')[1])
-
-        # Kiểm tra xem người dùng đã có record trong ngày chưa
-        user_record = config.attendance_collection.find_one({
-            "date": today_date,
-            "user_id": user_id
-        })
-
-        # Tạo thư mục lưu ảnh theo ngày nếu chưa tồn tại
-        image_folder = f"attendance_images/{today_date.replace('-', '_')}"
-        if not os.path.exists(image_folder):
-            os.makedirs(image_folder)
-
-        # Xử lý ảnh chỉ khi cần lưu (check-in lần đầu hoặc check-out sau 17:30)
-        save_image = False
-        
-        # Trường hợp 1: Lần đầu tiên trong ngày (check-in)
-        if not user_record:
-            save_image = True
-            image_filename = f"{user_id}_{current_time.split()[1].replace(':', '_')}_check_in.jpg"
-            image_path = f"{image_folder}/{image_filename}"
-            
-            # Tạo record mới với thời gian đến
-            new_record = {
-                "date": today_date,
-                "user_id": user_id,
-                "name": name,
-                "check_in_time": current_time,
-                "check_in_image": image_path,
-                "check_out_time": None,
-                "check_out_image": None
-            }
-            
-            config.attendance_collection.insert_one(new_record)
-        
-        # Trường hợp 2: Đã có record nhưng chưa check-out và thời gian sau 17:30
-        elif not user_record.get('check_out_time') and (current_hour > 17 or (current_hour == 17 and current_minute >= 30)):
-            save_image = True
-            image_filename = f"{user_id}_{current_time.split()[1].replace(':', '_')}_check_out.jpg"
-            image_path = f"{image_folder}/{image_filename}"
-            
-            # Cập nhật thời gian và ảnh check out
-            config.attendance_collection.update_one(
-                {"date": today_date, "user_id": user_id},
-                {"$set": {
-                    "check_out_time": current_time,
-                    "check_out_image": image_path
-                }}
-            )
-        else:
-            # Không cần lưu ảnh trong các trường hợp khác
-            return False
-        
-        # Lưu ảnh nếu cần
-        if save_image:
-            imc = image.copy()
-            x1, y1, x2, y2 = map(int, bbox)
-            cv2.rectangle(imc, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.imwrite(image_path, imc)
-            return True
-            
-        return False
-
     def run_inference(self):
         """
         Run inference on images/video and display results
@@ -219,14 +125,15 @@ class InsightFaceDetector:
             pred = self.get_face_detects(im0s)
 
             face_counts = []  # Lưu số lượng khuôn mặt trong từng ảnh để ghép lại sau này
-            all_crop_faces = []  # Danh sách chứa toàn bộ khuôn mặt đã crop (dạng phẳng)
-            all_emotions = []  # Danh sách chứa toàn bộ cảm xúc của khuôn mặt
+            all_cropped_faces_recognition = []  # Danh sách chứa toàn bộ khuôn mặt đã crop (dạng phẳng)
+            all_cropped_faces_emotion = []
+            user_emotions = []  # Danh sách chứa toàn bộ cảm xúc của khuôn mặt
             user_infos = []  # Danh sách chứa thông tin người dùng
 
             for i, det in enumerate(pred):
                 # Lấy ảnh tương ứng
                 im0 = self.get_frame(im0s, i, self.media_manager.webcam)
-
+                
                 # Unpack kết quả từ model
                 bounding_boxes, keypoints = det
 
@@ -261,19 +168,23 @@ class InsightFaceDetector:
                             "qr_code": qr_result
                         })
 
-                # Phát hiện cảm xúc
+                # Crop khuôn mặt để phát hiện cảm xúc
                 if self.media_manager.face_emotion:
-                    emotions = self.get_face_emotions(im0, bounding_boxes)
-                    all_emotions.extend(emotions)
+                    cropped_faces_emotion = insightface_utils.crop_faces_for_emotion(im0, bounding_boxes, conf_threshold=0.55)
+                    all_cropped_faces_emotion.extend(cropped_faces_emotion)
 
-                # Crop khuôn mặt và lấy embeddings
+                # Crop khuôn mặt để embeddings
                 if self.media_manager.face_recognition:
-                    cropped_faces = insightface_utils.crop_and_align_faces(im0, bounding_boxes, keypoints, 0.55)
-                    all_crop_faces.extend(cropped_faces)  # Thêm tất cả khuôn mặt vào danh sách chính (dạng phẳng)
+                    cropped_faces_recognition = insightface_utils.crop_and_align_faces(im0, bounding_boxes, keypoints, 0.55)
+                    all_cropped_faces_recognition.extend(cropped_faces_recognition)  # Thêm tất cả khuôn mặt vào danh sách chính (dạng phẳng)
+
+            # Lấy cảm xúc các khuôn mặt
+            if all_cropped_faces_emotion:
+                user_emotions = self.fer.get_emotions(all_cropped_faces_emotion)
         
             # Lấy embeddings và truy xuất thông tin
-            if all_crop_faces:
-                all_embeddings = self.get_face_embeddings(all_crop_faces)
+            if all_cropped_faces_recognition:
+                all_embeddings = self.get_face_embeddings(all_cropped_faces_recognition)
                 user_infos = insightface_utils.search_ids(all_embeddings, threshold=0.5)
             
             # Ghép kết quả
@@ -282,7 +193,7 @@ class InsightFaceDetector:
             for det, face_count in zip(pred, face_counts):
                 bounding_boxes, _ = det
                 user_infos_for_image = user_infos[start_idx:start_idx + face_count] if self.media_manager.face_recognition else [None] * face_count
-                emotions_for_image = all_emotions[start_idx:start_idx + face_count] if self.media_manager.face_emotion else [{"dominant_emotion": "Unknown", "probability": 0.0}] * face_count
+                emotions_for_image = user_emotions[start_idx:start_idx + face_count] if self.media_manager.face_emotion else ["Unknown"] * face_count
 
                 results = [
                     {
@@ -291,8 +202,7 @@ class InsightFaceDetector:
                         "id": id_info["id"] if id_info else "Unknown",
                         "full_name": id_info["full_name"] if id_info else "Unknown",
                         "similarity": f"{id_info['similarity'] * 100:.2f}%" if id_info else "",
-                        "emotion": "Unknown" if id_info is None else (emotion["dominant_emotion"] if emotion else "unknown"),
-                        "emotion_probability": "" if id_info is None else (f"{emotion['probability'] * 100:.2f}%" if emotion else "")
+                        "emotion": "Unknown" if id_info is None else emotion
                     }
                     for bbox, id_info, emotion in zip(bounding_boxes, user_infos_for_image, emotions_for_image)
                 ]
@@ -302,8 +212,10 @@ class InsightFaceDetector:
 
             # Kiểm tra có xuất dữ liệu không
             should_export = self.media_manager.export_data and (time.time() - start_time > self.media_manager.time_to_save)
-            export_data_list = []  # Danh sách chứa dữ liệu mới để gửi đi
-            names = [] # Danh sách điểm danh
+            if should_export:
+                current_time = config.get_vietnam_time()
+                today_date, current_time_short = current_time.split()
+                export_data_list = []  # Danh sách chứa dữ liệu mới để gửi đi
 
             # Duyệt qua từng ảnh để hiển thị và thu thập dữ liệu
             for img_index, results in enumerate(results_per_image):
@@ -311,7 +223,7 @@ class InsightFaceDetector:
                 im0 = self.get_frame(im0s, img_index, self.media_manager.webcam)
                 p = Path(p)
                 save_path = str(self.save_dir / p.name) if (self.media_manager.save or self.media_manager.save_crop) else None
-                imc = im0.copy() if self.media_manager.save_crop else im0
+                imc = im0.copy() if self.media_manager.save_crop or self.media_manager.export_data else im0
                 annotator = Annotator(im0, line_width=self.media_manager.line_thickness)
                 camera_name = config.camera_names[img_index] if self.media_manager.webcam else "Photo"
 
@@ -325,52 +237,48 @@ class InsightFaceDetector:
                     conf = result["conf"]
                     name = result["full_name"]
                     similarity = result["similarity"]
-                    id = result["id"]
+                    user_id = result["id"]
                     emotion = result["emotion"]
-                    emotion_probability = result["emotion_probability"]
-
-                    # Gửi ảnh điểm danh
-                    if self.log_user_attendance(id, im0, bbox, name):
-                        names.append(name)
 
                     # Test backend
-                    if id == 1 and get_raising_hand(im0, bbox):
+                    if user_id == 1 and get_raising_hand(im0, bbox):
                         self.hand_detected_frames += 1
-                        if self.hand_detected_frames >= 40:
+                        if self.hand_detected_frames >= 30:
                             self.hand_detected_frames = 0
                             ns_send_notification("Ok sếp ơi")
                     
-                    if self.media_manager.raise_hand and id != "Unknown":
+                    if self.media_manager.raise_hand and user_id != "Unknown":
                         hand_raised = get_raising_hand(im0, bbox)
-                        previous_state = self.previous_hand_states[camera_name].get(id, None)
+                        previous_state = self.previous_hand_states[camera_name].get(user_id, None)
 
                         # Chỉ gửi nếu trạng thái thay đổi
                         if previous_state is None or previous_state != hand_raised:
                             # Cập nhật trạng thái mới vào dictionary theo camera
-                            self.previous_hand_states[camera_name][id] = hand_raised
+                            self.previous_hand_states[camera_name][user_id] = hand_raised
                             # Gửi dữ liệu giơ tay
                             send_notification({
                                 "timestamp": config.get_vietnam_time(),
                                 "camera": camera_name,
-                                "id": id,
+                                "id": user_id,
                                 "hand_status": "up" if hand_raised else "down"
                             })
 
                     # Nếu cần export dữ liệu, thu thập thông tin
-                    if should_export and id != "Unknown":
+                    if should_export and user_id != "Unknown":
                         export_data_list.append({
-                            "timestamp": config.get_vietnam_time(),
-                            "id": id,
-                            "similarity": float(similarity.replace('%', '')),
+                            "user_id": user_id,
+                            "name": name,
+                            "time": current_time_short,
                             "emotion": emotion,
-                            "emotion_probability": float(emotion_probability.replace('%', '')),
-                            "camera": camera_name
+                            "camera": camera_name,
+                            "image": imc,  # Lưu ảnh để dùng cho check-in nếu cần
+                            "bbox": bbox   # Lưu bbox để vẽ hình chữ nhật trên ảnh check-in
                         })
 
                     if self.media_manager.face_emotion:
-                        label = f"{id} {similarity} | {emotion} {emotion_probability}"
+                        label = f"{user_id} {similarity} | {emotion}"
                     elif self.media_manager.face_recognition:
-                        label = f"{id} {similarity}"
+                        label = f"{user_id} {similarity}"
                     else:
                         label = None
 
@@ -410,21 +318,87 @@ class InsightFaceDetector:
             
             # Lưu dữ liệu vào MongoDB
             if should_export and export_data_list:
-                insightface_utils.save_data_to_mongo(export_data_list)
+                # Lấy danh sách user_id duy nhất để truy vấn
+                user_ids = list(set(data["user_id"] for data in export_data_list))
+                records = config.data_collection.find({"date": today_date, "user_id": {"$in": user_ids}})
+                records_dict = {record["user_id"]: record for record in records}
+
+                operations = []
+                welcome_users = []
+                goodbye_users = []
+
+                # Tạo thư mục nếu chưa tồn tại
+                image_folder = f"attendance_images/{today_date.replace('-', '_')}"
+                os.makedirs(image_folder, exist_ok=True)
+
+                # Tách giờ và phút từ current_time_short để kiểm tra
+                current_hour, current_minute, _ = map(int, current_time_short.split(':'))
+                is_after_1730 = current_hour > 17 or (current_hour == 17 and current_minute >= 30)
+
+                for data in export_data_list:
+                    user_id = data["user_id"]
+                    record = records_dict.get(user_id)
+                    timestamp_entry = {
+                        "time": data["time"],
+                        "emotion": data["emotion"],
+                        "camera": data["camera"]
+                    }
+
+                    if not record:    
+                        # Đường dẫn ảnh
+                        image_path = f"{image_folder}/{user_id}_{data['time'].replace(':', '_')}_check_in.jpg"
+                        
+                        # Tạo bản ghi mới cho check-in
+                        new_record = {
+                            "date": today_date,
+                            "user_id": user_id,
+                            "name": data["name"],
+                            "check_in_time": data["time"],
+                            "check_in_image": image_path,
+                            "timestamps": [timestamp_entry],
+                            "check_out_time": data["time"],
+                            "has_been_goodbye": False
+                        }
+                        operations.append(InsertOne(new_record))
+
+                        # Lưu ảnh check-in với khung bbox
+                        img = data["image"].copy()
+                        x1, y1, x2, y2 = map(int, data["bbox"])
+                        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.imwrite(image_path, img)
+
+                        # Lưu tên để xin chào
+                        welcome_users.append(data["name"])
+                    else:
+                        # Cập nhật bản ghi cũ
+                        update_operation = {
+                            "$push": {"timestamps": timestamp_entry},
+                            "$set": {"check_out_time": data["time"]}
+                        }
+                        
+                        # Kiểm tra và chào tạm biệt nếu sau 17:30 và chưa chào
+                        if is_after_1730 and not record.get("has_been_goodbye", False):
+                            goodbye_users.append(data["name"])
+                            update_operation["$set"]["has_been_goodbye"] = True  # Đánh dấu đã chào
+
+                        operations.append(UpdateOne(
+                            {"date": today_date, "user_id": user_id},
+                            update_operation
+                        ))
+
+                # Thực hiện batch update
+                if operations:
+                    config.data_collection.bulk_write(operations)
+
                 export_data_list.clear()
                 start_time = time.time()
 
-            # Gửi thông báo điểm danh
-            if names:
-                current_time = config.get_vietnam_time()
-                current_hour = int(current_time.split()[1].split(':')[0])
-                current_minute = int(current_time.split()[1].split(':')[1])
-
-                if current_hour > 17 or (current_hour == 17 and current_minute >= 30):
-                    message = f"Chào tạm biệt {', '.join(names)}"
+                # Gửi thông báo
+                if welcome_users:
+                    message = f"Xin chào {', '.join(welcome_users)}"
                     ns_send_notification(message)
-                else:
-                    message = f"Xin chào {', '.join(names)}"
+                if goodbye_users:
+                    message = f"Chào tạm biệt {', '.join(goodbye_users)}"
                     ns_send_notification(message)
                     
         # Đảm bảo release sau khi xử lý tất cả các khung hình

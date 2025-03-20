@@ -4,6 +4,7 @@ from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
 from websocket_server import start_ws_server
 
+
 parser = argparse.ArgumentParser(description="Run face detection and analysis.")
 parser.add_argument("--source", type=str, required=True, help="Source for the media (e.g., '0' for webcam or a video file path).")
 parser.add_argument("--save", action="store_true", help="Enable saving processed media.")

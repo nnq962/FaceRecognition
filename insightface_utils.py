@@ -317,3 +317,36 @@ def process_image(image_path, detector):
     except Exception as e:
         print(f"Error processing {image_path}: {e}")
         return None
+    
+def crop_faces_for_emotion(frame, bboxes, conf_threshold=0.5):
+    """
+    Cắt khuôn mặt từ frame và điều chỉnh kích thước cho mô hình cảm xúc
+    
+    Args:
+        frame (numpy.ndarray): Ảnh đầu vào (BGR từ OpenCV)
+        bboxes (numpy.ndarray): Bounding boxes, định dạng [x1, y1, x2, y2, conf]
+        conf_threshold (float): Ngưỡng tin cậy để lọc bboxes
+        
+    Returns:
+        list: Danh sách các ảnh khuôn mặt đã cắt (định dạng RGB, kích thước target_size x target_size)
+    """
+    cropped_faces = []
+    
+    # Chuyển từ BGR sang RGB
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    
+    for bbox in bboxes:
+        if bbox[4] >= conf_threshold:
+            # Lấy tọa độ
+            x1, y1, x2, y2 = map(int, bbox[:4])
+            
+            # Đảm bảo tọa độ nằm trong giới hạn ảnh
+            x1, y1 = max(0, x1), max(0, y1)
+            x2, y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
+            
+            # Cắt khuôn mặt từ ảnh RGB
+            face = frame_rgb[y1:y2, x1:x2]
+            
+            cropped_faces.append(face)
+    
+    return cropped_faces

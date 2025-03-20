@@ -72,7 +72,10 @@ def get_rtsp_url(ip, username, password, port=80):
             
             # Gửi request
             uri = media_service.GetStreamUri(stream_setup)
-            rtsp_urls[profile.Name] = uri.Uri
+
+            # Chèn username và password vào RTSP URL
+            parsed_url = uri.Uri.replace("rtsp://", f"rtsp://{username}:{password}@")
+            rtsp_urls[profile.Name] = parsed_url
 
     except Exception as e:
         print(f"Failed to get RTSP URL from {ip} (Port: {port}): {e}")
@@ -119,12 +122,12 @@ def get_network_configuration(ip, username, password, port=80):
 
 
 # ----------------------------------------------------------------
-def find_main_stream_rtsp(mac_address, username, password):
-    # Bước 1: Tìm tất cả các IP camera ONVIF
+def find_ip_and_rtsp_by_mac(mac_address, username, password):
+    # Tìm tất cả các IP camera ONVIF
     onvif_ips = discover_onvif_devices()
 
     for ip in onvif_ips:
-        # Bước 2: Lấy thông tin cấu hình mạng để so sánh MAC Address
+        # Lấy thông tin cấu hình mạng để so sánh MAC Address
         try:
             network_configs = get_network_configuration(ip, username, password)
         except Exception as e:
@@ -133,18 +136,15 @@ def find_main_stream_rtsp(mac_address, username, password):
 
         for config in network_configs:
             if config["MAC Address"].lower() == mac_address.lower():
-                # Bước 3: Lấy RTSP URL và chọn luồng chính (subtype=0)
+                # Tìm RTSP URL của main stream
                 rtsp_urls = get_rtsp_url(ip, username, password)
                 for profile_name, url in rtsp_urls.items():
                     if "subtype=0" in url:
-                        return url
+                        return {"IP": ip, "RTSP": url}
+                
+                # Nếu không tìm thấy main stream
                 print(f"Main stream not found for IP {ip}")
+                return {"IP": ip, "RTSP": None}
+
     print(f"Device with MAC {mac_address} not found.")
     return None
-
-mac = "a8:31:62:a3:30:cf"
-username = "admin"
-password = "L2620AE7"
-
-main_stream_url = find_main_stream_rtsp(mac, username, password)
-print("Main Stream RTSP URL:", main_stream_url)

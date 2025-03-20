@@ -14,7 +14,7 @@ from config import config
 from annoy import AnnoyIndex
 import faiss
 import pickle
-from notification_server import send_notification
+import onvif_camera_tools
 
 app = Flask(__name__)
 CORS(app)
@@ -766,27 +766,54 @@ def get_user_data():
         if not user_id or not start_date or not end_date or not camera_name:
             return jsonify({"error": "Missing required parameters"}), 400
 
-        # Chuyển đổi định dạng thời gian sang string để phù hợp với MongoDB
+        # Chuyển đổi định dạng thời gian
         try:
-            start_date = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
-            end_date = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S").strftime("%Y-%m-%d %H:%M:%S")
+            start_datetime = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S")
+            end_datetime = datetime.strptime(end_date, "%Y-%m-%d %H:%M:%S")
+            start_date_str = start_datetime.strftime("%Y-%m-%d")
+            end_date_str = end_datetime.strftime("%Y-%m-%d")
+            start_time_str = start_datetime.strftime("%H:%M:%S")
+            end_time_str = end_datetime.strftime("%H:%M:%S")
         except ValueError:
             return jsonify({"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS"}), 400
 
         # Truy vấn dữ liệu từ MongoDB
+        query = {
+            "user_id": user_id,
+            "date": {"$gte": start_date_str, "$lte": end_date_str},
+            "timestamps": {
+                "$elemMatch": {
+                    "camera": camera_name,
+                    "time": {"$gte": start_time_str, "$lte": end_time_str}
+                }
+            }
+        }
         user_data = list(data_collection.find(
-            {
-                "id": user_id,
-                "camera_name": camera_name,
-                "timestamp": {"$gte": start_date, "$lte": end_date}
-            },
+            query,
             {"_id": 0}  # Bỏ trường _id trong kết quả trả về
         ))
 
         if not user_data:
             return jsonify({"error": "No data found for given criteria"}), 404
 
-        return jsonify(user_data), 200
+        # Tùy chỉnh kết quả trả về (lọc timestamps nếu cần)
+        filtered_data = []
+        for record in user_data:
+            # Chỉ giữ các timestamps khớp với camera_name và khoảng thời gian
+            filtered_timestamps = [
+                ts for ts in record["timestamps"]
+                if ts["camera"] == camera_name
+                and start_time_str <= ts["time"] <= end_time_str
+            ]
+            if filtered_timestamps:  # Chỉ thêm bản ghi nếu có timestamps khớp
+                filtered_record = record.copy()
+                filtered_record["timestamps"] = filtered_timestamps
+                filtered_data.append(filtered_record)
+
+        if not filtered_data:
+            return jsonify({"error": "No matching timestamps found for given criteria"}), 404
+
+        return jsonify(filtered_data), 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to fetch user data: {str(e)}"}), 500
@@ -835,6 +862,31 @@ def get_camera():
 def add_camera():
     data = request.get_json()
 
+    mac_address = data.get("MAC_address")
+    username = data.get("user")
+    password = data.get("password")
+    auto_discover = data.get("auto_discover", False)
+
+    if not mac_address or not username or not password:
+        return jsonify({"error": "MAC address, username, and password are required."}), 400
+
+    if auto_discover is True:
+        # Nếu auto_discover = True, không cho phép nhập IP và RTSP thủ công
+        if "IP" in data or "RTSP" in data:
+            return jsonify({"error": "When auto_discover is True, do not provide IP and RTSP. They will be generated automatically."}), 400
+
+        result = onvif_camera_tools.find_ip_and_rtsp_by_mac(mac_address, username, password)
+        if not result:
+            return jsonify({"error": f"Could not find device with MAC address {mac_address}."}), 404
+        ip_address = result["IP"]
+        rtsp_url = result["RTSP"]
+    else:
+        # Người dùng bắt buộc phải nhập IP và RTSP
+        ip_address = data.get("IP")
+        rtsp_url = data.get("RTSP")
+        if not ip_address or not rtsp_url:
+            return jsonify({"error": "When auto_discover is False, IP and RTSP must be provided manually."}), 400
+
     # Auto increment _id
     last_camera = camera_collection.find_one(sort=[("_id", -1)])
     new_id = last_camera['_id'] + 1 if last_camera else 1
@@ -844,17 +896,12 @@ def add_camera():
         "camera_name": data.get("camera_name"),
         "camera_location": data.get("camera_location"),
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "user": data.get("user"),
-        "password": data.get("password"),
-        "MAC_address": data.get("MAC_address"),
-        "IP": data.get("IP"),
-        "RTSP": data.get("RTSP")
+        "user": username,
+        "password": password,
+        "MAC_address": mac_address,
+        "IP": ip_address,
+        "RTSP": rtsp_url
     }
-
-    # Set missing fields to None
-    for key in camera:
-        if camera[key] is None:
-            camera[key] = None
 
     camera_collection.insert_one(camera)
     return jsonify({"message": "Camera added successfully.", "camera": camera}), 201

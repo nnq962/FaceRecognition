@@ -336,17 +336,30 @@ class LoadImages:
 
 
 class LoadStreams:
-    # YOLOv5 streamloader, i.e. `python detect.py --source 'rtsp://example.com/media.mp4'  # RTSP, RTMP, HTTP streams`
-    def __init__(self, sources='streams.txt', img_size=640, stride=32, auto=True, transforms=None, vid_stride=1):
+    def __init__(self, sources='streams.txt', vid_stride=1,
+                 reconnect_attempts=10, reconnect_delay=5, timeout=30):
         torch.backends.cudnn.benchmark = True  # faster for fixed-size inference
         self.mode = 'stream'
-        self.img_size = img_size
-        self.stride = stride
         self.vid_stride = vid_stride  # video frame-rate stride
+        
+        # Thêm các tham số cho khả năng phục hồi
+        self.reconnect_attempts = reconnect_attempts  # Số lần thử kết nối lại
+        self.reconnect_delay = reconnect_delay  # Thời gian chờ giữa các lần kết nối lại (giây)
+        self.timeout = timeout  # Timeout cho kết nối (giây)
+        self.connection_status = []  # Trạng thái kết nối cho mỗi stream
+        self.last_frame_time = []  # Thời gian nhận frame cuối cùng
+        self.reconnecting = []  # Trạng thái đang thử kết nối lại
+        
         sources = Path(sources).read_text().rsplit() if os.path.isfile(sources) else [sources]
         n = len(sources)
         self.sources = [clean_str(x) for x in sources]  # clean source names for later
+        self.original_sources = sources.copy()  # Lưu lại URL gốc để kết nối lại khi cần
         self.imgs, self.fps, self.frames, self.threads = [None] * n, [0] * n, [0] * n, [None] * n
+        self.connection_status = [True] * n  # Ban đầu giả định tất cả đều kết nối thành công
+        self.last_frame_time = [time.time()] * n  # Thời gian nhận frame cuối
+        self.reconnecting = [False] * n  # Không stream nào đang kết nối lại ban đầu
+        self.caps = [None] * n  # Lưu lại các đối tượng VideoCapture
+        
         for i, s in enumerate(sources):  # index, source
             # Start thread to read frames from video stream
             st = f'{i + 1}/{n}: {s}... '
@@ -359,8 +372,47 @@ class LoadStreams:
             if s == 0:
                 assert not is_colab(), '--source 0 webcam unsupported on Colab. Rerun command in a local environment.'
                 assert not is_kaggle(), '--source 0 webcam unsupported on Kaggle. Rerun command in a local environment.'
-            cap = cv2.VideoCapture(s)
+            
+            # Khởi tạo kết nối video
+            success, cap = self.create_capture(s, i)
+            
+            if not success:
+                LOGGER.warning(f'{st}Failed to open {s}. Will retry in background.')
+                self.connection_status[i] = False
+                self.imgs[i] = np.zeros((640, 640, 3), dtype=np.uint8)  # Tạo khung hình trống
+            else:
+                w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                fps = cap.get(cv2.CAP_PROP_FPS)  # warning: may return 0 or nan
+                LOGGER.info(f"Stream {i}: FPS: {fps}")
 
+                self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')  # infinite stream fallback
+                self.fps[i] = max((fps if math.isfinite(fps) else 0) % 100, 0) or 30  # 30 FPS fallback
+
+                _, self.imgs[i] = cap.read()  # guarantee first frame
+                self.caps[i] = cap
+                LOGGER.info(f"{st} Success ({self.frames[i]} frames {w}x{h} at {self.fps[i]:.2f} FPS)")
+            
+            # Luôn tạo thread, ngay cả khi kết nối ban đầu thất bại
+            self.threads[i] = Thread(target=self.update, args=([i, cap, s]), daemon=True)
+            self.threads[i].start()
+            
+        LOGGER.info('')  # newline
+    
+    def create_capture(self, source, index):
+        """Tạo và cấu hình VideoCapture với xử lý lỗi tốt hơn"""
+        try:
+            LOGGER.info(f"Attempting to connect to stream: {source}")
+            cap = cv2.VideoCapture(source)
+            
+            # Thiết lập thông số kỹ thuật timeout cho RTSP, HTTP streams
+            if isinstance(source, str) and ('rtsp:' in source or 'http:' in source or 'https:' in source):
+                # Thiết lập timeouts
+                cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, self.timeout * 1000)
+                cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, self.timeout * 1000)
+                # Một số camera yêu cầu buffer nhỏ để giảm độ trễ
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            
             # Thiết lập MJPG để đạt FPS cao
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
             # Thiết lập độ phân giải và FPS
@@ -371,45 +423,135 @@ class LoadStreams:
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, desired_width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, desired_height)
             cap.set(cv2.CAP_PROP_FPS, desired_fps)
-
-            assert cap.isOpened(), f'{st}Failed to open {s}'
-            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            fps = cap.get(cv2.CAP_PROP_FPS)  # warning: may return 0 or nan
-            print("FPS:", fps)
-
-            self.frames[i] = max(int(cap.get(cv2.CAP_PROP_FRAME_COUNT)), 0) or float('inf')  # infinite stream fallback
-            self.fps[i] = max((fps if math.isfinite(fps) else 0) % 100, 0) or 30  # 30 FPS fallback
-
-            _, self.imgs[i] = cap.read()  # guarantee first frame
-            self.threads[i] = Thread(target=self.update, args=([i, cap, s]), daemon=True)
-            LOGGER.info(f"{st} Success ({self.frames[i]} frames {w}x{h} at {self.fps[i]:.2f} FPS)")
-            self.threads[i].start()
-        LOGGER.info('')  # newline
-
-        # check for common shapes
-        s = np.stack([letterbox(x, img_size, stride=stride, auto=auto)[0].shape for x in self.imgs])
-        self.rect = np.unique(s, axis=0).shape[0] == 1  # rect inference if all shapes equal
-        self.auto = auto and self.rect
-        self.transforms = transforms  # optional
-        if not self.rect:
-            LOGGER.warning('WARNING ⚠️ Stream shapes differ. For optimal performance supply similarly-shaped streams.')
+            
+            # Verify connection
+            if not cap.isOpened():
+                LOGGER.error(f"Cannot open stream {index}: {source}")
+                return False, None
+                
+            return True, cap
+            
+        except Exception as e:
+            LOGGER.error(f"Error creating capture for stream {index}: {source}. Error: {str(e)}")
+            return False, None
+    
+    def reconnect_stream(self, index, source):
+        """Thử kết nối lại với stream"""
+        if self.reconnecting[index]:
+            return False, None  # Đã có thread đang thử kết nối lại
+            
+        self.reconnecting[index] = True
+        LOGGER.warning(f"Attempting to reconnect to stream {index}: {source}")
+        
+        # Đóng kết nối cũ nếu còn tồn tại
+        if self.caps[index] is not None:
+            try:
+                self.caps[index].release()
+            except:
+                pass
+        
+        # Thử kết nối lại với số lần thử xác định
+        for attempt in range(self.reconnect_attempts):
+            LOGGER.info(f"Reconnection attempt {attempt+1}/{self.reconnect_attempts} for stream {index}")
+            success, cap = self.create_capture(source, index)
+            
+            if success and cap.isOpened():
+                # Đọc frame đầu tiên để kiểm tra
+                ret, frame = cap.read()
+                if ret:
+                    LOGGER.info(f"Successfully reconnected to stream {index}")
+                    self.reconnecting[index] = False
+                    self.connection_status[index] = True
+                    self.last_frame_time[index] = time.time()
+                    return True, cap
+            
+            # Chờ trước khi thử lại
+            time.sleep(self.reconnect_delay)
+        
+        # Nếu tất cả các lần thử đều thất bại
+        LOGGER.error(f"Failed to reconnect to stream {index} after {self.reconnect_attempts} attempts")
+        self.reconnecting[index] = False
+        return False, None
 
     def update(self, i, cap, stream):
         # Read stream `i` frames in daemon thread
         n, f = 0, self.frames[i]  # frame number, frame array
-        while cap.isOpened() and n < f:
-            n += 1
-            cap.grab()  # .read() = .grab() followed by .retrieve()
-            if n % self.vid_stride == 0:
-                success, im = cap.retrieve()
-                if success:
-                    self.imgs[i] = im
-                else:
-                    LOGGER.warning('WARNING ⚠️ Video stream unresponsive, please check your IP camera connection.')
-                    self.imgs[i] = np.zeros_like(self.imgs[i])
-                    cap.open(stream)  # re-open stream if signal was lost
-            time.sleep(0.0)  # wait time
+        reconnect_count = 0
+        max_failures_before_reconnect = 5
+        consecutive_failures = 0
+        
+        while True:  # Bỏ điều kiện dừng để luôn cố gắng duy trì kết nối
+            try:
+                if not self.connection_status[i]:
+                    # Thử kết nối lại nếu mất kết nối
+                    success, new_cap = self.reconnect_stream(i, self.original_sources[i])
+                    if success:
+                        cap = new_cap
+                        self.caps[i] = cap
+                        consecutive_failures = 0
+                    else:
+                        # Nếu không thể kết nối lại, chờ và thử lại
+                        time.sleep(self.reconnect_delay)
+                        continue
+                
+                # Kiểm tra xem kết nối có còn hoạt động không
+                if cap is None or not cap.isOpened():
+                    LOGGER.warning(f"Stream {i} connection lost. Attempting to reconnect...")
+                    self.connection_status[i] = False
+                    continue
+                
+                # Kiểm tra thời gian từ frame cuối cùng để phát hiện đóng băng
+                current_time = time.time()
+                if current_time - self.last_frame_time[i] > self.timeout and not self.reconnecting[i]:
+                    LOGGER.warning(f"Stream {i} appears frozen (no frames for {self.timeout}s). Attempting to reconnect...")
+                    self.connection_status[i] = False
+                    continue
+                
+                # Đọc frame
+                n += 1
+                grab_success = cap.grab()  # .read() = .grab() followed by .retrieve()
+                
+                if not grab_success:
+                    consecutive_failures += 1
+                    LOGGER.warning(f"Failed to grab frame from stream {i}. Failure count: {consecutive_failures}/{max_failures_before_reconnect}")
+                    
+                    if consecutive_failures >= max_failures_before_reconnect:
+                        LOGGER.warning(f"Stream {i} consistently failing. Attempting to reconnect...")
+                        self.connection_status[i] = False
+                        consecutive_failures = 0
+                        continue
+                    
+                    # Chờ một chút trước khi thử lại
+                    time.sleep(0.5)
+                    continue
+                
+                # Reset bộ đếm lỗi nếu grab thành công
+                consecutive_failures = 0
+                
+                # Chỉ xử lý mỗi vid_stride frame để giảm tải
+                if n % self.vid_stride == 0:
+                    success, im = cap.retrieve()
+                    if success:
+                        self.imgs[i] = im
+                        self.last_frame_time[i] = time.time()  # Cập nhật thời gian frame cuối
+                    else:
+                        LOGGER.warning(f"WARNING ⚠️ Failed to retrieve frame from stream {i}")
+                        # Không đặt ngay lập tức connection_status = False,
+                        # cho phép một số lần thất bại trước khi thử kết nối lại
+                        consecutive_failures += 1
+                        if consecutive_failures >= max_failures_before_reconnect:
+                            LOGGER.warning(f"Stream {i} consistently failing on retrieve. Attempting to reconnect...")
+                            self.connection_status[i] = False
+                            consecutive_failures = 0
+                
+                # Thêm short sleep để tránh đóng băng CPU
+                time.sleep(0.001)
+                
+            except Exception as e:
+                LOGGER.error(f"Error in stream {i} update: {str(e)}")
+                self.connection_status[i] = False
+                # Chờ trước khi thử lại để tránh vòng lặp lỗi quá nhanh
+                time.sleep(1)
 
     def __iter__(self):
         self.count = -1
@@ -417,22 +559,39 @@ class LoadStreams:
 
     def __next__(self):
         self.count += 1
-        if not all(x.is_alive() for x in self.threads) or cv2.waitKey(1) == ord('q'):  # q to quit
+        if not any(x.is_alive() for x in self.threads) or cv2.waitKey(1) == ord('q'):  # q to quit
             cv2.destroyAllWindows()
             raise StopIteration
 
+        # Hiển thị trạng thái kết nối cho user
+        for i, status in enumerate(self.connection_status):
+            if not status and not self.reconnecting[i]:
+                LOGGER.info(f"Stream {i} disconnected. Reconnection in progress...")
+        
+        # Tạo bản sao của hình ảnh hiện tại
         im0 = self.imgs.copy()
-        if self.transforms:
-            im = np.stack([self.transforms(x) for x in im0])  # transforms
-        else:
-            im = np.stack([letterbox(x, self.img_size, stride=self.stride, auto=self.auto)[0] for x in im0])  # resize
-            im = im[..., ::-1].transpose((0, 3, 1, 2))  # BGR to RGB, BHWC to BCHW
-            im = np.ascontiguousarray(im)  # contiguous
+        
+        # Thêm thông tin trạng thái kết nối
+        connection_info = {i: {'status': self.connection_status[i], 
+                              'reconnecting': self.reconnecting[i], 
+                              'last_frame': self.last_frame_time[i]} 
+                          for i in range(len(self.sources))}
 
-        return self.sources, im, im0, None, ''
+        return self.sources, im0, None, connection_info
 
     def __len__(self):
         return len(self.sources)  # 1E12 frames = 32 streams at 30 FPS for 30 years
+    
+    def close(self):
+        """Đóng tất cả các kết nối và giải phóng tài nguyên"""
+        for i, cap in enumerate(self.caps):
+            if cap is not None:
+                cap.release()
+        
+        # Chờ tất cả các thread kết thúc
+        for thread in self.threads:
+            if thread.is_alive():
+                thread.join(timeout=1.0)
 
 
 def img2label_paths(img_paths):

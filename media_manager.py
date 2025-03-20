@@ -91,7 +91,7 @@ class MediaManager:
         # Tạo dataloader dựa trên loại nguồn
         if self.webcam:
             # check_imshow(warn=True)
-            self.dataset = LoadStreams(self.source, img_size=self.imgsz, stride=32, auto=True, vid_stride=self.vid_stride)
+            self.dataset = LoadStreams(sources=self.source, vid_stride=self.vid_stride, reconnect_attempts=50, reconnect_delay=10, timeout=30)
             self.batch_size = len(self.dataset)
         elif screenshot:
             self.dataset = LoadScreenshots(self.source, img_size=self.imgsz, stride=32, auto=True)
