@@ -235,8 +235,7 @@ class LoadScreenshots:
 
 
 class LoadImages:
-    # YOLOv5 image/video dataloader, i.e. `python detect.py --source image.jpg/vid.mp4`
-    def __init__(self, path, img_size=640, stride=32, auto=True, transforms=None, vid_stride=1):
+    def __init__(self, path, vid_stride=1):
         files = []
         for p in sorted(path) if isinstance(path, (list, tuple)) else [path]:
             p = str(Path(p).resolve())
@@ -253,14 +252,10 @@ class LoadImages:
         videos = [x for x in files if x.split('.')[-1].lower() in VID_FORMATS]
         ni, nv = len(images), len(videos)
 
-        self.img_size = img_size
-        self.stride = stride
         self.files = images + videos
         self.nf = ni + nv  # number of files
         self.video_flag = [False] * ni + [True] * nv
         self.mode = 'image'
-        self.auto = auto
-        self.transforms = transforms  # optional
         self.vid_stride = vid_stride  # video frame-rate stride
         if any(videos):
             self._new_video(videos[0])  # new video
@@ -304,14 +299,7 @@ class LoadImages:
             assert im0 is not None, f'Image Not Found {path}'
             s = f'image {self.count}/{self.nf} {path}: '
 
-        if self.transforms:
-            im = self.transforms(im0)  # transforms
-        else:
-            im = letterbox(im0, self.img_size, stride=self.stride, auto=self.auto)[0]  # padded resize
-            im = im.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
-            im = np.ascontiguousarray(im)  # contiguous
-
-        return path, im, im0, self.cap, s
+        return path, im0, self.cap, s
 
     def _new_video(self, path):
         # Create a new video capture object
@@ -475,8 +463,7 @@ class LoadStreams:
 
     def update(self, i, cap, stream):
         # Read stream `i` frames in daemon thread
-        n, f = 0, self.frames[i]  # frame number, frame array
-        reconnect_count = 0
+        n, _ = 0, self.frames[i]  # frame number, frame array
         max_failures_before_reconnect = 5
         consecutive_failures = 0
         

@@ -4,7 +4,7 @@ class FaceEmotion:
     """
     Phân tích cảm xúc khuôn mặt
     """
-    def __init__(self, model_name="enet_b2_8", device=None):
+    def __init__(self, engine="torch", model_name="enet_b2_8", device=None):
         """
         Khởi tạo nhận diện cảm xúc.
         
@@ -18,7 +18,7 @@ class FaceEmotion:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         
         self.device = device
-        self.fer = EmotiEffLibRecognizer(engine="torch", model_name=model_name, device=device)
+        self.fer = EmotiEffLibRecognizer(engine=engine, model_name=model_name, device=device)
     
     def get_emotions(self, crop_faces):
         multi_emotions, _ = self.fer.predict_emotions(crop_faces, logits=True)

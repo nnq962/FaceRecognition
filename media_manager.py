@@ -8,7 +8,6 @@ class MediaManager:
                  source='0',
                  project='runs',
                  name='exp',
-                 imgsz=(640, 640),
                  exist_ok=False,
                  save=False,
                  vid_stride=1,
@@ -25,7 +24,6 @@ class MediaManager:
                  streaming=False,
                  export_data=False,
                  time_to_save=5,
-                 show_time_process=False,
                  raise_hand=False,
                  qr_code=False,
                  face_mask=False):
@@ -35,7 +33,6 @@ class MediaManager:
         self.source = str(source)
         self.project = project
         self.name = name
-        self.imgsz = imgsz
         self.exist_ok = exist_ok
         self.save_txt = save_txt
         self.save = save
@@ -52,7 +49,6 @@ class MediaManager:
         self.streaming = streaming
         self.export_data = export_data
         self.time_to_save = time_to_save
-        self.show_time_process = show_time_process
         self.raise_hand = raise_hand
         self.qr_code = qr_code
         self.face_mask = face_mask
@@ -94,9 +90,9 @@ class MediaManager:
             self.dataset = LoadStreams(sources=self.source, vid_stride=self.vid_stride, reconnect_attempts=50, reconnect_delay=10, timeout=30)
             self.batch_size = len(self.dataset)
         elif screenshot:
-            self.dataset = LoadScreenshots(self.source, img_size=self.imgsz, stride=32, auto=True)
+            self.dataset = LoadScreenshots(self.source, img_size=640, stride=32, auto=True)
         else:
-            self.dataset = LoadImages(self.source, img_size=self.imgsz, stride=32, auto=True, vid_stride=self.vid_stride)
+            self.dataset = LoadImages(self.source, vid_stride=self.vid_stride)
 
         # Chuẩn bị danh sách video writer và path
         self.vid_path = [None] * self.batch_size

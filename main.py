@@ -14,7 +14,6 @@ parser.add_argument("--check_small_face", action="store_true", help="Enable smal
 parser.add_argument("--streaming", action="store_true", help="Enable streaming mode.")
 parser.add_argument("--export_data", action="store_true", help="Enable data export.")
 parser.add_argument("--time_to_save", type=int, default=5, help="Time interval (in seconds) to save exported data.")
-parser.add_argument("--show_time_process", action="store_true", help="Enable display of process time.")
 parser.add_argument("--raise_hand", action="store_true", help="Enable raise hand detection.")
 parser.add_argument("--view_img", action="store_true", help="Enable display.")
 parser.add_argument("--line_thickness", type=int, default=3, help="Line thickness")
@@ -35,7 +34,6 @@ media_manager = MediaManager(
     streaming=args.streaming,
     export_data=args.export_data,
     time_to_save=args.time_to_save,
-    show_time_process=args.show_time_process,
     raise_hand=args.raise_hand,
     view_img=args.view_img,
     line_thickness=args.line_thickness,

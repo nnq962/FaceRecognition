@@ -125,8 +125,8 @@ class InsightFaceDetector:
             pred = self.get_face_detects(im0s)
 
             face_counts = []  # Lưu số lượng khuôn mặt trong từng ảnh để ghép lại sau này
-            all_cropped_faces_recognition = []  # Danh sách chứa toàn bộ khuôn mặt đã crop (dạng phẳng)
-            all_cropped_faces_emotion = []
+            all_cropped_faces_recognition = []  # Danh sách chứa toàn bộ khuôn mặt đã crop (dạng phẳng) cho xác minh
+            all_cropped_faces_emotion = [] # Danh sách chứa toàn bộ khuôn mặt đã crop (dạng phẳng) cho cảm xúc
             user_emotions = []  # Danh sách chứa toàn bộ cảm xúc của khuôn mặt
             user_infos = []  # Danh sách chứa thông tin người dùng
 
@@ -243,10 +243,11 @@ class InsightFaceDetector:
                     # Test backend
                     if user_id == 1 and get_raising_hand(im0, bbox):
                         self.hand_detected_frames += 1
-                        if self.hand_detected_frames >= 30:
+                        if self.hand_detected_frames >= 20:
                             self.hand_detected_frames = 0
                             ns_send_notification("Ok sếp ơi")
                     
+                    # Kiểm tra giơ tay
                     if self.media_manager.raise_hand and user_id != "Unknown":
                         hand_raised = get_raising_hand(im0, bbox)
                         previous_state = self.previous_hand_states[camera_name].get(user_id, None)
