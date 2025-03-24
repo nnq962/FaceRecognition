@@ -2,7 +2,7 @@ from config import config
 import argparse
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
-from utils.websocket_server import start_ws_server
+from websocket_server import start_ws_server
 
 
 parser = argparse.ArgumentParser(description="Run face detection and analysis.")

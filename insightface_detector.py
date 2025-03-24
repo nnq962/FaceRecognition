@@ -10,12 +10,12 @@ ort.set_default_logger_severity(3)
 
 from utils.plots import Annotator
 from face_emotion import FaceEmotion
-from utils.insightface_utils import normalize_embeddings, crop_and_align_faces, crop_faces_for_emotion, search_ids, crop_image
+from insightface_utils import normalize_embeddings, crop_and_align_faces, crop_faces_for_emotion, search_ids, crop_image
 from hand_raise_detector import get_raising_hand
-from utils.websocket_server import send_notification
+from websocket_server import send_notification
 from config import config
 from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
-from utils.notification_server import send_notification as ns_send_notification
+from notification_server import send_notification as ns_send_notification
 import face_mask_detection
 from pymongo.operations import InsertOne, UpdateOne
 from utils.logger_config import LOGGER

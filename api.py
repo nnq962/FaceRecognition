@@ -6,7 +6,7 @@ import pandas as pd
 import os
 import shutil
 from insightface_detector import InsightFaceDetector
-from utils.insightface_utils import process_image
+from insightface_utils import process_image
 import numpy as np
 from flask_cors import CORS
 from gtts import gTTS
@@ -14,7 +14,7 @@ from config import config
 from annoy import AnnoyIndex
 import faiss
 import pickle
-import utils.onvif_camera_tools as onvif_camera_tools
+import onvif_camera_tools as onvif_camera_tools
 from utils.logger_config import LOGGER
 
 app = Flask(__name__)
