@@ -1,3 +1,3 @@
-from notification_server import send_notification
+from utils.notification_server import send_notification
 
-send_notification("Hihihaha")
+send_notification("Hihi")

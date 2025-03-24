@@ -1,6 +1,7 @@
 import socket
 import time
 import threading
+from utils.logger_config import LOGGER
 
 host = '192.168.1.142'
 
@@ -23,9 +24,9 @@ class NotificationServer:
             host_ip = socket.gethostbyname(self.host)
             self.server_socket.bind((host_ip, self.port))
             self.server_socket.listen(5)
-            print(f"Server đang lắng nghe tại {(host_ip, self.port)}")
+            LOGGER.info(f"Server đang lắng nghe tại {(host_ip, self.port)}")
         except Exception as e:
-            print(f"Lỗi khi thiết lập server: {e}")
+            LOGGER.error(f"Lỗi khi thiết lập server: {e}")
             self.cleanup()
             raise
 
@@ -36,30 +37,30 @@ class NotificationServer:
             host_ip = socket.gethostbyname(self.host)
             self.control_socket.bind((host_ip, self.control_port))
             self.control_socket.listen(5)
-            print(f"Control socket đang lắng nghe tại {(host_ip, self.control_port)}")
+            LOGGER.info(f"Control socket đang lắng nghe tại {(host_ip, self.control_port)}")
         except Exception as e:
-            print(f"Lỗi khi thiết lập control socket: {e}")
+            LOGGER.error(f"Lỗi khi thiết lập control socket: {e}")
             self.cleanup()
             raise
 
     def accept_client(self):
         try:
             self.client_socket, addr = self.server_socket.accept()
-            print(f"Kết nối từ client: {addr}")
+            LOGGER.info(f"Kết nối từ client: {addr}")
         except Exception as e:
-            print(f"Lỗi khi chấp nhận client: {e}")
+            LOGGER.error(f"Lỗi khi chấp nhận client: {e}")
 
     def send_notification(self, message):
         try:
             if self.client_socket:
                 self.client_socket.send(message.encode('utf-8'))
-                print(f"Đã gửi tới client: {message}")
+                LOGGER.info(f"Đã gửi tới client: {message}")
                 return True
             else:
-                print("Chưa có kết nối client")
+                LOGGER.info("Chưa có kết nối client")
                 return False
         except Exception as e:
-            print(f"Lỗi khi gửi thông báo: {e}")
+            LOGGER.error(f"Lỗi khi gửi thông báo: {e}")
             return False
 
     def handle_control(self):
@@ -71,7 +72,7 @@ class NotificationServer:
                     self.send_notification(message)
                 control_client.close()
             except Exception as e:
-                print(f"Lỗi khi xử lý control: {e}")
+                LOGGER.error(f"Lỗi khi xử lý control: {e}")
 
     def cleanup(self):
         self.running = False
@@ -81,7 +82,7 @@ class NotificationServer:
             self.server_socket.close()
         if self.control_socket:
             self.control_socket.close()
-        print("Đã đóng tất cả kết nối")
+        LOGGER.info("Đã đóng tất cả kết nối")
 
     def run(self):
         self.running = True
@@ -101,7 +102,7 @@ def start_server(host=host, port=9999, control_port=9998):
         server_thread = threading.Thread(target=server_instance.run, daemon=True)
         server_thread.start()
         time.sleep(1)
-        print("Server đã khởi động")
+        LOGGER.info("Server đã khởi động")
     return server_instance
 
 def send_notification(message, host=host, control_port=9998):
@@ -113,7 +114,7 @@ def send_notification(message, host=host, control_port=9998):
         control_socket.close()
         return True
     except Exception as e:
-        print(f"Lỗi khi gửi thông báo tới server: {e}")
+        LOGGER.error(f"Lỗi khi gửi thông báo tới server: {e}")
         return False
 
 if __name__ == "__main__":

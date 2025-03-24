@@ -7,6 +7,7 @@ import faiss
 import pickle
 import platform
 from insightface.utils import face_align
+from utils.logger_config import LOGGER
 
 current_os = platform.system()
 
@@ -33,6 +34,15 @@ def search_ids(embeddings, top_k=1, threshold=0.5):
     Returns:
         list: Danh sách kết quả, với mỗi phần tử là một dictionary hoặc None nếu không có kết quả hợp lệ.
     """
+    # Kiểm tra file tồn tại trước khi load
+    if not os.path.exists(config.faiss_file):
+        LOGGER.warning(f"Missing Faiss index file: {config.faiss_file}")
+        return [None] * len(embeddings)
+
+    if not os.path.exists(config.faiss_mapping_file):
+        LOGGER.warning(f"Missing mapping file: {config.faiss_mapping_file}")
+        return [None] * len(embeddings)
+
     # Load FAISS index
     index = faiss.read_index(config.faiss_file)
 
@@ -77,11 +87,11 @@ def search_annoy(query_embedding, n_neighbors=1, threshold=None):
 
     # Kiểm tra file tồn tại trước khi load
     if not os.path.exists(config.ann_file):
-        print(f"Missing Annoy index file: {config.ann_file}")
+        LOGGER.warning(f"Missing Annoy index file: {config.ann_file}")
         return None
 
     if not os.path.exists(config.mapping_file):
-        print(f"Missing mapping file: {config.mapping_file}")
+        LOGGER.warning(f"Missing mapping file: {config.mapping_file}")
         return None
 
     # Load Annoy Index (sử dụng Euclidean thay vì Angular)
@@ -280,7 +290,7 @@ def process_image(image_path, detector):
     """
     img = cv2.imread(image_path)
     if img is None:
-        print(f"Failed to read image {image_path}.")
+        LOGGER.warning(f"Failed to read image {image_path}.")
         return None
 
     try:
@@ -291,10 +301,10 @@ def process_image(image_path, detector):
         num_faces = len(bounding_boxes)
 
         if num_faces == 0:
-            print("No face in this image")
+            LOGGER.warning("No face in this image")
             return None
         elif num_faces > 1:
-            print(f"Multiple faces detected in this image ({num_faces} faces)")
+            LOGGER.warning(f"Multiple faces detected in this image ({num_faces} faces)")
             return None
 
         # Gọi hàm crop_and_align_faces với khuôn mặt đầu tiên
@@ -307,7 +317,7 @@ def process_image(image_path, detector):
         )
 
         if not cropped_faces:
-            print("No face passed the confidence threshold.")
+            LOGGER.warning("No face passed the confidence threshold.")
             return None
 
         # Trích xuất embedding
@@ -315,7 +325,7 @@ def process_image(image_path, detector):
         return embedding[0]
 
     except Exception as e:
-        print(f"Error processing {image_path}: {e}")
+        LOGGER.error(f"Error processing {image_path}: {e}")
         return None
     
 def crop_faces_for_emotion(frame, bboxes, conf_threshold=0.5):

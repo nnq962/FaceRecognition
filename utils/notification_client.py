@@ -2,6 +2,7 @@ import socket
 import os
 from gtts import gTTS
 import subprocess
+from utils.logger_config import LOGGER
 
 host = '192.168.1.142'
 
@@ -16,9 +17,9 @@ class NotificationClient:
         """Kết nối tới server"""
         try:
             self.client_socket.connect((self.host, self.port))
-            print(f"Đã kết nối tới server {self.host}:{self.port}")
+            LOGGER.info(f"Đã kết nối tới server {self.host}:{self.port}")
         except Exception as e:
-            print(f"Không thể kết nối tới server: {e}")
+            LOGGER.error(f"Không thể kết nối tới server: {e}")
             raise
 
     def play_audio(self, text):
@@ -32,7 +33,7 @@ class NotificationClient:
             if os.path.exists(audio_file):
                 os.remove(audio_file)
         except Exception as e:
-            print(f"Lỗi khi phát âm thanh: {e}")
+            LOGGER.error(f"Lỗi khi phát âm thanh: {e}")
 
     def listen(self):
         """Luôn lắng nghe thông báo từ server"""
@@ -40,18 +41,18 @@ class NotificationClient:
             while True:
                 data = self.client_socket.recv(1024).decode('utf-8')
                 if not data:
-                    print("Mất kết nối với server")
+                    LOGGER.error("Mất kết nối với server")
                     break
                 if data.lower() == "exit":
-                    print("Nhận lệnh thoát từ server")
+                    LOGGER.info("Nhận lệnh thoát từ server")
                     break
-                print(f"Nhận được thông báo: {data}")
+                LOGGER.info(f"Nhận được thông báo: {data}")
                 self.play_audio(data)
         except Exception as e:
-            print(f"Lỗi khi nhận thông báo: {e}")
+            LOGGER.error(f"Lỗi khi nhận thông báo: {e}")
         finally:
             self.client_socket.close()
-            print("Đã đóng kết nối")
+            LOGGER.info("Đã đóng kết nối")
 
 if __name__ == "__main__":
     client = NotificationClient()

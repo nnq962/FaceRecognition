@@ -6,7 +6,7 @@ import pandas as pd
 import os
 import shutil
 from insightface_detector import InsightFaceDetector
-from insightface_utils import process_image
+from utils.insightface_utils import process_image
 import numpy as np
 from flask_cors import CORS
 from gtts import gTTS
@@ -14,7 +14,8 @@ from config import config
 from annoy import AnnoyIndex
 import faiss
 import pickle
-import onvif_camera_tools
+import utils.onvif_camera_tools as onvif_camera_tools
+from utils.logger_config import LOGGER
 
 app = Flask(__name__)
 CORS(app)
@@ -73,10 +74,10 @@ def generate_all_user_embeddings():
         user_id = user["_id"]
         photo_folder = user.get("photo_folder")
 
-        print(f"Processing user ID {user_id}...")
+        LOGGER.info(f"Processing user ID {user_id}...")
 
         if not photo_folder or not os.path.exists(photo_folder):
-            print(f"Photo folder does not exist for user ID {user_id}: {photo_folder}")
+            LOGGER.warning(f"Photo folder does not exist for user ID {user_id}: {photo_folder}")
             continue
 
         face_embeddings = []
@@ -98,10 +99,10 @@ def generate_all_user_embeddings():
                         })
 
                         photo_count += 1
-                        print(f"Added embedding for file {file_name} (user ID {user_id})")
+                        LOGGER.info(f"Added embedding for file {file_name} (user ID {user_id})")
 
                 except Exception as e:
-                    print(f"Error processing file {file_path}: {e}")
+                    LOGGER.error(f"Error processing file {file_path}: {e}")
 
         # Cập nhật face_embeddings vào users_collection
         users_collection.update_one(
@@ -109,8 +110,7 @@ def generate_all_user_embeddings():
             {"$set": {"face_embeddings": face_embeddings}}
         )
 
-        print(f"Completed processing user ID {user_id}. Total photos processed: {photo_count}")
-        print("-" * 80)
+        LOGGER.info(f"Completed processing user ID {user_id}. Total photos processed: {photo_count}")
 
 
 # ----------------------------------------------------------------
@@ -164,7 +164,7 @@ def build_faiss_index():
 
     # Kiểm tra nếu không có embeddings
     if not embeddings:
-        print("Không có embeddings nào trong MongoDB!")
+        LOGGER.warning("Không có embeddings nào trong MongoDB!")
         return
 
     # Chuyển thành NumPy array
@@ -186,8 +186,8 @@ def build_faiss_index():
     with open(config.faiss_mapping_file, "wb") as f:
         pickle.dump(id_mapping, f)
 
-    print(f"FAISS index đã được tạo và lưu vào {config.faiss_file}.")
-    print(f"Mapping index → user đã được lưu vào {config.faiss_mapping_file}.")
+    LOGGER.info(f"FAISS index đã được tạo và lưu vào {config.faiss_file}.")
+    LOGGER.info(f"Mapping index → user đã được lưu vào {config.faiss_mapping_file}.")
 
 
 # ----------------------------------------------------------------
@@ -217,7 +217,7 @@ def build_ann_index():
 
     # Kiểm tra nếu không có embeddings
     if not embeddings:
-        print("Không có embeddings nào trong MongoDB!")
+        LOGGER.warning("Không có embeddings nào trong MongoDB!")
         return
 
     # Chuyển thành NumPy array để xử lý nhanh hơn
@@ -242,8 +242,8 @@ def build_ann_index():
     # Lưu id_mapping thành file .npy
     np.save(config.mapping_file, id_mapping)
 
-    print(f"Annoy index has been successfully created and saved to {config.ann_file}.")
-    print(f"Mapping index → user has been saved to {config.mapping_file}.")
+    LOGGER.info(f"Annoy index has been successfully created and saved to {config.ann_file}.")
+    LOGGER.info(f"Mapping index → user has been saved to {config.mapping_file}.")
 
 
 # ----------------------------------------------------------------
@@ -675,8 +675,7 @@ def export_attendance():
     
 # ----------------------------------------------------------------
 if config.init_database:
-    print("-" * 80)
-    print("Initialize database")
+    LOGGER.info("Initialize database")
     generate_all_user_embeddings()
     build_faiss_index()
 

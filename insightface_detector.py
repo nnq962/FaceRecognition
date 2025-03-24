@@ -3,20 +3,22 @@ import os
 import platform
 from insightface.model_zoo import model_zoo
 from pathlib import Path
+import time
+import numpy as np
+import onnxruntime as ort
+
 from utils.plots import Annotator
 from face_emotion import FaceEmotion
-import insightface_utils
+from utils.insightface_utils import normalize_embeddings, crop_and_align_faces, crop_faces_for_emotion, search_ids, crop_image
 from hand_raise_detector import get_raising_hand
-from websocket_server import send_notification
-import time
-import onnxruntime as ort
-ort.set_default_logger_severity(3)
-import numpy as np
+from utils.websocket_server import send_notification
 from config import config
 from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
-from notification_server import send_notification as ns_send_notification
+from utils.notification_server import send_notification as ns_send_notification
 import face_mask_detection
 from pymongo.operations import InsertOne, UpdateOne
+from utils.logger_config import LOGGER
+ort.set_default_logger_severity(3)
 
 
 class InsightFaceDetector:
@@ -94,7 +96,7 @@ class InsightFaceDetector:
             return []
 
         embeddings = self.rec_model.get_feat(cropped_images)
-        return insightface_utils.normalize_embeddings(embeddings)
+        return normalize_embeddings(embeddings)
         
     def get_frame(self, im0s, i, webcam=False):
         if webcam:
@@ -170,12 +172,12 @@ class InsightFaceDetector:
 
                 # Crop khuôn mặt để phát hiện cảm xúc
                 if self.media_manager.face_emotion:
-                    cropped_faces_emotion = insightface_utils.crop_faces_for_emotion(im0, bounding_boxes, conf_threshold=0.55)
+                    cropped_faces_emotion = crop_faces_for_emotion(im0, bounding_boxes, conf_threshold=0.55)
                     all_cropped_faces_emotion.extend(cropped_faces_emotion)
 
                 # Crop khuôn mặt để embeddings
                 if self.media_manager.face_recognition:
-                    cropped_faces_recognition = insightface_utils.crop_and_align_faces(im0, bounding_boxes, keypoints, 0.55)
+                    cropped_faces_recognition = crop_and_align_faces(im0, bounding_boxes, keypoints, 0.55)
                     all_cropped_faces_recognition.extend(cropped_faces_recognition)  # Thêm tất cả khuôn mặt vào danh sách chính (dạng phẳng)
 
             # Lấy cảm xúc các khuôn mặt
@@ -185,7 +187,7 @@ class InsightFaceDetector:
             # Lấy embeddings và truy xuất thông tin
             if all_cropped_faces_recognition:
                 all_embeddings = self.get_face_embeddings(all_cropped_faces_recognition)
-                user_infos = insightface_utils.search_ids(all_embeddings, threshold=0.5)
+                user_infos = search_ids(all_embeddings, threshold=0.5)
             
             # Ghép kết quả
             results_per_image = []  # Danh sách kết quả theo từng ảnh
@@ -295,7 +297,7 @@ class InsightFaceDetector:
                     if self.media_manager.save_crop:
                         crops_dir = Path(self.save_dir) / 'crops'
                         crops_dir.mkdir(parents=True, exist_ok=True)
-                        face_crop = insightface_utils.crop_image(imc, bbox[:4])
+                        face_crop = crop_image(imc, bbox[:4])
                         cv2.imwrite(str(crops_dir / f'{p.stem}.jpg'), face_crop)
 
                 # Stream results
@@ -426,4 +428,4 @@ class InsightFaceDetector:
         for writer in self.media_manager.vid_writer:
             if isinstance(writer, cv2.VideoWriter):
                 writer.release()
-                print("Video writer released successfully.")
+                LOGGER.info("Video writer released successfully.")

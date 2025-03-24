@@ -5,6 +5,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import sys
 import gdown
+from utils.logger_config import LOGGER
 
 
 class Config:
@@ -52,11 +53,9 @@ class Config:
         Path(folder).mkdir(parents=True, exist_ok=True)
 
     def __init__(self):
-        print("-" * 80)
         self.update_path = self.find_file_in_anaconda("degradations.py")
         # self.update_import(file_path=self.update_path)
         self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
-        print("-" * 80)
 
     def get_rtsp_by_id(self, camera_id):
         # Tìm document theo _id
@@ -114,7 +113,7 @@ class Config:
         
         # Kiểm tra tệp có tồn tại không
         if not os.path.exists(file_path):
-            print(f"File not found: {file_path}")
+            LOGGER.warning(f"File not found: {file_path}")
         else:
             try:
                 # Đọc nội dung tệp
@@ -128,9 +127,9 @@ class Config:
                 with open(file_path, "w") as file:
                     file.writelines(updated_lines)
                     
-                print(f"Successfully updated the import in {file_path}")
+                LOGGER.info(f"Successfully updated the import in {file_path}")
             except Exception as e:
-                print(f"An error occurred: {e}")
+                LOGGER.error(f"An error occurred: {e}")
 
     def prepare_models(self, model_urls, save_dir="~/Models"):
         """
@@ -149,15 +148,15 @@ class Config:
             model_path = Path(save_dir) / model_name
             
             if model_path.exists():
-                print(f"Model '{model_name}' already exists at '{model_path}'.")
+                LOGGER.info(f"Model '{model_name}' already exists at '{model_path}'.")
             else:
-                print(f"Downloading model '{model_name}' from '{model_url}' to '{model_path}'...")
+                LOGGER.info(f"Downloading model '{model_name}' from '{model_url}' to '{model_path}'...")
                 try:
                     # Tải mô hình từ Google Drive
                     gdown.download(model_url, str(model_path), quiet=False)
-                    print(f"Model '{model_name}' downloaded successfully!")
+                    LOGGER.info(f"Model '{model_name}' downloaded successfully!")
                 except Exception as e:
-                    print(f"Failed to download model '{model_name}': {e}")
+                    LOGGER.error(f"Failed to download model '{model_name}': {e}")
 
     def process_camera_input(self, source):
         """
@@ -172,13 +171,13 @@ class Config:
         """
         # Kiểm tra nếu source là đường dẫn tới một tệp (không phải device.txt)
         if os.path.isfile(source) and not source.endswith('.txt'):
-            print(f"Đọc nguồn từ tệp: {source}")
+            LOGGER.info(f"Đọc nguồn từ tệp: {source}")
             self.camera_names.append(os.path.basename(source))
             return source
         
         # Kiểm tra nếu source là tệp device.txt
         if source.endswith('.txt'):
-            print(f"Đọc nguồn camera từ tệp: {source}")
+            LOGGER.info(f"Đọc nguồn camera từ tệp: {source}")
             
             # Kiểm tra xem tệp tồn tại
             if not os.path.exists(source):
@@ -196,11 +195,11 @@ class Config:
                     
                 if line == "0":
                     self.camera_names.append("webcam")
-                    print(f"Đã thiết lập camera: webcam (ID: 0)")
+                    LOGGER.info(f"Đã thiết lập camera: webcam (ID: 0)")
                 elif line.startswith('rtsp://') or line.startswith('http://'):
                     # Nếu là đường dẫn RTSP/HTTP trực tiếp
                     self.camera_names.append(f"camera_{len(self.camera_names)}")
-                    print(f"Đã thiết lập camera: camera_{len(self.camera_names)-1} (URL: {line})")
+                    LOGGER.info(f"Đã thiết lập camera: camera_{len(self.camera_names)-1} (URL: {line})")
                 else:
                     try:
                         # Giả định là ID camera
@@ -208,9 +207,9 @@ class Config:
                         rtsp_url = self.get_rtsp_by_id(camera_id)
                         camera_name = self.get_camera_name_by_id(camera_id)
                         self.camera_names.append(camera_name)
-                        print(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
+                        LOGGER.info(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
                     except ValueError:
-                        print(f"Cảnh báo: Không thể xử lý nguồn camera: {line}")
+                        LOGGER.warning(f"Cảnh báo: Không thể xử lý nguồn camera: {line}")
             
             return source
         
@@ -224,7 +223,7 @@ class Config:
             # Nếu camera là webcam (ID = 0)
             if camera_id == "0":
                 self.camera_names.append("webcam")
-                print("Đã thiết lập camera: webcam (ID: 0)")
+                LOGGER.info("Đã thiết lập camera: webcam (ID: 0)")
                 return "0"
             
             # Nếu camera là RTSP (ID > 0)
@@ -234,7 +233,7 @@ class Config:
                     rtsp_url = self.get_rtsp_by_id(camera_id)
                     camera_name = self.get_camera_name_by_id(camera_id)
                     self.camera_names.append(camera_name)
-                    print(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
+                    LOGGER.info(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
                     return rtsp_url
                 except ValueError:
                     raise ValueError(f"Camera ID không hợp lệ: {camera_id}")
@@ -249,7 +248,7 @@ class Config:
                     if camera_id == "0":
                         f.write("0\n")
                         self.camera_names.append("webcam")
-                        print("Đã thiết lập camera: webcam (ID: 0)")
+                        LOGGER.info("Đã thiết lập camera: webcam (ID: 0)")
                     else:
                         try:
                             camera_id = int(camera_id)
@@ -257,11 +256,11 @@ class Config:
                             camera_name = self.get_camera_name_by_id(camera_id)
                             f.write(f"{rtsp_url}\n")
                             self.camera_names.append(camera_name)
-                            print(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
+                            LOGGER.info(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
                         except ValueError:
                             raise ValueError(f"Camera ID không hợp lệ: {camera_id}")
             
-            print(f"Đã tạo tệp device.txt với {len(camera_ids)} nguồn camera")
+            LOGGER.info(f"Đã tạo tệp device.txt với {len(camera_ids)} nguồn camera")
             return "device.txt"
 
 # Tạo instance `config` để sử dụng trong toàn bộ project

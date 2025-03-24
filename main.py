@@ -2,7 +2,7 @@ from config import config
 import argparse
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
-from websocket_server import start_ws_server
+from utils.websocket_server import start_ws_server
 
 
 parser = argparse.ArgumentParser(description="Run face detection and analysis.")
@@ -21,9 +21,7 @@ parser.add_argument("--qr_code", action="store_true", help="Enable qr code.")
 parser.add_argument("--face_mask", action="store_true", help="Enable face mask detection.")
 
 args = parser.parse_args()
-print("-" * 80)
 processed_source = config.process_camera_input(args.source)
-print("-" * 80)
 
 media_manager = MediaManager(
     source=processed_source,

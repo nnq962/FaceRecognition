@@ -1,6 +1,7 @@
 from onvif import ONVIFCamera
 import socket
 import ipaddress
+from utils.logger_config import LOGGER
 
 
 # ----------------------------------------------------------------
@@ -58,7 +59,7 @@ def get_rtsp_url(ip, username, password, port=80):
         profiles = media_service.GetProfiles()
         
         if not profiles:
-            print(f"No media profiles found for camera at {ip}.")
+            LOGGER.warning(f"No media profiles found for camera at {ip}.")
             return rtsp_urls
         
         for profile in profiles:
@@ -78,7 +79,7 @@ def get_rtsp_url(ip, username, password, port=80):
             rtsp_urls[profile.Name] = parsed_url
 
     except Exception as e:
-        print(f"Failed to get RTSP URL from {ip} (Port: {port}): {e}")
+        LOGGER.error(f"Failed to get RTSP URL from {ip} (Port: {port}): {e}")
 
     return rtsp_urls
 
@@ -116,7 +117,7 @@ def get_network_configuration(ip, username, password, port=80):
             network_info.append(interface_info)
 
     except Exception as e:
-        print(f"Failed to get network configuration for {ip}: {e}")
+        LOGGER.error(f"Failed to get network configuration for {ip}: {e}")
 
     return network_info
 
@@ -131,7 +132,7 @@ def find_ip_and_rtsp_by_mac(mac_address, username, password):
         try:
             network_configs = get_network_configuration(ip, username, password)
         except Exception as e:
-            print(f"Authorization failed for IP {ip}: {e}")
+            LOGGER.warning(f"Authorization failed for IP {ip}: {e}")
             continue  # Bỏ qua IP nếu lỗi xác thực
 
         for config in network_configs:
@@ -143,8 +144,8 @@ def find_ip_and_rtsp_by_mac(mac_address, username, password):
                         return {"IP": ip, "RTSP": url}
                 
                 # Nếu không tìm thấy main stream
-                print(f"Main stream not found for IP {ip}")
+                LOGGER.warning(f"Main stream not found for IP {ip}")
                 return {"IP": ip, "RTSP": None}
 
-    print(f"Device with MAC {mac_address} not found.")
+    LOGGER.warning(f"Device with MAC {mac_address} not found.")
     return None

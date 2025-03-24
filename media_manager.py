@@ -1,6 +1,6 @@
 from pathlib import Path
 from utils.general import increment_path, check_file
-from utils.dataloaders import LoadImages, LoadStreams, LoadScreenshots, IMG_FORMATS, VID_FORMATS
+from utils.dataloaders import LoadImages, LoadStreams, IMG_FORMATS, VID_FORMATS
 
 
 class MediaManager:
@@ -88,9 +88,7 @@ class MediaManager:
         if self.webcam:
             # check_imshow(warn=True)
             self.dataset = LoadStreams(sources=self.source, vid_stride=self.vid_stride, reconnect_attempts=50, reconnect_delay=10, timeout=30)
-            self.batch_size = len(self.dataset)
-        elif screenshot:
-            self.dataset = LoadScreenshots(self.source, img_size=640, stride=32, auto=True)
+            self.batch_size = len(self.dataset) 
         else:
             self.dataset = LoadImages(self.source, vid_stride=self.vid_stride)
 

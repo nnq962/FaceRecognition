@@ -2,6 +2,7 @@ import asyncio
 import websockets
 import threading
 import json
+from utils.logger_config import LOGGER
 
 # Tập hợp các client đang kết nối
 connected_clients = set()
@@ -11,16 +12,16 @@ loop = None
 
 # Handler cơ bản: thêm client mới vào danh sách, lắng nghe và gỡ client khi đóng
 async def handler(websocket):
-    print("Client mới kết nối.")
+    LOGGER.info("Client mới kết nối.")
     connected_clients.add(websocket)
     try:
         async for message in websocket:
-            print(f"Client gửi: {message}")
+            LOGGER.info(f"Client gửi: {message}")
     except websockets.exceptions.ConnectionClosed:
         pass
     finally:
         connected_clients.remove(websocket)
-        print("Client đã ngắt kết nối.")
+        LOGGER.info("Client đã ngắt kết nối.")
 
 async def notify_all_clients(message: str):
     """
@@ -42,7 +43,7 @@ def start_ws_server(host="0.0.0.0", port=8765):
 
     async def _start_server():
         async with websockets.serve(handler, host, port):
-            print(f"WebSocket server đang chạy tại ws://{host}:{port}")
+            LOGGER.info(f"WebSocket server đang chạy tại ws://{host}:{port}")
             # Chờ vô hạn để giữ server sống
             await asyncio.Future()
 
@@ -62,7 +63,7 @@ def send_notification(message: dict):
         message (dict): A dictionary containing notification details.
     """
     if loop is None:
-        print("WebSocket server chưa khởi động! Gọi start_ws_server() trước.")
+        LOGGER.warning("WebSocket server chưa khởi động! Gọi start_ws_server() trước.")
         return
     
     # Chuyển đổi message thành JSON string trước khi gửi
