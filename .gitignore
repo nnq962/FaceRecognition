@@ -8,3 +8,6 @@ greeting.mp3
 3hinc.jpg
 device.txt
 attendance_images/
+log_main.log
+log_nohup.txt
+.env

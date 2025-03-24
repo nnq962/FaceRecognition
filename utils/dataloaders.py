@@ -8,7 +8,6 @@ from threading import Thread
 from urllib.parse import urlparse
 import cv2
 import numpy as np
-import torch
 import re
 from utils.logger_config import LOGGER
 
@@ -124,7 +123,14 @@ class LoadImages:
 class LoadStreams:
     def __init__(self, sources='streams.txt', vid_stride=1,
                  reconnect_attempts=10, reconnect_delay=5, timeout=30):
-        torch.backends.cudnn.benchmark = True  # faster for fixed-size inference
+        LOGGER.info(
+            f"Initializing LoadStreams with parameters:\n"
+            f"  • sources: {sources}\n"
+            f"  • vid_stride: {vid_stride}\n"
+            f"  • reconnect_attempts: {reconnect_attempts}\n"
+            f"  • reconnect_delay: {reconnect_delay}\n"
+            f"  • timeout: {timeout}"
+        )
         self.mode = 'stream'
         self.vid_stride = vid_stride  # video frame-rate stride
         
@@ -184,35 +190,181 @@ class LoadStreams:
             self.threads[i].start()
                 
     def create_capture(self, source, index):
-        """Tạo và cấu hình VideoCapture với xử lý lỗi tốt hơn"""
+        """Tạo và cấu hình VideoCapture với khả năng tự động phát hiện độ phân giải tối ưu"""
         try:
             LOGGER.info(f"Attempting to connect to stream: {source}")
             cap = cv2.VideoCapture(source)
             
+            # Kiểm tra xem camera có được mở thành công không
+            if not cap.isOpened():
+                LOGGER.error(f"Cannot open stream {index}: {source}")
+                return False, None
+            
             # Thiết lập thông số kỹ thuật timeout cho RTSP, HTTP streams
             if isinstance(source, str) and ('rtsp:' in source or 'http:' in source or 'https:' in source):
-                # Thiết lập timeouts
                 cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, self.timeout * 1000)
                 cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, self.timeout * 1000)
-                # Một số camera yêu cầu buffer nhỏ để giảm độ trễ
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             
             # Thiết lập MJPG để đạt FPS cao
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
-            # Thiết lập độ phân giải và FPS
-            desired_width = 2560
-            desired_height = 1440
-            desired_fps = 30
-
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, desired_width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, desired_height)
-            cap.set(cv2.CAP_PROP_FPS, desired_fps)
             
-            # Verify connection
-            if not cap.isOpened():
-                LOGGER.error(f"Cannot open stream {index}: {source}")
-                return False, None
+            # Lưu lại độ phân giải mặc định trước khi thử nghiệm
+            default_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            default_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            LOGGER.info(f"Default resolution for stream {index}: {default_width}x{default_height}")
+            
+            # Đọc một frame để xác nhận độ phân giải mặc định
+            ret, frame = cap.read()
+            if ret:
+                default_frame_width = frame.shape[1]
+                default_frame_height = frame.shape[0]
+                LOGGER.info(f"Default frame size for stream {index}: {default_frame_width}x{default_frame_height}")
+            
+            # Danh sách các độ phân giải tiêu chuẩn để thử, từ cao đến thấp
+            standard_resolutions = [
+                (3840, 2160),  # 4K
+                (2560, 1440),  # 2K
+                (1920, 1080),  # Full HD
+                (1280, 720),   # HD
+                (640, 480)     # VGA
+            ]
+            
+            # Danh sách độ phân giải tùy chỉnh phổ biến
+            custom_resolutions = [
+                (1552, 1552),  # MacBook FaceTime HD
+                (1760, 1328),  # MacBook FaceTime HD khác
+            ]
+            
+            # Biến để lưu các độ phân giải hỗ trợ được tìm thấy
+            supported_resolutions = []
+            
+            # Thử từng độ phân giải tiêu chuẩn trước
+            for width, height in standard_resolutions:
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                 
+                # Đọc độ phân giải thực tế sau khi thiết lập
+                actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                
+                # Đọc một frame để xác nhận
+                ret, test_frame = cap.read()
+                if not ret:
+                    continue
+                
+                frame_height, frame_width = test_frame.shape[:2]
+                
+                # Lưu lại độ phân giải thực tế và tính tỷ lệ khung hình
+                aspect_ratio = frame_width / frame_height
+                resolution_info = {
+                    'requested': (width, height),
+                    'actual': (frame_width, frame_height),
+                    'area': frame_width * frame_height,
+                    'aspect_ratio': aspect_ratio
+                }
+                
+                # Kiểm tra xem độ phân giải này đã được thêm vào chưa
+                is_duplicate = False
+                for res in supported_resolutions:
+                    if res['actual'] == (frame_width, frame_height):
+                        is_duplicate = True
+                        break
+                
+                if not is_duplicate:
+                    supported_resolutions.append(resolution_info)
+                    LOGGER.info(f"Found supported resolution: {frame_width}x{frame_height} (AR: {aspect_ratio:.2f}) for stream {index}")
+            
+            # Thử các độ phân giải tùy chỉnh
+            for width, height in custom_resolutions:
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                
+                ret, test_frame = cap.read()
+                if not ret:
+                    continue
+                
+                frame_height, frame_width = test_frame.shape[:2]
+                aspect_ratio = frame_width / frame_height
+                
+                resolution_info = {
+                    'requested': (width, height),
+                    'actual': (frame_width, frame_height),
+                    'area': frame_width * frame_height,
+                    'aspect_ratio': aspect_ratio
+                }
+                
+                # Kiểm tra trùng lặp
+                is_duplicate = False
+                for res in supported_resolutions:
+                    if res['actual'] == (frame_width, frame_height):
+                        is_duplicate = True
+                        break
+                
+                if not is_duplicate:
+                    supported_resolutions.append(resolution_info)
+                    LOGGER.info(f"Found custom resolution: {frame_width}x{frame_height} (AR: {aspect_ratio:.2f}) for stream {index}")
+            
+            # Nếu không tìm thấy độ phân giải nào
+            if not supported_resolutions:
+                LOGGER.warning(f"No valid resolutions found for stream {index}. Using default.")
+                return True, cap
+            
+            # Phân loại các độ phân giải theo các nhóm tỷ lệ khung hình
+            aspect_ratio_groups = {
+                '16:9': [],  # ~1.78
+                '4:3': [],   # ~1.33
+                '1:1': [],   # ~1.0
+                'other': []
+            }
+            
+            for res in supported_resolutions:
+                ar = res['aspect_ratio']
+                if 1.7 <= ar <= 1.8:  # 16:9
+                    aspect_ratio_groups['16:9'].append(res)
+                elif 1.3 <= ar <= 1.4:  # 4:3
+                    aspect_ratio_groups['4:3'].append(res)
+                elif 0.95 <= ar <= 1.05:  # 1:1
+                    aspect_ratio_groups['1:1'].append(res)
+                else:
+                    aspect_ratio_groups['other'].append(res)
+            
+            # Sắp xếp mỗi nhóm theo diện tích (từ lớn đến nhỏ)
+            for group in aspect_ratio_groups.values():
+                group.sort(key=lambda x: x['area'], reverse=True)
+            
+            # Ưu tiên tìm độ phân giải tốt nhất theo thứ tự: 16:9, 4:3, 1:1, other
+            best_resolution = None
+            for ratio in ['16:9', '4:3', '1:1', 'other']:
+                if aspect_ratio_groups[ratio]:
+                    best_resolution = aspect_ratio_groups[ratio][0]
+                    LOGGER.info(f"Selected best resolution with {ratio} aspect ratio: {best_resolution['actual']}")
+                    break
+            
+            # Nếu vẫn không tìm được độ phân giải tốt nhất, sử dụng độ phân giải có diện tích lớn nhất
+            if best_resolution is None:
+                all_resolutions = sorted(supported_resolutions, key=lambda x: x['area'], reverse=True)
+                if all_resolutions:
+                    best_resolution = all_resolutions[0]
+                    LOGGER.info(f"Selected resolution with largest area: {best_resolution['actual']}")
+            
+            # Thiết lập camera với độ phân giải tốt nhất
+            if best_resolution:
+                requested_width, requested_height = best_resolution['requested']
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, requested_width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, requested_height)
+                
+                # Kiểm tra lại để đảm bảo
+                actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                
+                # Thiết lập FPS mong muốn
+                target_fps = 30
+                cap.set(cv2.CAP_PROP_FPS, target_fps)
+                actual_fps = cap.get(cv2.CAP_PROP_FPS)
+                
+                LOGGER.info(f"Final resolution for stream {index}: {actual_width}x{actual_height}, FPS: {actual_fps}")
+            
             return True, cap
             
         except Exception as e:

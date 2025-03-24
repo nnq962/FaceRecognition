@@ -6,16 +6,19 @@ from zoneinfo import ZoneInfo
 import sys
 import gdown
 from utils.logger_config import LOGGER
+from dotenv import load_dotenv
+# Load .env file
+load_dotenv()
 
 
 class Config:
     """ Class chứa toàn bộ cấu hình của ứng dụng """
     
-    user = "quyetnguyen"
-    password = "061223%40bC"
-    host = "27.72.62.241"
-    port = "7017"
-    database = "admin"
+    user = os.getenv("MONGO_USER")
+    password = os.getenv("MONGO_PASSWORD")
+    host = os.getenv("MONGO_HOST")
+    port = os.getenv("MONGO_PORT")
+    database = os.getenv("MONGO_DB")
     init_database = False
     vram_limit_for_FER = 2
     camera_names = []
@@ -36,7 +39,13 @@ class Config:
     else:
         MONGO_URI = f"mongodb://{host}:{port}/"
 
-    client = MongoClient(MONGO_URI)
+    try:
+        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000)
+        client.server_info()  # force MongoDB to connect and check authentication
+        LOGGER.info("MongoDB connection established successfully")
+    except Exception as e:
+        LOGGER.error(f"MongoDB connection failed: {e}")
+
     db = client["my_database"]
 
     # Các collection
@@ -148,13 +157,13 @@ class Config:
             model_path = Path(save_dir) / model_name
             
             if model_path.exists():
-                LOGGER.info(f"Model '{model_name}' already exists at '{model_path}'.")
+                LOGGER.info(f"Model '{model_name}' already exists at '{model_path}'")
             else:
                 LOGGER.info(f"Downloading model '{model_name}' from '{model_url}' to '{model_path}'...")
                 try:
                     # Tải mô hình từ Google Drive
                     gdown.download(model_url, str(model_path), quiet=False)
-                    LOGGER.info(f"Model '{model_name}' downloaded successfully!")
+                    LOGGER.info(f"Model '{model_name}' downloaded successfully")
                 except Exception as e:
                     LOGGER.error(f"Failed to download model '{model_name}': {e}")
 
@@ -171,17 +180,17 @@ class Config:
         """
         # Kiểm tra nếu source là đường dẫn tới một tệp (không phải device.txt)
         if os.path.isfile(source) and not source.endswith('.txt'):
-            LOGGER.info(f"Đọc nguồn từ tệp: {source}")
+            LOGGER.info(f"Reading source from file: {source}")
             self.camera_names.append(os.path.basename(source))
             return source
         
         # Kiểm tra nếu source là tệp device.txt
         if source.endswith('.txt'):
-            LOGGER.info(f"Đọc nguồn camera từ tệp: {source}")
+            LOGGER.info(f"Reading camera source from file: {source}")
             
             # Kiểm tra xem tệp tồn tại
             if not os.path.exists(source):
-                raise FileNotFoundError(f"Không tìm thấy tệp: {source}")
+                raise FileNotFoundError(f"File not found: {source}")
             
             # Đọc tệp và xử lý các nguồn camera
             with open(source, 'r') as f:
@@ -195,11 +204,11 @@ class Config:
                     
                 if line == "0":
                     self.camera_names.append("webcam")
-                    LOGGER.info(f"Đã thiết lập camera: webcam (ID: 0)")
+                    LOGGER.info(f"Camera initialized: webcam [ID: 0]")
                 elif line.startswith('rtsp://') or line.startswith('http://'):
                     # Nếu là đường dẫn RTSP/HTTP trực tiếp
                     self.camera_names.append(f"camera_{len(self.camera_names)}")
-                    LOGGER.info(f"Đã thiết lập camera: camera_{len(self.camera_names)-1} (URL: {line})")
+                    LOGGER.info(f"Camera initialized: camera_{len(self.camera_names)-1} [URL: {line}]")
                 else:
                     try:
                         # Giả định là ID camera
@@ -207,9 +216,9 @@ class Config:
                         rtsp_url = self.get_rtsp_by_id(camera_id)
                         camera_name = self.get_camera_name_by_id(camera_id)
                         self.camera_names.append(camera_name)
-                        LOGGER.info(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
+                        LOGGER.info(f"Camera initialized: {camera_name} [ID: {camera_id}, URL: {rtsp_url}]")
                     except ValueError:
-                        LOGGER.warning(f"Cảnh báo: Không thể xử lý nguồn camera: {line}")
+                        LOGGER.warning(f"Warning: Unable to process camera source: {line}")
             
             return source
         
@@ -223,7 +232,7 @@ class Config:
             # Nếu camera là webcam (ID = 0)
             if camera_id == "0":
                 self.camera_names.append("webcam")
-                LOGGER.info("Đã thiết lập camera: webcam (ID: 0)")
+                LOGGER.info("Camera initialized: webcam [ID: 0]")
                 return "0"
             
             # Nếu camera là RTSP (ID > 0)
@@ -233,10 +242,10 @@ class Config:
                     rtsp_url = self.get_rtsp_by_id(camera_id)
                     camera_name = self.get_camera_name_by_id(camera_id)
                     self.camera_names.append(camera_name)
-                    LOGGER.info(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
+                    LOGGER.info(f"Camera initialized: {camera_name} [ID: {camera_id}, URL: {rtsp_url}]")
                     return rtsp_url
                 except ValueError:
-                    raise ValueError(f"Camera ID không hợp lệ: {camera_id}")
+                    raise ValueError(f"Invalid camera ID: {camera_id}")
         
         # Nếu có nhiều camera
         else:
@@ -248,7 +257,7 @@ class Config:
                     if camera_id == "0":
                         f.write("0\n")
                         self.camera_names.append("webcam")
-                        LOGGER.info("Đã thiết lập camera: webcam (ID: 0)")
+                        LOGGER.info("Camera initialized: webcam [ID: 0]")
                     else:
                         try:
                             camera_id = int(camera_id)
@@ -256,11 +265,11 @@ class Config:
                             camera_name = self.get_camera_name_by_id(camera_id)
                             f.write(f"{rtsp_url}\n")
                             self.camera_names.append(camera_name)
-                            LOGGER.info(f"Đã thiết lập camera: {camera_name} (ID: {camera_id}, URL: {rtsp_url})")
+                            LOGGER.info(f"Camera initialized: {camera_name} [ID: {camera_id}, URL: {rtsp_url}]")
                         except ValueError:
-                            raise ValueError(f"Camera ID không hợp lệ: {camera_id}")
+                            raise ValueError(f"Invalid camera ID: {camera_id}")
             
-            LOGGER.info(f"Đã tạo tệp device.txt với {len(camera_ids)} nguồn camera")
+            LOGGER.info(f"Created device.txt file with {len(camera_ids)} camera sources")
             return "device.txt"
 
 # Tạo instance `config` để sử dụng trong toàn bộ project
