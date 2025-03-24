@@ -6,6 +6,7 @@ from pathlib import Path
 import time
 import numpy as np
 import onnxruntime as ort
+ort.set_default_logger_severity(3)
 
 from utils.plots import Annotator
 from face_emotion import FaceEmotion
@@ -18,33 +19,60 @@ from utils.notification_server import send_notification as ns_send_notification
 import face_mask_detection
 from pymongo.operations import InsertOne, UpdateOne
 from utils.logger_config import LOGGER
-ort.set_default_logger_severity(3)
 
 
 class InsightFaceDetector:
-    def __init__(self, media_manager=None):
+    def __init__(self,
+                media_manager=None,
+                face_recognition=False,
+                face_emotion=False,
+                export_data=False,
+                time_to_save=2,
+                raise_hand=False,
+                qr_code=False,
+                face_mask=False):
+        
         self.det_model_path = os.path.expanduser("~/Models/det_10g.onnx")
         self.rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
         self.det_model = None
         self.rec_model = None
+
+        self.face_recognition = face_recognition
+        self.face_emotion = face_emotion
+        self.export_data = export_data
+        self.time_to_save = time_to_save
+        self.qr_code = qr_code
+        self.raise_hand = raise_hand
+        self.face_mask = face_mask
+
         self.previous_qr_results = {}
         self.previous_hand_states = {}
         self.mask_thresh = 40
         self.mask_detected_frames = 0
         self.hand_detected_frames = 0
         self.count = 0
-        self.media_manager = media_manager
         self.previous_aruco_marker_states = None
         self.arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
         self.arucoDict = cv2.aruco.getPredefinedDictionary(self.arucoDictType)
         self.arucoParams = cv2.aruco.DetectorParameters()
         self.aruco_detector = cv2.aruco.ArucoDetector(self.arucoDict, self.arucoParams)
 
-        if self.media_manager is not None:
-            self.dataset = self.media_manager.get_dataloader()
-            self.save_dir = self.media_manager.get_save_directory()
-            if self.media_manager.face_emotion:
-                self.fer = FaceEmotion()
+        if media_manager is not None:
+            self.dataset = media_manager.get_dataloader()
+            self.save_dir = media_manager.get_save_directory()
+            self.view_img = media_manager.view_img
+            self.line_thickness = media_manager.line_thickness
+            self.webcam = media_manager.webcam
+            self.save_img = media_manager.save_img
+            self.save = media_manager.save
+            self.save_crop = media_manager.save_crop
+            self.hide_labels = media_manager.hide_labels
+            self.hide_conf = media_manager.hide_conf
+            self.vid_path = media_manager.vid_path
+            self.vid_writer = media_manager.vid_writer
+
+        if self.face_emotion:
+            self.fer = FaceEmotion()
 
         self.load_model()
 
@@ -134,7 +162,7 @@ class InsightFaceDetector:
 
             for i, det in enumerate(pred):
                 # Lấy ảnh tương ứng
-                im0 = self.get_frame(im0s, i, self.media_manager.webcam)
+                im0 = self.get_frame(im0s, i, self.webcam)
                 
                 # Unpack kết quả từ model
                 bounding_boxes, keypoints = det
@@ -146,7 +174,7 @@ class InsightFaceDetector:
                 face_counts.append(len(bounding_boxes))  # Ghi lại số lượng khuôn mặt
 
                 # Đếm số người đeo khẩu trang
-                if self.media_manager.face_mask:
+                if self.face_mask:
                     mask_count = face_mask_detection.inference(im0, target_shape=(360, 360))
                     if mask_count:
                         self.mask_detected_frames += 1
@@ -157,9 +185,9 @@ class InsightFaceDetector:
                         ns_send_notification("Vui lòng tháo khẩu trang")
                         
                 # Kiểm tra QR code
-                if self.media_manager.qr_code:
+                if self.qr_code:
                     qr_result = self.get_aruco_marker(im0)
-                    camera_name = config.camera_names[i] if self.media_manager.webcam else "Photo"
+                    camera_name = config.camera_names[i] if self.webcam else "Photo"
                     previous_kq = self.previous_qr_results.get(camera_name, [])
 
                     if qr_result and qr_result != previous_kq:
@@ -171,12 +199,12 @@ class InsightFaceDetector:
                         })
 
                 # Crop khuôn mặt để phát hiện cảm xúc
-                if self.media_manager.face_emotion:
+                if self.face_emotion:
                     cropped_faces_emotion = crop_faces_for_emotion(im0, bounding_boxes, conf_threshold=0.55)
                     all_cropped_faces_emotion.extend(cropped_faces_emotion)
 
                 # Crop khuôn mặt để embeddings
-                if self.media_manager.face_recognition:
+                if self.face_recognition:
                     cropped_faces_recognition = crop_and_align_faces(im0, bounding_boxes, keypoints, 0.55)
                     all_cropped_faces_recognition.extend(cropped_faces_recognition)  # Thêm tất cả khuôn mặt vào danh sách chính (dạng phẳng)
 
@@ -194,8 +222,8 @@ class InsightFaceDetector:
             start_idx = 0  # Dùng để lấy ID user theo thứ tự embeddings
             for det, face_count in zip(pred, face_counts):
                 bounding_boxes, _ = det
-                user_infos_for_image = user_infos[start_idx:start_idx + face_count] if self.media_manager.face_recognition else [None] * face_count
-                emotions_for_image = user_emotions[start_idx:start_idx + face_count] if self.media_manager.face_emotion else ["Unknown"] * face_count
+                user_infos_for_image = user_infos[start_idx:start_idx + face_count] if self.face_recognition else [None] * face_count
+                emotions_for_image = user_emotions[start_idx:start_idx + face_count] if self.face_emotion else ["Unknown"] * face_count
 
                 results = [
                     {
@@ -213,7 +241,7 @@ class InsightFaceDetector:
                 start_idx += face_count  # Cập nhật index tiếp theo
 
             # Kiểm tra có xuất dữ liệu không
-            should_export = self.media_manager.export_data and (time.time() - start_time > self.media_manager.time_to_save)
+            should_export = self.export_data and (time.time() - start_time > self.time_to_save)
             if should_export:
                 current_time = config.get_vietnam_time()
                 today_date, current_time_short = current_time.split()
@@ -221,16 +249,16 @@ class InsightFaceDetector:
 
             # Duyệt qua từng ảnh để hiển thị và thu thập dữ liệu
             for img_index, results in enumerate(results_per_image):
-                p = path[img_index] if self.media_manager.webcam else path
-                im0 = self.get_frame(im0s, img_index, self.media_manager.webcam)
+                p = path[img_index] if self.webcam else path
+                im0 = self.get_frame(im0s, img_index, self.webcam)
                 p = Path(p)
-                save_path = str(self.save_dir / p.name) if (self.media_manager.save or self.media_manager.save_crop) else None
-                imc = im0.copy() if self.media_manager.save_crop or self.media_manager.export_data else im0
-                annotator = Annotator(im0, line_width=self.media_manager.line_thickness)
-                camera_name = config.camera_names[img_index] if self.media_manager.webcam else "Photo"
+                save_path = str(self.save_dir / p.name) if (self.save or self.save_crop) else None
+                imc = im0.copy() if self.save_crop or self.export_data else im0
+                annotator = Annotator(im0, line_width=self.line_thickness)
+                camera_name = config.camera_names[img_index] if self.webcam else "Photo"
 
                 # Nếu cần lưu trạng thái giơ tay, đảm bảo camera có trong dictionary
-                if self.media_manager.raise_hand and camera_name not in self.previous_hand_states:
+                if self.raise_hand and camera_name not in self.previous_hand_states:
                     self.previous_hand_states[camera_name] = {}
                 
                 # Duyệt qua từng khuôn mặt trong ảnh
@@ -250,7 +278,7 @@ class InsightFaceDetector:
                             ns_send_notification("Ok sếp ơi")
                     
                     # Kiểm tra giơ tay
-                    if self.media_manager.raise_hand and user_id != "Unknown":
+                    if self.raise_hand and user_id != "Unknown":
                         hand_raised = get_raising_hand(im0, bbox)
                         previous_state = self.previous_hand_states[camera_name].get(user_id, None)
 
@@ -278,23 +306,23 @@ class InsightFaceDetector:
                             "bbox": bbox   # Lưu bbox để vẽ hình chữ nhật trên ảnh check-in
                         })
 
-                    if self.media_manager.face_emotion:
+                    if self.face_emotion:
                         label = f"{user_id} {similarity} | {emotion}"
-                    elif self.media_manager.face_recognition:
+                    elif self.face_recognition:
                         label = f"{user_id} {similarity}"
                     else:
                         label = None
 
                     # Hiển thị nhãn
-                    if self.media_manager.save_img or self.media_manager.save_crop or self.media_manager.view_img:
-                        if self.media_manager.hide_labels or self.media_manager.hide_conf:
+                    if self.save_img or self.save_crop or self.view_img:
+                        if self.hide_labels or self.hide_conf:
                             label = None
 
                         color = (0, int(255 * conf), int(255 * (1 - conf)))
                         annotator.box_label(bbox, label, color=color)
 
                     # Lưu crop khuôn mặt
-                    if self.media_manager.save_crop:
+                    if self.save_crop:
                         crops_dir = Path(self.save_dir) / 'crops'
                         crops_dir.mkdir(parents=True, exist_ok=True)
                         face_crop = crop_image(imc, bbox[:4])
@@ -302,7 +330,7 @@ class InsightFaceDetector:
 
                 # Stream results
                 im0 = annotator.result()
-                if self.media_manager.view_img:
+                if self.view_img:
                     if platform.system() == 'Linux' and p not in windows:
                         windows.append(p)
                         cv2.namedWindow(str(p), cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)  # allow window resize (Linux)
@@ -312,7 +340,7 @@ class InsightFaceDetector:
                     cv2.waitKey(1)
 
                 # Lưu ảnh/video
-                if self.media_manager.save_img and save_path:
+                if self.save_img and save_path:
                     if self.dataset.mode == 'image':
                         cv2.imwrite(save_path, im0)
 
@@ -411,21 +439,21 @@ class InsightFaceDetector:
         """
         Function to save video frames
         """
-        if self.media_manager.vid_path[img_index] != save_path:
-            self.media_manager.vid_path[img_index] = save_path
-            if isinstance(self.media_manager.vid_writer[img_index], cv2.VideoWriter):
-                self.media_manager.vid_writer[img_index].release()
+        if self.vid_path[img_index] != save_path:
+            self.vid_path[img_index] = save_path
+            if isinstance(self.vid_writer[img_index], cv2.VideoWriter):
+                self.vid_writer[img_index].release()
             fps = vid_cap.get(cv2.CAP_PROP_FPS) if vid_cap else 10
             w, h = (int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))) if vid_cap else (im0.shape[1], im0.shape[0])
             save_path = str(Path(save_path).with_suffix('.mp4'))
-            self.media_manager.vid_writer[img_index] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
-        self.media_manager.vid_writer[img_index].write(im0)
+            self.vid_writer[img_index] = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (w, h))
+        self.vid_writer[img_index].write(im0)
 
     def _release_writers(self):
         """
         Function to release video writers
         """
-        for writer in self.media_manager.vid_writer:
+        for writer in self.vid_writer:
             if isinstance(writer, cv2.VideoWriter):
                 writer.release()
                 LOGGER.info("Video writer released successfully.")

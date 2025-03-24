@@ -16,17 +16,8 @@ class MediaManager:
                  save_conf=False,
                  save_crop=False,
                  line_thickness=3,
-                 face_recognition=False,
                  hide_labels=False,
-                 hide_conf=False,
-                 face_emotion=False,
-                 check_small_face=False,
-                 streaming=False,
-                 export_data=False,
-                 time_to_save=5,
-                 raise_hand=False,
-                 qr_code=False,
-                 face_mask=False):
+                 hide_conf=False):
         """
         Khởi tạo MediaManager với thông tin về nguồn đầu vào và cấu hình thư mục lưu kết quả.
         """
@@ -41,17 +32,8 @@ class MediaManager:
         self.save_conf = save_conf
         self.save_crop = save_crop
         self.line_thickness = line_thickness
-        self.face_recognition = face_recognition
         self.hide_labels = hide_labels
         self.hide_conf = hide_conf
-        self.face_emotion = face_emotion
-        self.check_small_face = check_small_face
-        self.streaming = streaming
-        self.export_data = export_data
-        self.time_to_save = time_to_save
-        self.raise_hand = raise_hand
-        self.qr_code = qr_code
-        self.face_mask = face_mask
 
         self.save_dir = None
         self.dataset = None
