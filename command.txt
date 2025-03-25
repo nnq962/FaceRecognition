@@ -1,1 +1,6 @@
 nohup python3 main.py --source 2 --face_recognition --face_mask --export_data --time_to_save 2 > log_main.log 2>&1 & echo $! >> log_nohup.txt
+conda activate nnq
+python3 api.py
+python3 web.py
+python3 notification_server.py
+python3 main.py --source 2 --face_recognition --face_mask --export_data --time_to_save 2

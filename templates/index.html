@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Theo Dõi Chấm Công</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Hệ Thống Theo Dõi Chấm Công</h1>
+            <button class="refresh-btn">
+                <i class="fas fa-sync-alt"></i>
+                Làm mới dữ liệu
+            </button>
+        </div>
+
+        <div class="search-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" class="search-input" placeholder="Tìm kiếm theo tên hoặc mã nhân viên...">
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Danh sách chấm công hôm nay</div>
+                <div>
+                    <span class="status status-present">Có mặt: 0</span>
+                    <span class="status status-absent">Vắng mặt: 0</span>
+                    <span class="status status-late">Đi muộn: 0</span>
+                    <span class="status status-early">Về sớm: 0</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Mã NV</th>
+                                <th>Tên nhân viên</th>
+                                <th>Phòng ban</th>
+                                <th>Giờ vào</th>
+                                <th>Giờ ra</th>
+                                <th>Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody id="attendance-data">
+                            <!-- Dữ liệu sẽ được thêm vào đây bằng JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải dữ liệu...</p>
+                </div>
+            </div>
+        </div>
+        
+        <p class="last-updated">Cập nhật lần cuối: <span id="last-updated-time">--/--/---- --:--:--</span></p>
+    </div>
+
+    <script src="/static/js/scripts.js"></script>
+</body>
+</html>

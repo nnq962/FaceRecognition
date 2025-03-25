@@ -339,66 +339,65 @@ def upload_photo(user_id):
         return jsonify({"error": "No photo uploaded"}), 400
 
     photo = request.files['photo']
+    filename = photo.filename
 
-    # Lấy thông tin user từ MongoDB
-    user = users_collection.find_one({"_id": int(user_id)})
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        return jsonify({"error": "Invalid user ID"}), 400
+
+    # Lấy thông tin user
+    user = users_collection.find_one({"_id": user_id})
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # Đường dẫn thư mục của user
     folder_path = user.get("photo_folder")
     if not folder_path:
         return jsonify({"error": "User folder not found"}), 500
 
-    # Lấy danh sách ảnh đã tồn tại trong MongoDB
     existing_photos = {entry["photo_name"] for entry in user.get("face_embeddings", [])}
-
-    filename = photo.filename
     if filename in existing_photos:
         return jsonify({"error": "Photo already exists"}), 400
 
     try:
-        # Đảm bảo thư mục tồn tại
+        # Tạo đường dẫn lưu ảnh
         os.makedirs(folder_path, exist_ok=True)
-
-        # Lưu ảnh vào thư mục
         file_path = os.path.join(folder_path, filename)
+
+        # Lưu ảnh tạm
         photo.save(file_path)
 
-        # Lấy đặc trưng khuôn mặt từ ảnh
-        try:
-            face_embedding = process_image(file_path, detector)
+        # Xử lý ảnh → lấy embedding
+        face_embedding = process_image(file_path, detector)
 
-            if face_embedding is not None:
-                # Chuyển thành danh sách để lưu trong MongoDB
-                face_embedding = face_embedding.tolist()
+        if face_embedding is None:
+            # Không thành công → xoá ảnh tạm
+            if os.path.exists(file_path):
+                os.remove(file_path)
+            return jsonify({"error": "Failed to process image"}), 400
 
-                # Tạo object lưu embedding kèm tên ảnh
-                embedding_entry = {
-                    "photo_name": filename,
-                    "embedding": face_embedding
-                }
+        # Lưu embedding vào DB
+        embedding_entry = {
+            "photo_name": filename,
+            "embedding": face_embedding.tolist()
+        }
 
-                # Lưu vào MongoDB theo cấu trúc mới
-                users_collection.update_one(
-                    {"_id": int(user_id)},
-                    {"$push": {"face_embeddings": embedding_entry}}
-                )
-                
-                # Build ann
-                build_faiss_index()
+        users_collection.update_one(
+            {"_id": user_id},
+            {"$push": {"face_embeddings": embedding_entry}}
+        )
 
-                return jsonify({
-                    "message": "Photo uploaded and face features saved",
-                    "photo_name": filename
-                }), 200
-            else:
-                return jsonify({"error": "No face detected in the image"}), 400
+        build_faiss_index()
 
-        except Exception as e:
-            return jsonify({"error": f"Failed to process image: {str(e)}"}), 500
+        return jsonify({
+            "message": "Photo uploaded and face features saved",
+            "photo_name": filename
+        }), 200
 
     except Exception as e:
+        # Nếu có lỗi khi xử lý/lưu, cũng xoá ảnh nếu đã tồn tại
+        if os.path.exists(file_path):
+            os.remove(file_path)
         return jsonify({"error": f"Failed to upload photo: {str(e)}"}), 500
     
     
@@ -532,55 +531,19 @@ def login():
 @app.route('/api/get_attendance', methods=['GET'])
 def get_attendance():
     try:
-        # Lấy ngày hiện tại
+        # Lấy ngày hiện tại theo định dạng yyyy-mm-dd
         today = datetime.now().strftime("%Y-%m-%d")
 
-        # Lấy tất cả bản ghi trong ngày hôm nay
-        records = list(data_collection.find({
-            "timestamp": {"$regex": f"^{today}"}
-        }))
+        # Truy vấn tất cả bản ghi có trường date = hôm nay
+        records = list(data_collection.find({"date": today}))
 
-        # Dữ liệu tạm để lưu kết quả
-        attendance = {}
-
-        # Lọc lần đầu tiên và cuối cùng cho mỗi ID
-        for record in records:
-            employee_id = record["id"]
-            timestamp = record["timestamp"]
-
-            if employee_id not in attendance:
-                attendance[employee_id] = {
-                    "first_seen": timestamp,
-                    "last_seen": timestamp
-                }
-            else:
-                # Cập nhật thời gian đầu tiên và cuối cùng
-                if timestamp < attendance[employee_id]["first_seen"]:
-                    attendance[employee_id]["first_seen"] = timestamp
-                if timestamp > attendance[employee_id]["last_seen"]:
-                    attendance[employee_id]["last_seen"] = timestamp
-
-        # Lấy thông tin tên từ users collection
+        # Tạo danh sách kết quả
         attendance_list = []
-        for emp_id, data in attendance.items():
-            user = users_collection.find_one({"_id": emp_id})
-            name = user["full_name"] if user else f"Unknown ({emp_id})"
-
-            # Định dạng thời gian chuẩn
-            first_seen_time = datetime.strptime(data["first_seen"], "%Y-%m-%d %H:%M:%S")
-            last_seen_time = datetime.strptime(data["last_seen"], "%Y-%m-%d %H:%M:%S")
-            
-            # Kiểm tra xem đã chào trong ngày chưa
-            if emp_id not in greeted_employees or greeted_employees[emp_id] != today:
-                # text = f"Xin chào, {name}!"
-                # send_notification(text)
-                greeted_employees[emp_id] = today  # Lưu trạng thái chào trong bộ nhớ
-
+        for record in records:
             attendance_list.append({
-                "id": emp_id,
-                "name": name,
-                "first_seen": first_seen_time.strftime("%H:%M"),
-                "last_seen": last_seen_time.strftime("%H:%M"),
+                "name": record.get("name", f"Unknown ({record.get('user_id')})"),
+                "check_in_time": record.get("check_in_time", "N/A"),
+                "check_out_time": record.get("check_out_time", "N/A"),
             })
 
         return jsonify(attendance_list), 200
@@ -675,7 +638,7 @@ def export_attendance():
     
 # ----------------------------------------------------------------
 if config.init_database:
-    LOGGER.info("Initialize database")
+    LOGGER.warning("Initialize database")
     generate_all_user_embeddings()
     build_faiss_index()
 
@@ -952,6 +915,35 @@ def update_camera():
         return jsonify({"error": "No camera found with the given _id."}), 404
 
     return jsonify({"message": "Camera updated successfully."}), 200
+
+
+# ----------------------------------------------------------------
+@app.route('/api/update_user/<user_id>', methods=['PUT'])
+def update_user(user_id):
+    data = request.get_json()
+
+    # Only allow updating these fields
+    update_fields = {}
+    if 'full_name' in data:
+        update_fields['full_name'] = data['full_name']
+    if 'department_id' in data:
+        update_fields['department_id'] = data['department_id']
+
+    if not update_fields:
+        return jsonify({"error": "No valid fields to update"}), 400
+
+    result = users_collection.update_one(
+        {"_id": int(user_id)},
+        {"$set": update_fields}
+    )
+
+    if result.matched_count == 0:
+        return jsonify({"error": "User not found"}), 404
+
+    return jsonify({
+        "message": "User updated successfully",
+        "updated_fields": update_fields
+    }), 200
 
 
 # ----------------------------------------------------------------

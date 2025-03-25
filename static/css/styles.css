@@ -1,153 +1,362 @@
-/* 1) Import font Lexend */
-@import url('https://fonts.googleapis.com/css2?family=Lexend&display=swap');
-
-/* 2) Reset cơ bản cho body */
-body {
-    margin: 0;
-    padding: 0;
-    /* Đổi nền thành trắng */
-    background-color: #ffffff;
-    /* Sử dụng font Lexend */
-    font-family: 'Lexend', sans-serif;
-    color: #333;
+:root {
+    --background: #f5f5f7;
+    --card-bg: rgba(255, 255, 255, 0.8);
+    --text-primary: #333;
+    --text-secondary: #666;
+    --accent: #0071e3;
+    --success: #34c759;
+    --warning: #ff9500;
+    --error: #ff3b30;
+    --late: #ff9500;
+    --early: #5856d6;
+    --border-radius: 10px;
+    --box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-/* 3) Header dùng nền tối, chữ trắng (giống cũ) */
-header {
-    background-color: #333;
-    color: #fff;
-    padding: 10px 20px;
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background-color: var(--background);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
-header h1 {
-    margin: 0;
+.title {
+    font-size: 28px;
+    font-weight: 600;
 }
 
-/* Link trong nav */
-nav a {
-    color: #fff;
-    text-decoration: none;
-    margin-left: 20px;
-}
-nav a:hover {
-    text-decoration: underline;
-}
-
-/* 4) LOGIN CONTAINER */
-.login-container {
-    /* Bo hẹp để hiển thị đẹp trên cả mobile & desktop */
-    max-width: 400px;
-    width: 90%;
-    margin: 100px auto;
-    background-color: #fff;
-    padding: 20px;
-    /* Bo góc mềm mại giống macOS */
-    border-radius: 12px;
-    /* Bóng đổ nhẹ */
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-/* Tiêu đề đăng nhập */
-.login-container h1 {
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-/* Form đăng nhập (tối ưu hiển thị cột dọc) */
-.login-container form {
-    display: flex;
-    flex-direction: column;
-}
-
-/* Input và button chung */
-.login-container input,
-.login-container button {
-    font-size: 16px;
-    padding: 12px;
-    margin-bottom: 15px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    outline: none;
-}
-
-/* Riêng nút đăng nhập */
-.login-container button {
-    background-color: #333;
-    color: #fff;
+.refresh-btn {
+    background: var(--accent);
+    color: white;
     border: none;
+    padding: 10px 15px;
+    border-radius: var(--border-radius);
     cursor: pointer;
-}
-.login-container button:hover {
-    background-color: #555;
-}
-
-/* 5) DASHBOARD CONTAINER (để bọc nội dung trang dashboard) */
-.dashboard-container {
-    max-width: 1200px; /* Chiều rộng tối đa cho màn hình lớn */
-    width: 90%;        /* Đảm bảo co giãn trên mobile */
-    margin: 50px auto; /* Căn giữa, tạo khoảng cách phía trên/dưới */
-    padding: 20px;
-    border-radius: 12px;
-    background-color: #fff;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    font-size: 16px;
 }
 
-.dashboard-container h2 {
-    margin-top: 0; /* Xóa khoảng cách thừa phía trên */
+.refresh-btn:hover {
+    background-color: #0062c7;
+    transform: translateY(-2px);
 }
 
-/* Liên kết trong nav header (hoặc nav-links) */
-/* Có thể dùng chung cho dashboard */
-.header-nav-links a,
-.nav-links a {
-    text-decoration: none;
-    color: #fff;
-    padding: 6px 12px;
-    border-radius: 6px;
-    transition: background-color 0.2s ease;
-}
-.header-nav-links a:hover,
-.nav-links a:hover {
-    background-color: rgba(255, 255, 255, 0.2);
+.refresh-btn:active {
+    transform: translateY(0);
 }
 
-/* Nút "Export Employees" hay nút khác sử dụng class .btn */
-.btn {
-    background-color: #333;
-    color: #fff;
-    padding: 6px 12px;
-    border-radius: 6px;
-    text-decoration: none;
-    transition: background-color 0.2s ease;
-}
-.btn:hover {
-    background-color: #555;
+.card {
+    background-color: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    overflow: hidden;
+    margin-bottom: 30px;
 }
 
-/* 6) BẢNG CHUNG */
+.card-header {
+    background-color: rgba(0, 0, 0, 0.03);
+    padding: 15px 20px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.card-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.card-body {
+    padding: 0;
+}
+
+.loading {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.spinner {
+    border: 3px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top: 3px solid var(--accent);
+    width: 24px;
+    height: 24px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
-    margin: 20px 0;
-}
-table th, 
-table td {
-    border: 1px solid #ddd;
-    padding: 10px;
-    text-align: center; /* Để bảng Attendance gọn hơn */
-}
-table th {
-    background-color: #333;
-    color: #fff;
 }
 
-/* 7) Màu sắc cho thời gian chấm công */
-.on-time {
-    color: green;
+th, td {
+    padding: 15px 20px;
+    text-align: left;
 }
-.late {
-    color: red;
+
+th {
+    font-weight: 500;
+    color: var(--text-secondary);
+    background-color: rgba(0, 0, 0, 0.02);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+tr:nth-child(even) {
+    background-color: rgba(0, 0, 0, 0.01);
+}
+
+tr:hover {
+    background-color: rgba(0, 113, 227, 0.05);
+}
+
+.status {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.status-present {
+    background-color: rgba(52, 199, 89, 0.1);
+    color: var(--success);
+}
+
+.status-absent {
+    background-color: rgba(255, 59, 48, 0.1);
+    color: var(--error);
+}
+
+.status-late {
+    background-color: rgba(255, 149, 0, 0.1);
+    color: var(--late);
+}
+
+.status-early {
+    background-color: rgba(88, 86, 214, 0.1);
+    color: var(--early);
+}
+
+.time-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.error-message {
+    background-color: rgba(255, 59, 48, 0.1);
+    color: var(--error);
+    padding: 15px 20px;
+    border-radius: var(--border-radius);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.search-container {
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.search-input {
+    width: 100%;
+    padding: 12px 20px;
+    padding-left: 40px;
+    border-radius: var(--border-radius);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: white;
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2);
+}
+
+.search-icon {
+    position: absolute;
+    left: 15px;
+    top: 14px;
+    color: var(--text-secondary);
+}
+
+.last-updated {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-top: 5px;
+}
+
+.empty-state {
+    padding: 40px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.empty-icon {
+    font-size: 40px;
+    margin-bottom: 15px;
+    color: rgba(0, 0, 0, 0.2);
+}
+
+.pulse {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.department-badge {
+    background-color: rgba(0, 113, 227, 0.1);
+    color: var(--accent);
+}
+
+.filter-select {
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background-color: white;
+    margin-left: 10px;
+    font-size: 14px;
+}
+
+.filters-container {
+    margin-top: 15px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    th, td {
+        padding: 12px 15px;
+    }
+
+    .hide-on-mobile {
+        display: none;
+    }
+
+    .card {
+        margin-bottom: 20px;
+    }
+
+    .title {
+        font-size: 24px;
+    }
+    
+    .filters-container {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .filter-select {
+        margin-left: 0;
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    th, td {
+        padding: 10px;
+    }
+
+    .time-badge {
+        padding: 3px 6px;
+        font-size: 12px;
+    }
+
+    .card-header {
+        padding: 12px 15px;
+    }
+}
+
+/* Cho phép các status tự xuống dòng khi màn hình hẹp */
+.card-header > div:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+/* Giảm kích thước badge trên điện thoại */
+@media (max-width: 480px) {
+    .status {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+}
+
+.table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* mượt trên mobile */
+}
+
+.table-wrapper table {
+    min-width: 600px; /* đảm bảo bảng không co nhỏ quá */
 }

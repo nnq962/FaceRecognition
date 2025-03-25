@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Người Dùng</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../static/css/styles.css">
+    <style>
+        /* Thêm CSS cho thông báo popup */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .toast {
+            min-width: 300px;
+            max-width: 400px;
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out, fadeOut 0.5s ease-out 4.5s forwards;
+            transform-origin: bottom right;
+        }
+        
+        .toast-success {
+            border-left: 4px solid var(--success);
+        }
+        
+        .toast-error {
+            border-left: 4px solid var(--error);
+        }
+        
+        .toast-icon {
+            font-size: 20px;
+        }
+        
+        .toast-success .toast-icon {
+            color: var(--success);
+        }
+        
+        .toast-error .toast-icon {
+            color: var(--error);
+        }
+        
+        .toast-message {
+            flex: 1;
+        }
+        
+        .toast-close {
+            cursor: pointer;
+            font-size: 16px;
+            color: #999;
+            padding: 0 4px;
+        }
+        
+        .toast-close:hover {
+            color: #333;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+            }
+            to {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+        }
+        
+        /* Thêm CSS đặc biệt cho trang quản lý người dùng */
+        .user-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .user-card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .user-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .user-header {
+            position: relative;
+            background-color: var(--accent);
+            height: 80px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+        }
+        
+        .user-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid white;
+            background-color: #f0f0f0;
+            position: relative;
+            top: 40px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .user-avatar .no-photo {
+            color: #aaa;
+            font-size: 40px;
+        }
+        
+        .user-info {
+            padding: 50px 20px 20px;
+            text-align: center;
+        }
+        
+        .user-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .user-dept {
+            display: inline-block;
+            background-color: rgba(0, 113, 227, 0.1);
+            color: var(--accent);
+            padding: 3px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        .user-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+        
+        .btn-circle:hover {
+            transform: scale(1.1);
+        }
+        
+        .btn-edit {
+            background-color: var(--accent);
+        }
+        
+        .btn-edit:hover {
+            background-color: #0062c7;
+        }
+        
+        .btn-delete {
+            background-color: var(--error);
+        }
+        
+        .btn-delete:hover {
+            background-color: #e6352a;
+        }
+        
+        .btn-photo {
+            background-color: var(--success);
+        }
+        
+        .btn-photo:hover {
+            background-color: #2db14f;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            overflow: auto;
+        }
+        
+        .modal-content {
+            background-color: #ffffff;
+            margin: 50px auto;
+            max-width: 500px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            position: relative;
+        }
+        
+        .modal-header {
+            padding: 15px 20px;
+            background-color: rgba(0, 0, 0, 0.03);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .modal-body {
+            padding: 20px;
+        }
+        
+        .modal-footer {
+            padding: 15px 20px;
+            background-color: rgba(0, 0, 0, 0.03);
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        .close:hover {
+            color: #333;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            font-size: 16px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2);
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-primary {
+            background-color: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0062c7;
+        }
+        
+        .btn-secondary {
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #e0e0e0;
+        }
+        
+        .photo-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .photo-item {
+            position: relative;
+            height: 100px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+        
+        .photo-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .delete-photo {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 24px;
+            height: 24px;
+            background-color: rgba(255, 59, 48, 0.8);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .photo-item:hover .delete-photo {
+            opacity: 1;
+        }
+        
+        .file-upload {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .file-input {
+            flex: 1;
+        }
+        
+        .upload-btn {
+            background-color: var(--success);
+            color: white;
+            padding: 10px 15px;
+            border-radius: var(--border-radius);
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        
+        .upload-btn:hover {
+            background-color: #2db14f;
+        }
+        
+        .empty-user-state {
+            padding: 40px;
+            text-align: center;
+            color: var(--text-secondary);
+            grid-column: 1 / -1;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            display: none;
+        }
+        
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 4px solid var(--accent);
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        .alert {
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .alert-success {
+            background-color: rgba(52, 199, 89, 0.1);
+            color: var(--success);
+            border-left: 4px solid var(--success);
+        }
+        
+        .alert-error {
+            background-color: rgba(255, 59, 48, 0.1);
+            color: var(--error);
+            border-left: 4px solid var(--error);
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+    
+    <!-- Container cho thông báo popup -->
+    <div id="toast-container" class="toast-container"></div>
+    
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Quản Lý Người Dùng</h1>
+            <button id="add-user-btn" class="refresh-btn">
+                <i class="fas fa-user-plus"></i>
+                Thêm người dùng
+            </button>
+        </div>
+        
+        <div class="search-container">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" id="search-user" class="search-input" placeholder="Tìm kiếm theo tên hoặc phòng ban...">
+        </div>
+        
+        <!-- Container cho thông báo -->
+        <div id="alert-container"></div>
+        
+        <div class="user-grid" id="user-grid">
+            <!-- Dữ liệu người dùng sẽ được thêm vào đây bằng JavaScript -->
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Đang tải dữ liệu người dùng...</p>
+            </div>
+        </div>
+        
+        <p class="last-updated">Cập nhật lần cuối: <span id="last-updated-time">--/--/---- --:--:--</span></p>
+    </div>
+    
+    <!-- Modal thêm/sửa người dùng -->
+    <div id="user-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="user-modal-title">Thêm người dùng mới</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="user-form">
+                    <input type="hidden" id="user-id">
+                    <div class="form-group">
+                        <label for="full-name" class="form-label">Họ và tên</label>
+                        <input type="text" id="full-name" class="form-input" placeholder="Nhập họ và tên">
+                    </div>
+                    <div class="form-group">
+                        <label for="department" class="form-label">Phòng ban</label>
+                        <input type="text" id="department" class="form-input" placeholder="Nhập mã phòng ban">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancel-user-btn">Hủy</button>
+                <button type="button" class="btn btn-primary" id="save-user-btn">Lưu</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal quản lý ảnh -->
+    <div id="photo-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="photo-modal-title">Quản lý ảnh người dùng</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h4>Thêm ảnh mới</h4>
+                <div class="form-group">
+                    <div class="file-upload">
+                        <input type="file" id="photo-upload" class="file-input" accept="image/*">
+                        <button type="button" id="upload-photo-btn" class="upload-btn">Tải lên</button>
+                    </div>
+                </div>
+                
+                <h4>Ảnh đã tải lên</h4>
+                <div id="photo-gallery" class="photo-gallery">
+                    <!-- Ảnh người dùng sẽ được thêm vào đây bằng JavaScript -->
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Đang tải ảnh...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="close-photo-btn">Đóng</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="../static/js/users.js"></script>
+</body>
+</html>
