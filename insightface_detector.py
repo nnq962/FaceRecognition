@@ -253,7 +253,7 @@ class InsightFaceDetector:
                 im0 = self.get_frame(im0s, img_index, self.webcam)
                 p = Path(p)
                 save_path = str(self.save_dir / p.name) if (self.save or self.save_crop) else None
-                imc = im0.copy() if self.save_crop or self.export_data else im0
+                imc = im0.copy() if self.save_crop or should_export else im0
                 annotator = Annotator(im0, line_width=self.line_thickness)
                 camera_name = config.camera_names[img_index] if self.webcam else "Photo"
 
@@ -287,12 +287,13 @@ class InsightFaceDetector:
                             # Cập nhật trạng thái mới vào dictionary theo camera
                             self.previous_hand_states[camera_name][user_id] = hand_raised
                             # Gửi dữ liệu giơ tay
-                            send_notification({
-                                "timestamp": config.get_vietnam_time(),
-                                "camera": camera_name,
-                                "id": user_id,
-                                "hand_status": "up" if hand_raised else "down"
-                            })
+                            # send_notification({
+                            #     "timestamp": config.get_vietnam_time(),
+                            #     "camera": camera_name,
+                            #     "id": user_id,
+                            #     "hand_status": "up" if hand_raised else "down"
+                            # })
+                            LOGGER.debug(f"timestamp: {config.get_vietnam_time()}, camera: {camera_name}, id: {user_id}, hand_status: {'up' if hand_raised else 'down'}")
 
                     # Nếu cần export dữ liệu, thu thập thông tin
                     if should_export and user_id != "Unknown":

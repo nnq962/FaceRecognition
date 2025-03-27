@@ -14,19 +14,22 @@ load_dotenv()
 class Config:
     """ Class chứa toàn bộ cấu hình của ứng dụng """
     
-    user = os.getenv("MONGO_USER")
-    password = os.getenv("MONGO_PASSWORD")
-    host = os.getenv("MONGO_HOST")
-    port = os.getenv("MONGO_PORT")
-    database = os.getenv("MONGO_DB")
+    user = os.getenv("MONGODB_USERNAME")
+    password = os.getenv("MONGODB_PASSWORD")
+    host = os.getenv("MONGODB_HOST")
+    port = os.getenv("MONGODB_PORT")
+    database = os.getenv("MONGODB_DATABASE")
+
     init_database = False
     vram_limit_for_FER = 2
     camera_names = []
     save_path = str(Path.home()) + "/nnq_static"
+
     model_urls = {
     "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
     "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2"
     }
+
     ann_file = "data_base/face_index.ann"
     mapping_file = "data_base/annoy_mapping.npy"
     faiss_file = "data_base/face_index.faiss"

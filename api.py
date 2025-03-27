@@ -14,7 +14,7 @@ from config import config
 from annoy import AnnoyIndex
 import faiss
 import pickle
-import onvif_camera_tools as onvif_camera_tools
+import onvif_camera_tools
 from utils.logger_config import LOGGER
 
 app = Flask(__name__)
