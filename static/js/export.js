@@ -3,7 +3,7 @@ let attendanceData = [];
 let originalData = [];
 let currentFilePath = '';
 let currentMonth = '';  // Thêm biến này
-const BASE_URL = 'http://localhost:6123';
+const BASE_URL = 'https://3hinc.nnq962.pro';
 const EXPORT_ATTENDANCE_API_URL = `${BASE_URL}/get_all_users?without_face_embeddings=1`;
 const GENERATE_EXCEL_API_URL = `${BASE_URL}/api/generate_excel`;
 const DOWNLOAD_URL = `${BASE_URL}/download`;

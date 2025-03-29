@@ -1,5 +1,5 @@
 // Khai báo các biến và hằng số
-const API_BASE_URL = 'http://27.72.62.241:6123/api';
+const API_BASE_URL = 'http://localhost:6123/api';
 const userGrid = document.getElementById('user-grid');
 const searchInput = document.getElementById('search-user');
 const lastUpdatedTime = document.getElementById('last-updated-time');

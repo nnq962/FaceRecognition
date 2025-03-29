@@ -1,5 +1,5 @@
 // Constants and variables
-const BASE_URL = 'http://localhost:6123';
+const BASE_URL = 'https://3hinc.nnq962.pro';
 const ATTENDANCE_API_URL = `${BASE_URL}/get_attendance`;
 const ALL_USERS_API_URL = `${BASE_URL}/get_all_users?without_face_embeddings=1`;
 let allEmployees = [];
