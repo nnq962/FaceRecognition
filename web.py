@@ -342,7 +342,7 @@ def home():
 
 
 # ----------------------------------------------------------------
-@app.route("/")
+@app.route("/export")
 def home():
     return render_template("export.html")
 
