@@ -1,6 +1,8 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
+import pandas as pd
 from config import config
-from datetime import datetime
+from datetime import datetime, timedelta
+import os
 
 # Kết nối tới MongoDB
 users_collection = config.users_collection
@@ -18,6 +20,57 @@ API
 https://3hinc.nnq962.pro/get_attendance
 https://3hinc.nnq962.pro/get_all_users?without_face_embeddings=1
 """
+
+
+# ----------------------------------------------------------------
+def calculate_work_hours_new(attendance_data):
+    """Tính tổng giờ công trong ngày, ghi chú và trừ KPI theo cấu trúc dữ liệu mới."""
+    if not attendance_data:  # Không có dữ liệu
+        return None, None, None, "Nghỉ", ""
+    
+    check_in_time = attendance_data.get("check_in_time")
+    check_out_time = attendance_data.get("check_out_time")
+    
+    if not check_in_time or not check_out_time:
+        return check_in_time, check_out_time, None, "Nghỉ", ""
+    
+    # Chuyển đổi định dạng thời gian
+    check_in_dt = datetime.strptime(check_in_time, "%H:%M:%S")
+    check_out_dt = datetime.strptime(check_out_time, "%H:%M:%S")
+    
+    # Tính tổng giờ công (để đơn giản, giả sử cùng ngày)
+    total_hours = round((check_out_dt - check_in_dt).total_seconds() / 3600, 2)
+    
+    # Thời gian chuẩn để so sánh
+    start_time = datetime.strptime("08:00:00", "%H:%M:%S")
+    late_threshold = datetime.strptime("08:10:00", "%H:%M:%S")
+    noon_deadline = datetime.strptime("11:30:00", "%H:%M:%S")
+    lunch_end = datetime.strptime("12:30:00", "%H:%M:%S")
+    end_time = datetime.strptime("17:30:00", "%H:%M:%S")
+    
+    # Kiểm tra các điều kiện
+    is_late = check_in_dt > late_threshold
+    is_early_leave = check_out_dt < end_time
+    missing_morning = check_in_dt > noon_deadline
+    missing_afternoon = check_out_dt < lunch_end
+    
+    # Xác định ghi chú
+    note = ""
+    if missing_morning:
+        note = "Thiếu công sáng"
+    elif missing_afternoon:
+        note = "Thiếu công chiều"
+    elif is_late and is_early_leave:
+        note = "Đi muộn & về sớm"
+    elif is_late:
+        note = "Đi muộn"
+    elif is_early_leave:
+        note = "Về sớm"
+    
+    # Xác định trừ KPI - chỉ trừ khi đi muộn quá 10 phút
+    kpi_deduction = 1 if is_late else ""
+    
+    return check_in_time, check_out_time, total_hours, note, kpi_deduction
 
 
 # ----------------------------------------------------------------
