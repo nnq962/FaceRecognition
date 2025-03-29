@@ -1,5 +1,5 @@
 import unicodedata
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, render_template
 import mimetypes
 from datetime import datetime, timedelta
 import pandas as pd
@@ -16,6 +16,9 @@ import faiss
 import pickle
 import onvif_camera_tools
 from utils.logger_config import LOGGER
+from qr_code.generate_aruco_tags import generate_aruco_marker
+import io
+import cv2
 
 app = Flask(__name__)
 CORS(app)
@@ -40,27 +43,6 @@ def play_greeting(name, greeting_type="chào"):
 
     # Phát âm thanh bằng FFmpeg
     os.system(f"ffplay -nodisp -autoexit {audio_file}")
-
-
-# ----------------------------------------------------------------
-def calculate_work_hours(entries):
-    """Tính tổng giờ công trong ngày và ghi chú nếu đi muộn."""
-    if len(entries) == 0:  # Không có dữ liệu
-        return None, None, None, "Không có dữ liệu"
-    elif len(entries) == 1:  # Chỉ có một mốc thời gian
-        check_in = datetime.strptime(entries[0], "%Y-%m-%d %H:%M:%S")
-        return check_in.strftime("%H:%M:%S"), None, None, "Chỉ có thời gian vào"
-
-    check_in = min(entries)  # Lấy thời gian vào đầu tiên
-    check_out = max(entries)  # Lấy thời gian ra cuối cùng
-    check_in_dt = datetime.strptime(check_in, "%Y-%m-%d %H:%M:%S")
-    check_out_dt = datetime.strptime(check_out, "%Y-%m-%d %H:%M:%S")
-    total_hours = (check_out_dt - check_in_dt).total_seconds() / 3600
-
-    # Ghi chú đi muộn nếu vào sau 08:00
-    late_note = "Đi muộn" if check_in_dt.time() > datetime.strptime("08:00:00", "%H:%M:%S").time() else ""
-
-    return check_in_dt.strftime("%H:%M:%S"), check_out_dt.strftime("%H:%M:%S"), total_hours, late_note
 
 
 # ----------------------------------------------------------------
@@ -247,7 +229,7 @@ def build_ann_index():
 
 
 # ----------------------------------------------------------------
-@app.route('/api/get_all_users', methods=['GET'])
+@app.route('/get_all_users', methods=['GET'])
 def get_all_users():
     # Lấy tham số từ query
     department_id = request.args.get('department_id', None)
@@ -270,7 +252,7 @@ def get_all_users():
 
 
 # ----------------------------------------------------------------
-@app.route('/api/add_user', methods=['POST'])
+@app.route('/add_user', methods=['POST'])
 def add_user():
     data = request.json
     required_fields = ["full_name", "department_id"]
@@ -306,7 +288,7 @@ def add_user():
     
 
 # ----------------------------------------------------------------
-@app.route('/api/delete_user/<user_id>', methods=['DELETE'])
+@app.route('/delete_user/<user_id>', methods=['DELETE'])
 def delete_user(user_id):
     try:
         # Lấy thông tin user từ MongoDB
@@ -333,7 +315,7 @@ def delete_user(user_id):
     
 
 # ----------------------------------------------------------------
-@app.route('/api/upload_photo/<user_id>', methods=['POST'])
+@app.route('/upload_photo/<user_id>', methods=['POST'])
 def upload_photo(user_id):
     if 'photo' not in request.files:
         return jsonify({"error": "No photo uploaded"}), 400
@@ -402,7 +384,7 @@ def upload_photo(user_id):
     
     
 # ----------------------------------------------------------------
-@app.route('/api/delete_photo/<user_id>', methods=['DELETE'])
+@app.route('/delete_photo/<user_id>', methods=['DELETE'])
 def delete_photo(user_id):
     data = request.get_json()
 
@@ -447,7 +429,7 @@ def delete_photo(user_id):
 
 
 # ----------------------------------------------------------------
-@app.route('/api/get_all_managers', methods=['GET'])
+@app.route('/get_all_managers', methods=['GET'])
 def get_all_managers():
     managers = list(managers_collection.find({}, {"_id": 1, "fullname": 1, "department_id": 1, "username": 1}))
     for manager in managers:
@@ -456,7 +438,7 @@ def get_all_managers():
 
 
 # ----------------------------------------------------------------
-@app.route('/api/add_manager', methods=['POST'])
+@app.route('/add_manager', methods=['POST'])
 def add_manager():
     data = request.json
 
@@ -491,7 +473,7 @@ def add_manager():
         return jsonify({"error": f"Failed to add manager: {str(e)}"}), 500
 
 # ----------------------------------------------------------------
-@app.route('/api/delete_manager/<manager_id>', methods=['DELETE'])
+@app.route('/delete_manager/<manager_id>', methods=['DELETE'])
 def delete_manager(manager_id):
     result = managers_collection.delete_one({"_id": int(manager_id)})
     if result.deleted_count == 0:
@@ -500,7 +482,7 @@ def delete_manager(manager_id):
 
 
 # ----------------------------------------------------------------
-@app.route('/api/login', methods=['POST'])
+@app.route('/login', methods=['POST'])
 def login():
     data = request.json  # Dữ liệu từ client gửi lên
     username = data.get('username')
@@ -528,7 +510,7 @@ def login():
 
     
 # ----------------------------------------------------------------
-@app.route('/api/get_attendance', methods=['GET'])
+@app.route('/get_attendance', methods=['GET'])
 def get_attendance():
     try:
         # Lấy ngày hiện tại theo định dạng yyyy-mm-dd
@@ -552,17 +534,16 @@ def get_attendance():
 
 
 # ----------------------------------------------------------------
-@app.route('/api/export_attendance', methods=['POST'])
+@app.route('/export_attendance', methods=['POST'])
 def export_attendance():
     try:
         # Lấy thông tin từ yêu cầu API
         data = request.json
         month = data.get("month")  # Định dạng YYYY-MM
-        camera_name = data.get("camera_name")
 
-        if not month or not camera_name:
-            return jsonify({"error": "Thiếu thông tin month hoặc camera_name"}), 400
-
+        if not month:
+            return jsonify({"error": "Thiếu thông tin month"}), 400
+        
         # Lấy danh sách nhân viên từ collection users
         users = list(users_collection.find())
         results = []
@@ -594,16 +575,14 @@ def export_attendance():
                     date_str = current_date.strftime("%Y-%m-%d")
                     weekday_str = weekday_map[current_date.weekday()]
 
-                    # Lấy dữ liệu từ camera_data
-                    camera_data = data_collection.find({
-                        "timestamp": {"$regex": f"^{date_str}"},
-                        "id": user_id,
-                        "camera_name": camera_name
+                    # Lấy dữ liệu từ mô hình mới
+                    attendance_data = data_collection.find_one({
+                        "date": date_str,
+                        "user_id": user_id
                     })
-                    timestamps = [entry["timestamp"] for entry in camera_data]
                     
                     # Tính giờ công và ghi chú
-                    check_in, check_out, total_hours, note = calculate_work_hours(timestamps)
+                    check_in, check_out, total_hours, note, kpi_deduction = calculate_work_hours_new(attendance_data)
 
                     # Thêm vào kết quả
                     results.append({
@@ -614,28 +593,212 @@ def export_attendance():
                         "Thời gian vào": check_in,
                         "Thời gian ra": check_out,
                         "Tổng giờ công": total_hours,
+                        "Trừ KPI": kpi_deduction,
                         "Ghi chú": note
                     })
 
                 # Sang ngày tiếp theo
                 current_date += timedelta(days=1)
 
-        # Tạo đường dẫn tệp Excel động
-        month_number = month.split("-")[1]  # Lấy số tháng
-        file_suffix = f"t{int(month_number)}"  # Tạo tiền tố dạng "t1", "t2"
-        output_file = f"/tmp/attendance_{file_suffix}.xlsx"  # Tên tệp
-
-        # Tạo DataFrame và xuất ra tệp Excel
-        df = pd.DataFrame(results)
-        df.to_excel(output_file, index=False)
-
-        # Trả về JSON chứa đường dẫn tệp
-        return jsonify({"message": "Export successful", "file": output_file}), 200
+        # Trả về chỉ dữ liệu JSON, không tạo Excel
+        return jsonify({
+            "message": "Data retrieved successfully", 
+            "data": results
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ----------------------------------------------------------------
+@app.route('/generate_excel', methods=['POST'])
+def generate_excel():
+    try:
+        # Lấy thông tin từ yêu cầu API
+        data = request.json
+        edited_data = data.get("data", [])
+        month_str = data.get("month", "")  # YYYY-MM
+        
+        if not edited_data:
+            return jsonify({"error": "Không có dữ liệu để xuất"}), 400
+            
+        # Import các thư viện cần thiết cho định dạng Excel
+        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+        import io
+        import tempfile
+        
+        # Tạo đường dẫn tệp Excel động
+        month_number = month_str.split("-")[1] if "-" in month_str else ""
+        file_suffix = f"t{int(month_number)}" if month_number.isdigit() else "export"
+        
+        # Tạo tệp tạm thời
+        with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False, prefix=f'attendance_{file_suffix}_') as temp:
+            temp_path = temp.name
+        
+        # Đảm bảo thứ tự cột đúng
+        column_order = [
+            "ID", 
+            "Tên nhân viên", 
+            "Ngày", 
+            "Thứ", 
+            "Thời gian vào", 
+            "Thời gian ra", 
+            "Tổng giờ công", 
+            "Trừ KPI", 
+            "Ghi chú"
+        ]
+        
+        # Tạo DataFrame và sắp xếp cột theo thứ tự đã định
+        df = pd.DataFrame(edited_data)
+        
+        # Đảm bảo tất cả các cột tồn tại (thêm cột thiếu nếu cần)
+        for col in column_order:
+            if col not in df.columns:
+                df[col] = ""
+        
+        # Sắp xếp lại các cột theo thứ tự chỉ định
+        df = df[column_order]
+        
+        # Xuất ra Excel với định dạng đẹp
+        with pd.ExcelWriter(temp_path, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Chấm Công')
+            
+            # Lấy workbook và worksheet để định dạng
+            workbook = writer.book
+            worksheet = writer.sheets['Chấm Công']
+            
+            # Tạo định dạng cho tiêu đề
+            header_font = Font(name='Calibri Light', bold=True, color='FFFFFF')
+            header_fill = PatternFill(start_color='4F81BD', end_color='4F81BD', fill_type='solid')
+            header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            
+            # Tạo định dạng cho nội dung
+            content_font = Font(name='Calibri Light')
+            content_alignment = Alignment(horizontal='center', vertical='center')
+            
+            # Áp dụng định dạng cho tiêu đề
+            for cell in worksheet[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = header_alignment
+            
+            # Áp dụng định dạng cho nội dung
+            for row in worksheet.iter_rows(min_row=2):
+                for cell in row:
+                    cell.font = content_font
+                    cell.alignment = content_alignment
+            
+            # Tự động điều chỉnh chiều rộng cột
+            for column in worksheet.columns:
+                max_length = 0
+                column_letter = column[0].column_letter
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = (max_length + 2) * 1.2
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Tạo đường viền cho bảng
+            thin_border = Border(left=Side(style='thin'), 
+                                right=Side(style='thin'),
+                                top=Side(style='thin'),
+                                bottom=Side(style='thin'))
+            
+            # Áp dụng đường viền cho tất cả các ô có dữ liệu
+            for row in worksheet.iter_rows(min_row=1, max_row=worksheet.max_row, 
+                                        min_col=1, max_col=worksheet.max_column):
+                for cell in row:
+                    cell.border = thin_border
+        
+        # Trả về đường dẫn đến tệp tạm thời để tải xuống
+        return jsonify({
+            "message": "Excel generated successfully", 
+            "file": temp_path
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ----------------------------------------------------------------
+@app.route('/download', methods=['GET'])
+def download_file():
+    file_path = request.args.get('file')
     
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({"error": "File không tồn tại"}), 404
     
+    # Lấy tên tệp từ đường dẫn
+    filename = os.path.basename(file_path)
+    
+    # Gửi tệp về client
+    response = send_file(file_path, as_attachment=True, download_name=filename)
+    
+    # Xóa tệp tạm thời sau khi gửi
+    @response.call_on_close
+    def cleanup():
+        try:
+            os.remove(file_path)
+        except:
+            pass
+    
+    return response
+
+
+# ----------------------------------------------------------------
+def calculate_work_hours_new(attendance_data):
+    """Tính tổng giờ công trong ngày, ghi chú và trừ KPI theo cấu trúc dữ liệu mới."""
+    if not attendance_data:  # Không có dữ liệu
+        return None, None, None, "Nghỉ", ""
+    
+    check_in_time = attendance_data.get("check_in_time")
+    check_out_time = attendance_data.get("check_out_time")
+    
+    if not check_in_time or not check_out_time:
+        return check_in_time, check_out_time, None, "Nghỉ", ""
+    
+    # Chuyển đổi định dạng thời gian
+    check_in_dt = datetime.strptime(check_in_time, "%H:%M:%S")
+    check_out_dt = datetime.strptime(check_out_time, "%H:%M:%S")
+    
+    # Tính tổng giờ công (để đơn giản, giả sử cùng ngày)
+    total_hours = round((check_out_dt - check_in_dt).total_seconds() / 3600, 2)
+    
+    # Thời gian chuẩn để so sánh
+    start_time = datetime.strptime("08:00:00", "%H:%M:%S")
+    late_threshold = datetime.strptime("08:10:00", "%H:%M:%S")
+    noon_deadline = datetime.strptime("11:30:00", "%H:%M:%S")
+    lunch_end = datetime.strptime("12:30:00", "%H:%M:%S")
+    end_time = datetime.strptime("17:30:00", "%H:%M:%S")
+    
+    # Kiểm tra các điều kiện
+    is_late = check_in_dt > late_threshold
+    is_early_leave = check_out_dt < end_time
+    missing_morning = check_in_dt > noon_deadline
+    missing_afternoon = check_out_dt < lunch_end
+    
+    # Xác định ghi chú
+    note = ""
+    if missing_morning:
+        note = "Thiếu công sáng"
+    elif missing_afternoon:
+        note = "Thiếu công chiều"
+    elif is_late and is_early_leave:
+        note = "Đi muộn & về sớm"
+    elif is_late:
+        note = "Đi muộn"
+    elif is_early_leave:
+        note = "Về sớm"
+    
+    # Xác định trừ KPI - chỉ trừ khi đi muộn quá 10 phút
+    kpi_deduction = 1 if is_late else ""
+    
+    return check_in_time, check_out_time, total_hours, note, kpi_deduction
+    
+
 # ----------------------------------------------------------------
 if config.init_database:
     LOGGER.warning("Initialize database")
@@ -644,7 +807,7 @@ if config.init_database:
 
 
 # ----------------------------------------------------------------
-@app.route('/api/rebuild_all_users_embeddings', methods=['POST'])
+@app.route('/rebuild_all_users_embeddings', methods=['POST'])
 def rebuild_all_users_embeddings():
     try:
         # Chạy xử lý ảnh người dùng
@@ -659,7 +822,7 @@ def rebuild_all_users_embeddings():
 
 
 # ----------------------------------------------------------------
-@app.route('/api/get_photos/<user_id>', methods=['GET'])
+@app.route('/get_photos/<user_id>', methods=['GET'])
 def get_photos(user_id):
     # Lấy thông tin user từ MongoDB
     user = users_collection.find_one({"_id": int(user_id)})
@@ -686,7 +849,7 @@ def get_photos(user_id):
 
 
 # ----------------------------------------------------------------
-@app.route('/api/view_photo/<user_id>/<filename>', methods=['GET'])
+@app.route('/view_photo/<user_id>/<filename>', methods=['GET'])
 def view_photo(user_id, filename):
     # Lấy thông tin user từ MongoDB
     user = users_collection.find_one({"_id": int(user_id)})
@@ -715,7 +878,7 @@ def view_photo(user_id, filename):
 
 
 # ----------------------------------------------------------------
-@app.route('/api/get_user_data', methods=['GET'])
+@app.route('/get_user_data', methods=['GET'])
 def get_user_data():
     try:
         # Lấy tham số từ request
@@ -782,14 +945,14 @@ def get_user_data():
 
 
 # ----------------------------------------------------------------
-@app.route('/api/get_all_cameras', methods=['GET'])
+@app.route('/get_all_cameras', methods=['GET'])
 def get_all_cameras():
     cameras = list(camera_collection.find({}))
     return jsonify(cameras)
 
 
 # ----------------------------------------------------------------
-@app.route('/api/get_camera', methods=['GET'])
+@app.route('/get_camera', methods=['GET'])
 def get_camera():
     _id = request.args.get('_id')
     location = request.args.get('camera_location')
@@ -820,7 +983,7 @@ def get_camera():
     
 
 # ----------------------------------------------------------------
-@app.route('/api/add_camera', methods=['POST'])
+@app.route('/add_camera', methods=['POST'])
 def add_camera():
     data = request.get_json()
 
@@ -870,7 +1033,7 @@ def add_camera():
     
 
 # ----------------------------------------------------------------
-@app.route('/api/delete_camera', methods=['DELETE'])
+@app.route('/delete_camera', methods=['DELETE'])
 def delete_camera():
     _id = request.args.get('_id')
 
@@ -891,7 +1054,7 @@ def delete_camera():
 
 
 # ----------------------------------------------------------------
-@app.route('/api/update_camera', methods=['PUT'])
+@app.route('/update_camera', methods=['PUT'])
 def update_camera():
     _id = request.args.get('_id')
     data = request.get_json()
@@ -918,7 +1081,7 @@ def update_camera():
 
 
 # ----------------------------------------------------------------
-@app.route('/api/update_user/<user_id>', methods=['PUT'])
+@app.route('/update_user/<user_id>', methods=['PUT'])
 def update_user(user_id):
     data = request.get_json()
 
@@ -947,5 +1110,36 @@ def update_user(user_id):
 
 
 # ----------------------------------------------------------------
+@app.route("/get_qr_code", methods=["GET"])
+def get_qr_code():
+    try:
+        marker_id = int(request.args.get("id", 0))
+        size = int(request.args.get("size", 400))
+        dictionary_name = request.args.get("marker", "DICT_5X5_100")
+
+        marker_image = generate_aruco_marker(dictionary_name, marker_id, size)
+
+        # Encode ảnh thành PNG và đưa vào bộ nhớ RAM
+        success, encoded_image = cv2.imencode(".png", marker_image)
+        if not success:
+            raise RuntimeError("Failed to encode marker image.")
+        
+        # Dùng BytesIO giả lập file
+        image_io = io.BytesIO(encoded_image.tobytes())
+        image_io.seek(0)
+
+        return send_file(image_io, mimetype="image/png", as_attachment=False)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# ---------------------------------------------------------------- 
+@app.route("/users")
+def users():
+    return render_template("users.html")
+
+
+# ----------------------------------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=6123)
+    app.run(port=6123)

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Hệ thống theo dõi chấm công nhân viên">
+    <title>Hệ Thống Theo Dõi Chấm Công</title>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../static/css/styles.css">
+    <link rel="icon" href="../static/images/logo3.png" type="image/png">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div>
+                <h1 class="title">Hệ Thống Theo Dõi Chấm Công</h1>
+                <div class="last-updated" id="lastUpdated" aria-live="polite"></div>
+            </div>
+            <button id="refreshBtn" class="refresh-btn" type="button" aria-label="Làm mới dữ liệu">
+                <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                <span class="hide-on-mobile">Làm mới dữ liệu</span>
+            </button>
+        </header>
+
+        <div id="errorContainer" style="display: none;" class="error-message" role="alert" aria-live="assertive">
+            <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+            <span id="errorMessage"></span>
+        </div>
+
+        <div class="search-container">
+            <i class="fas fa-search search-icon" aria-hidden="true"></i>
+            <input type="text" id="searchInput" class="search-input" placeholder="Tìm kiếm nhân viên..." aria-label="Tìm kiếm nhân viên">
+        </div>
+
+        <main class="card">
+            <div class="card-header">
+                <div class="card-title">Danh sách nhân viên</div>
+                <div id="totalEmployees" aria-live="polite"></div>
+            </div>
+            <div class="card-header" style="border-top: 1px solid rgba(0, 0, 0, 0.05);">
+                <div style="font-size: 14px; color: var(--text-secondary);">
+                    <span style="margin-right: 15px;"><i class="fas fa-info-circle" aria-hidden="true"></i> Giờ làm chuẩn: 08:00 - 17:30</span>
+                </div>
+                <div>
+                    <span class="status status-present" style="margin-right: 8px; font-size: 12px;">Đúng giờ</span>
+                    <span class="status status-late" style="margin-right: 8px; font-size: 12px;">Đi muộn</span>
+                    <span class="status status-early" style="margin-right: 8px; font-size: 12px;">Về sớm</span>
+                    <span class="status status-absent" style="font-size: 12px;">Chưa chấm công</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="loading" class="loading" aria-live="polite">
+                    <div class="spinner" role="status" aria-label="Đang tải"></div>
+                    <p>Đang tải dữ liệu...</p>
+                </div>
+                <div id="content" style="display: none;">
+                    <div class="table-wrapper">
+                        <table id="attendanceTable" aria-label="Bảng điểm danh nhân viên">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Họ và tên</th>
+                                    <th scope="col">Phòng ban</th>
+                                    <th scope="col">Giờ vào</th>
+                                    <th scope="col">Giờ ra</th>
+                                    <th scope="col">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceData">
+                                <!-- Data will be inserted here dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="emptyState" class="empty-state" style="display: none;" aria-live="polite">
+                        <div class="empty-icon">
+                            <i class="fas fa-user-clock" aria-hidden="true"></i>
+                        </div>
+                        <h3>Không có dữ liệu chấm công</h3>
+                        <p>Hãy thử làm mới dữ liệu hoặc kiểm tra lại kết nối mạng</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="../static/js/view.js" defer></script>
+</body>
+</html>

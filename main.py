@@ -17,6 +17,8 @@ parser.add_argument("--view_img", action="store_true", help="Enable display.")
 parser.add_argument("--line_thickness", type=int, default=3, help="Line thickness")
 parser.add_argument("--qr_code", action="store_true", help="Enable qr code.")
 parser.add_argument("--face_mask", action="store_true", help="Enable face mask detection.")
+parser.add_argument("--notification", action="store_true", help="Turn on voice notifications.")
+
 
 args = parser.parse_args()
 processed_source = config.process_camera_input(args.source)
@@ -39,7 +41,8 @@ detector = InsightFaceDetector(
     raise_hand=args.raise_hand,
     qr_code=args.qr_code,
     export_data=args.export_data,
-    time_to_save=args.time_to_save
+    time_to_save=args.time_to_save,
+    notification=args.notification
 )
 
 detector.run_inference()

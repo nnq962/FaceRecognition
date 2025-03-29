@@ -30,7 +30,8 @@ class InsightFaceDetector:
                 time_to_save=2,
                 raise_hand=False,
                 qr_code=False,
-                face_mask=False):
+                face_mask=False,
+                notification=False):
         
         self.det_model_path = os.path.expanduser("~/Models/det_10g.onnx")
         self.rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
@@ -44,6 +45,14 @@ class InsightFaceDetector:
         self.qr_code = qr_code
         self.raise_hand = raise_hand
         self.face_mask = face_mask
+        self.notification = notification
+
+        if self.raise_hand:
+            if self.webcam:
+                for camera_name in config.camera_names:
+                    self.previous_hand_states[camera_name] = {}
+            else:
+                self.previous_hand_states["Photo"] = {}
 
         self.previous_qr_results = {}
         self.previous_hand_states = {}
@@ -66,8 +75,6 @@ class InsightFaceDetector:
             self.save_img = media_manager.save_img
             self.save = media_manager.save
             self.save_crop = media_manager.save_crop
-            self.hide_labels = media_manager.hide_labels
-            self.hide_conf = media_manager.hide_conf
             self.vid_path = media_manager.vid_path
             self.vid_writer = media_manager.vid_writer
 
@@ -143,6 +150,70 @@ class InsightFaceDetector:
 
         return sorted_markers
     
+    def detect_face_masks(self, image):
+        mask_count = face_mask_detection.inference(image, target_shape=(360, 360))
+        if mask_count:
+            self.mask_detected_frames += 1
+        else:
+            self.mask_detected_frames = 0
+        if self.mask_detected_frames >= self.mask_thresh:
+            self.mask_detected_frames = 0
+            if self.notification:
+                ns_send_notification("Vui lòng tháo khẩu trang")
+            else:
+                LOGGER.info("Vui lòng tháo khẩu trang")
+
+    def detect_qr_code(self, image, index):
+        """
+        Detects QR codes in the given image and sends a notification if a new QR code is detected.
+        Args:
+            image (numpy.ndarray): The input image in which to detect QR codes. 
+                       It should be a valid numpy array representing the image.
+            index (int): The index of the image, used to determine the corresponding camera name.
+        Behavior:
+            - Uses the `get_aruco_marker` method to detect QR codes in the image.
+            - Compares the detected QR code with previously detected results for the corresponding camera.
+            - If a new QR code is detected, updates the previous results and sends a notification 
+              containing the timestamp, camera name, and QR code data.
+        Note:
+            - The camera name is determined based on the index `i` and whether the input is from a webcam or a photo.
+    
+        """
+        qr_result = self.get_aruco_marker(image)
+        camera_name = config.camera_names[index] if self.webcam else "Photo"
+        previous_kq = self.previous_qr_results.get(camera_name, [])
+
+        if qr_result and qr_result != previous_kq:
+            self.previous_qr_results[camera_name] = qr_result  # Cập nhật kết quả mới
+            send_notification({
+                "timestamp": config.get_vietnam_time(),
+                "camera": camera_name,
+                "qr_code": qr_result
+            })
+
+    def detect_raise_hand(self, frame, bbox, user_id, camera_name):
+        if user_id == "Unknown":
+            return
+
+        hand_raised = get_raising_hand(frame, bbox)
+        previous_state = self.previous_hand_states[camera_name].get(user_id, None)
+
+        # Chỉ gửi nếu trạng thái thay đổi
+        if previous_state is None or previous_state != hand_raised:
+            # Cập nhật trạng thái mới vào dictionary
+            self.previous_hand_states[camera_name][user_id] = hand_raised
+            
+            # Ghi log và gửi thông báo
+            LOGGER.debug(f"timestamp: {config.get_vietnam_time()}, camera: {camera_name}, id: {user_id}, hand_status: {'up' if hand_raised else 'down'}")
+            
+            # Code gửi thông báo nếu cần
+            # send_notification({
+            #     "timestamp": config.get_vietnam_time(),
+            #     "camera": camera_name,
+            #     "id": user_id,
+            #     "hand_status": "up" if hand_raised else "down"
+            # })
+
     def run_inference(self):
         """
         Run inference on images/video and display results
@@ -173,30 +244,13 @@ class InsightFaceDetector:
                 
                 face_counts.append(len(bounding_boxes))  # Ghi lại số lượng khuôn mặt
 
-                # Đếm số người đeo khẩu trang
+                # Phát hiện đeo khẩu trang
                 if self.face_mask:
-                    mask_count = face_mask_detection.inference(im0, target_shape=(360, 360))
-                    if mask_count:
-                        self.mask_detected_frames += 1
-                    else:
-                        self.mask_detected_frames = 0
-                    if self.mask_detected_frames >= self.mask_thresh:
-                        self.mask_detected_frames = 0
-                        ns_send_notification("Vui lòng tháo khẩu trang")
+                    self.detect_face_masks(image=im0)
                         
                 # Kiểm tra QR code
                 if self.qr_code:
-                    qr_result = self.get_aruco_marker(im0)
-                    camera_name = config.camera_names[i] if self.webcam else "Photo"
-                    previous_kq = self.previous_qr_results.get(camera_name, [])
-
-                    if qr_result and qr_result != previous_kq:
-                        self.previous_qr_results[camera_name] = qr_result  # Cập nhật kết quả mới
-                        send_notification({
-                            "timestamp": config.get_vietnam_time(),
-                            "camera": camera_name,
-                            "qr_code": qr_result
-                        })
+                    self.detect_qr_code(image=im0, index=i)
 
                 # Crop khuôn mặt để phát hiện cảm xúc
                 if self.face_emotion:
@@ -249,17 +303,13 @@ class InsightFaceDetector:
 
             # Duyệt qua từng ảnh để hiển thị và thu thập dữ liệu
             for img_index, results in enumerate(results_per_image):
-                p = path[img_index] if self.webcam else path
                 im0 = self.get_frame(im0s, img_index, self.webcam)
+                p = path[img_index] if self.webcam else path
                 p = Path(p)
                 save_path = str(self.save_dir / p.name) if (self.save or self.save_crop) else None
-                imc = im0.copy() if self.save_crop or should_export else im0
+                imc = im0.copy() if self.save_crop or should_export else None
                 annotator = Annotator(im0, line_width=self.line_thickness)
                 camera_name = config.camera_names[img_index] if self.webcam else "Photo"
-
-                # Nếu cần lưu trạng thái giơ tay, đảm bảo camera có trong dictionary
-                if self.raise_hand and camera_name not in self.previous_hand_states:
-                    self.previous_hand_states[camera_name] = {}
                 
                 # Duyệt qua từng khuôn mặt trong ảnh
                 for result in results:
@@ -271,29 +321,19 @@ class InsightFaceDetector:
                     emotion = result["emotion"]
 
                     # Test backend
-                    if user_id == 1 and get_raising_hand(im0, bbox):
-                        self.hand_detected_frames += 1
-                        if self.hand_detected_frames >= 20:
-                            self.hand_detected_frames = 0
-                            ns_send_notification("Ok sếp ơi")
+                    if user_id == 1:
+                        if get_raising_hand(im0, bbox):
+                            self.hand_detected_frames += 1
+                            if self.hand_detected_frames >= 20:
+                                self.hand_detected_frames = 0
+                                if self.notification:
+                                    ns_send_notification("Ok sếp ơi")
+                                else:
+                                    LOGGER.info("Ok sếp ơi")
                     
                     # Kiểm tra giơ tay
-                    if self.raise_hand and user_id != "Unknown":
-                        hand_raised = get_raising_hand(im0, bbox)
-                        previous_state = self.previous_hand_states[camera_name].get(user_id, None)
-
-                        # Chỉ gửi nếu trạng thái thay đổi
-                        if previous_state is None or previous_state != hand_raised:
-                            # Cập nhật trạng thái mới vào dictionary theo camera
-                            self.previous_hand_states[camera_name][user_id] = hand_raised
-                            # Gửi dữ liệu giơ tay
-                            # send_notification({
-                            #     "timestamp": config.get_vietnam_time(),
-                            #     "camera": camera_name,
-                            #     "id": user_id,
-                            #     "hand_status": "up" if hand_raised else "down"
-                            # })
-                            LOGGER.debug(f"timestamp: {config.get_vietnam_time()}, camera: {camera_name}, id: {user_id}, hand_status: {'up' if hand_raised else 'down'}")
+                    if self.raise_hand:
+                        self.detect_raise_hand(im0, bbox, user_id, camera_name)
 
                     # Nếu cần export dữ liệu, thu thập thông tin
                     if should_export and user_id != "Unknown":
@@ -307,17 +347,12 @@ class InsightFaceDetector:
                             "bbox": bbox   # Lưu bbox để vẽ hình chữ nhật trên ảnh check-in
                         })
 
-                    if self.face_emotion:
-                        label = f"{user_id} {similarity} | {emotion}"
-                    elif self.face_recognition:
-                        label = f"{user_id} {similarity}"
-                    else:
-                        label = None
-
-                    # Hiển thị nhãn
                     if self.save_img or self.save_crop or self.view_img:
-                        if self.hide_labels or self.hide_conf:
-                            label = None
+                        label = None
+                        if self.face_emotion:
+                            label = f"{user_id} {similarity} | {emotion}"
+                        elif self.face_recognition:
+                            label = f"{user_id} {similarity}"
 
                         color = (0, int(255 * conf), int(255 * (1 - conf)))
                         annotator.box_label(bbox, label, color=color)
@@ -350,91 +385,112 @@ class InsightFaceDetector:
             
             # Lưu dữ liệu vào MongoDB
             if should_export and export_data_list:
-                # Lấy danh sách user_id duy nhất để truy vấn
-                user_ids = list(set(data["user_id"] for data in export_data_list))
-                records = config.data_collection.find({"date": today_date, "user_id": {"$in": user_ids}})
-                records_dict = {record["user_id"]: record for record in records}
-
-                operations = []
-                welcome_users = []
-                goodbye_users = []
-
-                # Tạo thư mục nếu chưa tồn tại
-                image_folder = f"attendance_images/{today_date.replace('-', '_')}"
-                os.makedirs(image_folder, exist_ok=True)
-
-                # Tách giờ và phút từ current_time_short để kiểm tra
-                current_hour, current_minute, _ = map(int, current_time_short.split(':'))
-                is_after_1730 = current_hour > 17 or (current_hour == 17 and current_minute >= 30)
-
-                for data in export_data_list:
-                    user_id = data["user_id"]
-                    record = records_dict.get(user_id)
-                    timestamp_entry = {
-                        "time": data["time"],
-                        "emotion": data["emotion"],
-                        "camera": data["camera"]
-                    }
-
-                    if not record:    
-                        # Đường dẫn ảnh
-                        image_path = f"{image_folder}/{user_id}_{data['time'].replace(':', '_')}_check_in.jpg"
-                        
-                        # Tạo bản ghi mới cho check-in
-                        new_record = {
-                            "date": today_date,
-                            "user_id": user_id,
-                            "name": data["name"],
-                            "check_in_time": data["time"],
-                            "check_in_image": image_path,
-                            "timestamps": [timestamp_entry],
-                            "check_out_time": data["time"],
-                            "has_been_goodbye": False
-                        }
-                        operations.append(InsertOne(new_record))
-
-                        # Lưu ảnh check-in với khung bbox
-                        img = data["image"].copy()
-                        x1, y1, x2, y2 = map(int, data["bbox"])
-                        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        cv2.imwrite(image_path, img)
-
-                        # Lưu tên để xin chào
-                        welcome_users.append(data["name"])
-                    else:
-                        # Cập nhật bản ghi cũ
-                        update_operation = {
-                            "$push": {"timestamps": timestamp_entry},
-                            "$set": {"check_out_time": data["time"]}
-                        }
-                        
-                        # Kiểm tra và chào tạm biệt nếu sau 17:30 và chưa chào
-                        if is_after_1730 and not record.get("has_been_goodbye", False):
-                            goodbye_users.append(data["name"])
-                            update_operation["$set"]["has_been_goodbye"] = True  # Đánh dấu đã chào
-
-                        operations.append(UpdateOne(
-                            {"date": today_date, "user_id": user_id},
-                            update_operation
-                        ))
-
-                # Thực hiện batch update
-                if operations:
-                    config.data_collection.bulk_write(operations)
-
-                export_data_list.clear()
+                self._process_attendance_data(export_data_list, today_date, current_time_short, self.notification)
                 start_time = time.time()
-
-                # Gửi thông báo
-                if welcome_users:
-                    message = f"Xin chào {', '.join(welcome_users)}"
-                    ns_send_notification(message)
-                if goodbye_users:
-                    message = f"Chào tạm biệt {', '.join(goodbye_users)}"
-                    ns_send_notification(message)
-                    
+                            
         # Đảm bảo release sau khi xử lý tất cả các khung hình
         self._release_writers()
+    
+    def _process_attendance_data(self, export_data_list, today_date, current_time_short, notification_enabled=False):
+        if not export_data_list:
+            return
+            
+        # Tạo thư mục lưu ảnh
+        image_folder = f"attendance_images/{today_date.replace('-', '_')}"
+        os.makedirs(image_folder, exist_ok=True)
+        
+        # Kiểm tra thời gian chỉ một lần
+        is_after_1730 = self._is_after_time(current_time_short, 17, 30)
+        
+        # Tối ưu truy vấn MongoDB
+        user_ids = list({data["user_id"] for data in export_data_list})
+        records = config.data_collection.find(
+            {"date": today_date, "user_id": {"$in": user_ids}},
+            {"user_id": 1, "name": 1, "check_in_time": 1, "has_been_goodbye": 1}
+        )
+        records_dict = {record["user_id"]: record for record in records}
+        
+        # Chuẩn bị các thao tác
+        operations = []
+        welcome_users = []
+        goodbye_users = []
+        
+        for data in export_data_list:
+            user_id = data["user_id"]
+            timestamp_entry = {
+                "time": data["time"],
+                "emotion": data["emotion"],
+                "camera": data["camera"]
+            }
+            
+            if user_id not in records_dict:
+                # Xử lý check-in mới
+                image_path = f"{image_folder}/{user_id}_{data['time'].replace(':', '_')}_check_in.jpg"
+                
+                new_record = {
+                    "date": today_date,
+                    "user_id": user_id,
+                    "name": data["name"],
+                    "check_in_time": data["time"],
+                    "check_in_image": image_path,
+                    "timestamps": [timestamp_entry],
+                    "check_out_time": data["time"],
+                    "has_been_goodbye": False
+                }
+                operations.append(InsertOne(new_record))
+                
+                # Lưu ảnh (có thể chuyển thành xử lý đồng thời)
+                img = data["image"].copy()
+                x1, y1, x2, y2 = map(int, data["bbox"])
+                cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.imwrite(image_path, img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                
+                welcome_users.append(data["name"])
+            else:
+                # Cập nhật dữ liệu
+                update_data = {
+                    "$push": {"timestamps": timestamp_entry},
+                    "$set": {"check_out_time": data["time"]}
+                }
+                
+                record = records_dict[user_id]
+                if is_after_1730 and not record.get("has_been_goodbye", False):
+                    goodbye_users.append(data["name"])
+                    update_data["$set"]["has_been_goodbye"] = True
+                    
+                operations.append(UpdateOne(
+                    {"date": today_date, "user_id": user_id},
+                    update_data
+                ))
+        
+        # Thực hiện bulk write một lần
+        if operations:
+            try:
+                result = config.data_collection.bulk_write(operations)
+                # Có thể log kết quả nếu cần
+                # logger.info(f"MongoDB operations: {result.inserted_count} inserted, {result.modified_count} modified")
+            except Exception as e:
+                # Xử lý lỗi và log
+                LOGGER.error(f"MongoDB bulk_write error: {e}")
+        
+        # Gửi thông báo
+        if notification_enabled:
+            if welcome_users:
+                ns_send_notification(f"Xin chào {', '.join(welcome_users)}")
+            if goodbye_users:
+                ns_send_notification(f"Chào tạm biệt {', '.join(goodbye_users)}")
+        else:
+            if welcome_users:
+                LOGGER.info(f"Xin chào {', '.join(welcome_users)}")
+            if goodbye_users:
+                LOGGER.info(f"Chào tạm biệt {', '.join(goodbye_users)}")
+                
+        # Xóa danh sách đã xử lý
+        export_data_list.clear()
+        
+    def _is_after_time(self, time_str, hour_threshold, minute_threshold=0):
+        hour, minute, _ = map(int, time_str.split(':'))
+        return hour > hour_threshold or (hour == hour_threshold and minute >= minute_threshold)
 
     def _save_video(self, img_index, save_path, vid_cap, im0):
         """
