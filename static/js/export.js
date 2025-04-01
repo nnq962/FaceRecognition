@@ -4,9 +4,11 @@ let originalData = [];
 let currentFilePath = '';
 let currentMonth = '';  // Thêm biến này
 const BASE_URL = 'https://3hinc.nnq962.pro';
-const EXPORT_ATTENDANCE_API_URL = `${BASE_URL}/get_all_users?without_face_embeddings=1`;
-const GENERATE_EXCEL_API_URL = `${BASE_URL}/api/generate_excel`;
+const EXPORT_ATTENDANCE_API_URL = `${BASE_URL}/export_attendance`;
+const GENERATE_EXCEL_API_URL = `${BASE_URL}/generate_excel`;
 const DOWNLOAD_URL = `${BASE_URL}/download`;
+
+const lastUpdatedElement = document.getElementById('lastUpdated');
 
 // Khởi tạo khi trang được tải
 document.addEventListener('DOMContentLoaded', function() {
@@ -34,15 +36,23 @@ function setupYearOptions() {
 // Cập nhật ngày giờ hiện tại
 function updateDateTime() {
     const now = new Date();
-    const options = { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    };
-    document.getElementById('currentDateTime').textContent = now.toLocaleDateString('vi-VN', options);
+    
+    // Lấy giờ và phút một cách trực tiếp
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    
+    // Lấy ngày, tháng, năm
+    const day = now.getDate();
+    const month = now.getMonth() + 1; // getMonth() trả về 0-11
+    const year = now.getFullYear();
+    
+    // Lấy tên thứ trong tuần một cách trực tiếp
+    const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const weekday = weekdays[now.getDay()];
+    
+    // Sửa dòng này: thay lastUpdatedElement bằng document.getElementById('currentDateTime')
+    document.getElementById('currentDateTime').textContent = 
+        `Cập nhật lúc ${hours}:${minutes} ${weekday}, ${day} tháng ${month}, ${year}`;
 }
 
 // Thiết lập tất cả event listeners
@@ -55,15 +65,17 @@ function setupEventListeners() {
 }
 
 // Xử lý sự kiện submit form
+// Thêm kiểm tra thêm cho form submit
 function handleFormSubmit(e) {
     e.preventDefault();
+    e.stopPropagation(); // Ngăn chặn việc sự kiện truyền lên các phần tử cha
     
     const year = document.getElementById('yearSelect').value;
     const month = document.getElementById('monthSelect').value;
     
     if (!year || !month) {
         alert('Vui lòng chọn cả năm và tháng!');
-        return;
+        return false; // Thêm return false
     }
     
     // Hiển thị card xem trước
@@ -77,6 +89,8 @@ function handleFormSubmit(e) {
     
     // Gọi API để lấy dữ liệu
     fetchAttendanceData(year, month);
+    
+    return false; // Thêm return false
 }
 
 // Lấy dữ liệu chấm công từ API
@@ -87,7 +101,7 @@ function fetchAttendanceData(year, month) {
     // Hiện loading
     document.getElementById('loading').style.display = 'block';
     
-    fetch(ATTENDANCE_API_URL, {
+    fetch(EXPORT_ATTENDANCE_API_URL, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

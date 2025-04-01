@@ -3,6 +3,14 @@ import pandas as pd
 from config import config
 from datetime import datetime, timedelta
 import os
+from flask_cors import CORS
+# Import các thư viện cần thiết cho định dạng Excel
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+import io
+import tempfile
+
+app = Flask(__name__)
+CORS(app)
 
 # Kết nối tới MongoDB
 users_collection = config.users_collection
@@ -12,8 +20,6 @@ data_collection = config.data_collection
 save_path = config.save_path
 greeted_employees = {}
 
-
-app = Flask(__name__)
 
 """
 API
@@ -161,11 +167,6 @@ def generate_excel():
         
         if not edited_data:
             return jsonify({"error": "Không có dữ liệu để xuất"}), 400
-            
-        # Import các thư viện cần thiết cho định dạng Excel
-        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
-        import io
-        import tempfile
         
         # Tạo đường dẫn tệp Excel động
         month_number = month_str.split("-")[1] if "-" in month_str else ""

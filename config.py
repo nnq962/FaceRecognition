@@ -23,7 +23,7 @@ class Config:
     init_database = False
     vram_limit_for_FER = 2
     camera_names = []
-    save_path = str(Path.home()) + "/nnq_static"
+    save_path = str(Path.home()) + "/3hinc_database"
 
     model_urls = {
     "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
@@ -52,10 +52,10 @@ class Config:
     db = client["my_database"]
 
     # Các collection
-    users_collection = db["users"]
+    users_collection = db["3hinc_users"]
     managers_collection = db["managers"]
     camera_collection = db["camera_information"]
-    data_collection = db["camera_data"]
+    data_collection = db["3hinc_data"]
 
     SAVE_PATH = Path(save_path)
     UPLOADS_PATH = SAVE_PATH / "uploads"
