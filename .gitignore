@@ -11,3 +11,4 @@ attendance_images/
 log_main.log
 log_nohup.txt
 .env
+audio_cache
