@@ -1,5 +1,5 @@
 // Khai báo các biến và hằng số
-const API_BASE_URL = 'http://192.168.0.105:5555/api';
+const API_BASE_URL = 'https://3hinc.nnq962.pro/api';
 const userGrid = document.getElementById('user-grid');
 const searchInput = document.getElementById('search-user');
 const lastUpdatedTime = document.getElementById('last-updated-time');

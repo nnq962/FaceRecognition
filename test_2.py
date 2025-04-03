@@ -1,32 +1,34 @@
-import time
-import subprocess
-from gtts import gTTS
-import os
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
 
-TEXT = "Xin chào! Đây là một đoạn kiểm tra với gTTS và ffmpeg."
-TTS_PATH = "output.mp3"
+# Dữ liệu
+x = np.array([41, 54, 63, 63, 46, 48, 50, 61, 64, 71]).reshape(-1, 1)
+y = np.array([1250, 1380, 1425, 1425, 1450, 1300, 1400, 1510, 1575, 1650])
 
-# Task 1: Tạo file âm thanh bằng gTTS và phát bằng ffmpeg
-# start_time_1 = time.time()
+# Mô hình hồi quy
+model = LinearRegression()
+model.fit(x, y)
 
-# # Sinh giọng nói từ văn bản
-# tts = gTTS(TEXT, lang='vi')
-# tts.save(TTS_PATH)
+# Dự đoán
+y_pred = model.predict(x)
 
-# # Phát file vừa tạo bằng ffmpeg (ẩn log, không hiển thị đầu ra)
-# subprocess.run(["ffplay", "-nodisp", "-autoexit", "output.mp3"])
+# Hệ số hồi quy
+a = model.intercept_
+b = model.coef_[0]
+print(f"Hàm hồi quy: y = {a:.2f} + {b:.2f} * x")
 
-# end_time_1 = time.time()
-# duration_1 = end_time_1 - start_time_1
+# Tính MSE
+mse = mean_squared_error(y, y_pred)
+print(f"MSE: {mse:.2f}")
 
-# print(f"Tác vụ 1 (tạo và phát âm thanh) mất {duration_1:.3f} giây.")
-
-# Task 2: Phát lại file đã có sẵn
-start_time_2 = time.time()
-
-subprocess.run(["ffplay", "-nodisp", "-autoexit", "output.mp3"])
-
-end_time_2 = time.time()
-duration_2 = end_time_2 - start_time_2
-
-print(f"Tác vụ 2 (phát lại file đã có) mất {duration_2:.3f} giây.")
+# Vẽ đồ thị
+plt.scatter(x, y, color='blue', label='Dữ liệu thực tế')
+plt.plot(x, y_pred, color='red', label='Đường hồi quy')
+plt.xlabel('Chi tiêu quảng cáo (x)')
+plt.ylabel('Doanh thu (y)')
+plt.title('Hồi quy tuyến tính: Chi tiêu quảng cáo vs Doanh thu')
+plt.legend()
+plt.grid(True)
+plt.show()

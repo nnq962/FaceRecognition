@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .admin-container {
-            max-width: 950px;
+            max-width: 1200px; /* Tăng độ rộng để có thêm cột */
             margin: 40px auto;
             padding: 0 15px; /* Thêm padding cho container trên màn hình nhỏ */
         }
@@ -82,6 +82,7 @@
             border-spacing: 0;
             overflow: hidden; /* Đảm bảo bo góc bảng */
             margin-top: 0;
+            min-width: 1000px; /* Đảm bảo bảng đủ rộng */
         }
         
         .admin-table th {
@@ -110,27 +111,32 @@
         /* Điều chỉnh độ rộng cột */
         .admin-table th:nth-child(1), 
         .admin-table td:nth-child(1) {
-            width: 15%;
+            width: 13%;
         }
         
         .admin-table th:nth-child(2), 
         .admin-table td:nth-child(2) {
-            width: 20%;
+            width: 15%;
         }
         
         .admin-table th:nth-child(3), 
         .admin-table td:nth-child(3) {
-            width: 15%;
+            width: 12%;
         }
         
         .admin-table th:nth-child(4), 
         .admin-table td:nth-child(4) {
-            width: 15%;
+            width: 12%;
         }
         
         .admin-table th:nth-child(5), 
         .admin-table td:nth-child(5) {
-            width: 20%;
+            width: 15%;
+        }
+        
+        .admin-table th:nth-child(6), 
+        .admin-table td:nth-child(6) {
+            width: 18%;
         }
         
         /* Role badges */
@@ -394,6 +400,12 @@
             color: var(--text-secondary);
         }
         
+        /* Thêm style cho người sửa đổi */
+        .modified-by {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+        
         /* Media queries cho responsive */
         @media (max-width: 768px) {
             .action-buttons {
@@ -455,6 +467,7 @@
                                 <th>Họ tên</th>
                                 <th>Vai trò</th>
                                 <th>Ngày tạo</th>
+                                <th>Sửa đổi cuối</th>
                                 <th>Thao tác</th>
                             </tr>
                         </thead>
@@ -468,6 +481,18 @@
                                         <span class="role-badge {{ admin.role }}">{{ admin.role }}</span>
                                     </td>
                                     <td>{{ admin.created_at.strftime('%d-%m-%Y') if admin.created_at else 'N/A' }}</td>
+                                    <td>                                        
+                                        {% if admin.updated_at %}
+                                            <div>{{ admin.updated_at.strftime('%d-%m-%Y %H:%M') }}</div>
+                                            {% if admin.updated_by_name %}
+                                                <div class="modified-by">bởi {{ admin.updated_by_name }}</div>
+                                            {% elif admin.updated_by %}
+                                                <div class="modified-by">bởi {{ admin.updated_by }}</div>
+                                            {% endif %}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         <div class="action-buttons">
                                             <button class="edit-btn" onclick="editAdmin('{{ admin._id }}')">
@@ -484,7 +509,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="5" style="text-align: center; padding: 30px;">
+                                    <td colspan="6" style="text-align: center; padding: 30px;">
                                         Chưa có dữ liệu admin
                                     </td>
                                 </tr>
@@ -608,7 +633,8 @@
                 const adminData = {
                     username: username,
                     full_name: fullName,
-                    role: role
+                    role: role,
+                    updated_by: '{{ session.get("full_name", "Admin") }}' // Thêm người sửa đổi
                 };
                 
                 // Include password only if it's provided or it's a new admin

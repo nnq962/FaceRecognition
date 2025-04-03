@@ -29,7 +29,7 @@ from bson.objectid import ObjectId
 app = Flask(__name__)
 CORS(app)
 # Thêm secret key cho session
-app.secret_key = secrets.token_hex(16)
+app.secret_key = "YNK4FsxP7QdZ8tHu3BvT5jLrW9eG2mCa"  # Khóa bí mật cố định mạnh
 app.permanent_session_lifetime = timedelta(days=30)  # Thời gian mặc định của session permanent
 detector = InsightFaceDetector()
 
@@ -1354,6 +1354,19 @@ def get_admin(admin_id):
         admin['created_at'] = admin['created_at'].isoformat() if 'created_at' in admin else None
         admin['updated_at'] = admin['updated_at'].isoformat() if 'updated_at' in admin else None
         
+        # Resolve updated_by field if it exists and contains an ObjectId
+        if 'updated_by' in admin and admin['updated_by']:
+            try:
+                # Kiểm tra xem updated_by có phải là ObjectId không
+                if ObjectId.is_valid(admin['updated_by']):
+                    # Lấy thông tin người dùng đã cập nhật
+                    updater = admin_collection.find_one({'_id': ObjectId(admin['updated_by'])}, {'_id': 1, 'username': 1, 'full_name': 1})
+                    if updater:
+                        admin['updated_by_name'] = updater.get('full_name') or updater.get('username')
+            except:
+                # Nếu có lỗi, giữ nguyên giá trị updated_by
+                pass
+        
         return jsonify({
             'status': 'success',
             'data': admin
@@ -1383,10 +1396,15 @@ def update_admin(admin_id):
                 'message': f'Admin not found with ID: {admin_id}'
             }), 404
         
-        # Prepare update data
+        # Get current user information
+        current_user_id = session.get('user_id')
+        current_user = admin_collection.find_one({'_id': ObjectId(current_user_id)})
+        
+        # Prepare update data with current user information
         update_data = {
             'updated_at': datetime.now(),
-            'updated_by': session.get('user_id')
+            'updated_by': current_user_id,
+            'updated_by_name': current_user.get('full_name', current_user.get('username', 'Unknown'))
         }
         
         # Update only provided fields
@@ -1410,7 +1428,7 @@ def update_admin(admin_id):
             update_data['password'] = hash_password(data['password'])
         
         # Update in database
-        if len(update_data) > 2:  # More than just updated_at and updated_by
+        if len(update_data) > 3:  # More than just updated_at, updated_by and updated_by_name
             admin_collection.update_one(
                 {'_id': ObjectId(admin_id)},
                 {'$set': update_data}
@@ -1677,4 +1695,4 @@ def manage_admins():
 
 # ----------------------------------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5555, debug=True)
+    app.run(host="0.0.0.0", port=6125, debug=True)

@@ -1,5 +1,5 @@
 // Constants and variables
-const BASE_URL = 'http://192.168.0.105:5555/api';
+const BASE_URL = 'https://3hinc.nnq962.pro/api';
 const ATTENDANCE_API_URL = `${BASE_URL}/get_attendance`;
 const ALL_USERS_API_URL = `${BASE_URL}/get_users?without_face_embeddings=1`;
 let allEmployees = [];
