@@ -1,10 +1,16 @@
 // Khai báo các biến và hằng số
-const API_BASE_URL = 'http://localhost:6123/';
+const API_BASE_URL = 'http://192.168.0.105:5555/api';
 const userGrid = document.getElementById('user-grid');
 const searchInput = document.getElementById('search-user');
 const lastUpdatedTime = document.getElementById('last-updated-time');
 const loadingOverlay = document.querySelector('.loading-overlay');
 const alertContainer = document.getElementById('alert-container');
+
+// Toast notification
+const toast = document.getElementById('toast');
+const toastIcon = document.getElementById('toastIcon');
+const toastMessage = document.getElementById('toastMessage');
+const toastDescription = document.getElementById('toastDescription');
 
 // Modal thêm/sửa người dùng
 const userModal = document.getElementById('user-modal');
@@ -34,49 +40,56 @@ function showLoading(show = true) {
     loadingOverlay.style.display = show ? 'flex' : 'none';
 }
 
-// Hàm hiển thị thông báo dạng popup
-function showAlert(message, type = 'success') {
-    const toastContainer = document.getElementById('toast-container');
+// Hàm hiển thị thông báo dạng toast
+function showToast(type, title, message, duration = 3000) {
+    // Set toast type
+    toast.className = 'toast-notification ' + type;
     
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        <div class="toast-icon">
-            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
-        </div>
-        <div class="toast-message">${message}</div>
-        <div class="toast-close">&times;</div>
-    `;
+    // Set icon
+    if (type === 'success') {
+        toastIcon.className = 'fas fa-check-circle';
+    } else if (type === 'error') {
+        toastIcon.className = 'fas fa-exclamation-circle';
+    }
     
-    // Thêm vào container
-    toastContainer.appendChild(toast);
+    // Set content
+    toastMessage.textContent = title;
+    toastDescription.textContent = message;
     
-    // Xử lý sự kiện đóng thông báo
-    const closeBtn = toast.querySelector('.toast-close');
-    closeBtn.addEventListener('click', () => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    });
+    // Show toast
+    toast.classList.add('show');
     
-    // Tự động xóa thông báo sau 5 giây
+    // Hide toast after duration
     setTimeout(() => {
-        if (toast.parentNode) {
-            toast.remove();
-        }
-    }, 5000);
+        toast.classList.remove('show');
+    }, duration);
 }
 
 // Hàm cập nhật thời gian cập nhật gần nhất
 function updateLastUpdatedTime() {
     const now = new Date();
-    const formattedDate = `${now.getDate().toString().padStart(2, '0')}/${(now.getMonth() + 1).toString().padStart(2, '0')}/${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
-    lastUpdatedTime.textContent = formattedDate;
+    
+    // Lấy tên thứ trong tuần
+    const weekdayOptions = { weekday: 'long' };
+    const weekday = now.toLocaleDateString('vi-VN', weekdayOptions);
+    
+    // Lấy giờ, phút
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    
+    // Lấy ngày, tháng, năm
+    const day = now.getDate();
+    const month = now.getMonth() + 1; // getMonth() trả về 0-11
+    const year = now.getFullYear();
+    
+    // Ghép chuỗi theo định dạng yêu cầu
+    lastUpdatedTime.textContent = `${hours}:${minutes} ${weekday}, ${day} tháng ${month}, ${year}`;
 }
 
 // Hàm lấy dữ liệu người dùng từ API
 async function fetchUsers() {
     try {
-        const response = await fetch(`${API_BASE_URL}/get_all_users?without_face_embeddings=1`);
+        const response = await fetch(`${API_BASE_URL}/get_users?without_face_embeddings=1`);
         if (!response.ok) {
             throw new Error('Không thể lấy dữ liệu người dùng');
         }
@@ -84,7 +97,7 @@ async function fetchUsers() {
         return data;
     } catch (error) {
         console.error('Lỗi khi lấy dữ liệu người dùng:', error);
-        showAlert('Lỗi khi lấy dữ liệu người dùng: ' + error.message, 'error');
+        showToast('error', 'Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại sau.');
         return [];
     }
 }
@@ -182,13 +195,17 @@ async function renderUsers() {
         cards.forEach(card => userGrid.appendChild(card));
         
         updateLastUpdatedTime();
+        // Hiển thị toast thông báo thành công
+        showToast('success', 'Thành công', 'Dữ liệu đã được cập nhật');
     } catch (error) {
         userGrid.innerHTML = `
             <div class="empty-user-state">
                 <i class="fas fa-exclamation-circle" style="font-size: 40px; margin-bottom: 15px; color: var(--error);"></i>
-                <p>Lỗi khi tải dữ liệu: ${error.message}</p>
+                <p>Lỗi khi tải dữ liệu</p>
             </div>
         `;
+        // Hiển thị thông báo lỗi qua toast notification
+        showToast('error', 'Lỗi kết nối', 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại sau.');
     }
 }
 
@@ -214,7 +231,7 @@ function openAddUserModal() {
     userModalTitle.textContent = 'Thêm người dùng mới';
     userIdInput.value = '';
     userForm.reset();
-    userModal.style.display = 'block';
+    userModal.classList.add('show');
 }
 
 // Hàm mở modal chỉnh sửa người dùng
@@ -223,12 +240,12 @@ function openEditUserModal(user) {
     userIdInput.value = user._id;
     fullNameInput.value = user.full_name;
     departmentInput.value = user.department_id;
-    userModal.style.display = 'block';
+    userModal.classList.add('show');
 }
 
 // Hàm đóng modal người dùng
 function closeUserModal() {
-    userModal.style.display = 'none';
+    userModal.classList.remove('show');
 }
 
 // Hàm lưu thông tin người dùng (thêm/sửa)
@@ -239,15 +256,13 @@ async function saveUser() {
     
     // Kiểm tra dữ liệu
     if (!fullName || !department) {
-        showAlert('Vui lòng nhập đầy đủ thông tin người dùng', 'error');
+        showToast('error', 'Lỗi', 'Vui lòng nhập đầy đủ thông tin người dùng');
         return;
     }
     
     showLoading();
     
     try {
-        // API hiện tại chưa có endpoint cập nhật người dùng, 
-        // nên tạm thời chỉ xử lý thêm mới
         if (!userId) {
             // Thêm người dùng mới
             const response = await fetch(`${API_BASE_URL}/add_user`, {
@@ -265,7 +280,7 @@ async function saveUser() {
                 throw new Error('Lỗi khi thêm người dùng');
             }
             
-            showAlert('Thêm người dùng thành công!');
+            showToast('success', 'Thành công', 'Thêm người dùng thành công!');
         } else {
             // Cập nhật thông tin người dùng
             const response = await fetch(`${API_BASE_URL}/update_user/${userId}`, {
@@ -284,13 +299,18 @@ async function saveUser() {
             }
             
             const result = await response.json();
-            showAlert(result.message || 'Cập nhật thông tin người dùng thành công!');
+            showToast('success', 'Thành công', 'Cập nhật thông tin người dùng thành công!');
         }
         
         closeUserModal();
-        renderUsers();
+        
+        // Cho phép toast hiển thị trước khi reload
+        setTimeout(() => {
+            renderUsers();
+        }, 500);
     } catch (error) {
-        showAlert('Lỗi: ' + error.message, 'error');
+        showToast('error', 'Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
+        console.error('Error:', error);
     } finally {
         showLoading(false);
     }
@@ -316,10 +336,15 @@ async function deleteUser(userId) {
             throw new Error('Lỗi khi xóa người dùng');
         }
         
-        showAlert('Xóa người dùng thành công!');
-        renderUsers();
+        showToast('success', 'Thành công', 'Xóa người dùng thành công!');
+        
+        // Cho phép toast hiển thị trước khi reload
+        setTimeout(() => {
+            renderUsers();
+        }, 500);
     } catch (error) {
-        showAlert('Lỗi: ' + error.message, 'error');
+        showToast('error', 'Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
+        console.error('Error:', error);
     } finally {
         showLoading(false);
     }
@@ -329,7 +354,7 @@ async function deleteUser(userId) {
 async function openPhotoManager(userId, userName) {
     currentPhotoUserId = userId;
     photoModalTitle.textContent = `Quản lý ảnh: ${userName}`;
-    photoModal.style.display = 'block';
+    photoModal.classList.add('show');
     
     // Tải danh sách ảnh
     photoGallery.innerHTML = '<div class="loading"><div class="spinner"></div><p>Đang tải ảnh...</p></div>';
@@ -341,15 +366,16 @@ async function openPhotoManager(userId, userName) {
         photoGallery.innerHTML = `
             <div class="empty-user-state">
                 <i class="fas fa-exclamation-circle" style="font-size: 30px; margin-bottom: 10px; color: var(--error);"></i>
-                <p>Lỗi khi tải ảnh: ${error.message}</p>
+                <p>Lỗi khi tải ảnh</p>
             </div>
         `;
+        showToast('error', 'Lỗi', 'Không thể tải ảnh. Vui lòng thử lại sau.');
     }
 }
 
 // Hàm đóng trình quản lý ảnh
 function closePhotoModal() {
-    photoModal.style.display = 'none';
+    photoModal.classList.remove('show');
     currentPhotoUserId = null;
 }
 
@@ -428,13 +454,14 @@ async function deletePhoto(userId, fileName) {
             throw new Error('Lỗi khi xóa ảnh');
         }
         
-        showAlert('Xóa ảnh thành công!');
+        showToast('success', 'Thành công', 'Xóa ảnh thành công!');
         
         // Cập nhật lại danh sách ảnh
         const photos = await fetchUserPhotos(userId);
         renderPhotoGallery(photos, userId);
     } catch (error) {
-        showAlert('Lỗi: ' + error.message, 'error');
+        showToast('error', 'Lỗi', 'Không thể xóa ảnh. Vui lòng thử lại sau.');
+        console.error('Error:', error);
     } finally {
         showLoading(false);
     }
@@ -445,14 +472,14 @@ async function uploadPhoto() {
     const fileInput = photoUpload;
     
     if (!fileInput.files || fileInput.files.length === 0) {
-        showAlert('Vui lòng chọn ảnh để tải lên', 'error');
+        showToast('error', 'Lỗi', 'Vui lòng chọn ảnh để tải lên');
         return;
     }
     
     const file = fileInput.files[0];
     
     if (!file.type.startsWith('image/')) {
-        showAlert('Vui lòng chọn tệp ảnh hợp lệ', 'error');
+        showToast('error', 'Lỗi', 'Vui lòng chọn tệp ảnh hợp lệ');
         return;
     }
     
@@ -471,7 +498,7 @@ async function uploadPhoto() {
             throw new Error('Lỗi khi tải ảnh lên');
         }
         
-        showAlert('Tải ảnh lên thành công!');
+        showToast('success', 'Thành công', 'Tải ảnh lên thành công!');
         
         // Đặt lại input file
         fileInput.value = '';
@@ -480,7 +507,8 @@ async function uploadPhoto() {
         const photos = await fetchUserPhotos(currentPhotoUserId);
         renderPhotoGallery(photos, currentPhotoUserId);
     } catch (error) {
-        showAlert('Lỗi: ' + error.message, 'error');
+        showToast('error', 'Lỗi', 'Không thể tải ảnh lên. Vui lòng thử lại sau.');
+        console.error('Error:', error);
     } finally {
         showLoading(false);
     }

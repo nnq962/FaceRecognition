@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập | Hệ thống quản lý chấm công</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+    <link rel="icon" href="../static/images/login.png" type="image/png">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Bổ sung CSS đặc biệt cho trang đăng nhập */
+        .login-container {
+            max-width: 480px;
+            margin: 80px auto;
+        }
+        
+        .login-card {
+            padding: 30px;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            font-size: 28px;
+            color: var(--accent);
+            margin-bottom: 10px;
+        }
+        
+        .logo p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border-radius: var(--border-radius);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            font-size: 16px;
+            transition: all 0.2s ease;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2);
+        }
+        
+        .login-btn {
+            width: 100%;
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: var(--border-radius);
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        
+        .login-btn:hover {
+            background-color: #0062c7;
+            transform: translateY(-2px);
+        }
+        
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        
+        .remember-me {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .remember-me input {
+            margin-right: 8px;
+        }
+        
+        /* Toggle Password Button */
+        .toggle-password {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 16px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            transition: color 0.2s ease;
+        }
+        
+        .toggle-password:hover {
+            color: var(--accent);
+        }
+        
+        /* Toast notification */
+        .toast-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: var(--card-bg);
+            box-shadow: var(--box-shadow);
+            border-radius: var(--border-radius);
+            padding: 15px 20px;
+            min-width: 280px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            transform: translateY(150%);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .toast-notification.show {
+            transform: translateY(0);
+        }
+        
+        .toast-notification.error {
+            border-left: 4px solid var(--error);
+        }
+        
+        .toast-notification.success {
+            border-left: 4px solid var(--success);
+        }
+        
+        .toast-icon {
+            margin-right: 12px;
+            font-size: 20px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .toast-content {
+            flex: 1;
+        }
+        
+        .toast-message {
+            margin-bottom: 3px;
+            font-weight: 500;
+        }
+        
+        .toast-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="card login-card">
+            <div class="logo">
+                <h1>Hệ thống quản lý chấm công</h1>
+                <p>Vui lòng đăng nhập để tiếp tục</p>
+            </div>
+            
+            <form id="loginForm" method="POST" action="{{ url_for('home') }}">
+                <div class="form-group">
+                    <label for="username">Tên đăng nhập</label>
+                    <input type="text" id="username" name="username" class="form-control" placeholder="Nhập tên đăng nhập" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Mật khẩu</label>
+                    <div style="position: relative;">
+                        <input type="password" id="password" name="password" class="form-control" placeholder="Nhập mật khẩu" required>
+                        <button type="button" id="togglePassword" class="toggle-password">
+                            <i class="fas fa-eye" id="passwordIcon"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="remember-me">
+                    <input type="checkbox" id="remember" name="remember">
+                    <label for="remember">Ghi nhớ đăng nhập</label>
+                </div>
+                
+                <button type="submit" class="login-btn">Đăng nhập</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast-notification error" id="toastNotification">
+        <div class="toast-icon">
+            <i class="fas fa-exclamation-circle"></i>
+        </div>
+        <div class="toast-content">
+            <div class="toast-message">Đăng nhập thất bại</div>
+            <div class="toast-description" id="toastDescription">Tên đăng nhập hoặc mật khẩu không đúng!</div>
+        </div>
+    </div>
+
+    <script>
+        // Hàm hiển thị toast notification
+        function showToast(type, title, message, duration = 3000) {
+            const toast = document.getElementById('toastNotification');
+            
+            // Thiết lập kiểu thông báo
+            toast.className = 'toast-notification ' + type;
+            
+            // Cập nhật nội dung
+            toast.querySelector('.toast-message').textContent = title;
+            toast.querySelector('.toast-description').textContent = message;
+            
+            // Cập nhật biểu tượng
+            const iconElement = toast.querySelector('.toast-icon i');
+            if (type === 'error') {
+                iconElement.className = 'fas fa-exclamation-circle';
+            } else if (type === 'success') {
+                iconElement.className = 'fas fa-check-circle';
+            }
+            
+            // Hiển thị toast
+            setTimeout(() => {
+                toast.classList.add('show');
+                
+                // Tự động ẩn sau thời gian đã định
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, duration);
+            }, 100);
+        }
+        
+        // Kiểm tra nếu có thông báo lỗi
+        {% if error %}
+            showToast('error', 'Đăng nhập thất bại', '{{ error }}');
+        {% endif %}
+        
+        // Xử lý nút hiển thị/ẩn mật khẩu
+        document.getElementById('togglePassword').addEventListener('click', function() {
+            const passwordInput = document.getElementById('password');
+            const passwordIcon = document.getElementById('passwordIcon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                passwordIcon.className = 'fas fa-eye-slash';
+            } else {
+                passwordInput.type = 'password';
+                passwordIcon.className = 'fas fa-eye';
+            }
+        });
+    </script>
+</body>
+</html>

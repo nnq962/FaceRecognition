@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bảng điều khiển | Hệ thống quản lý chấm công</title>
+    <link rel="stylesheet" href="../static/css/styles.css">
+    <link rel="icon" href="../static/images/dashboards.png" type="image/png">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .dashboard-container {
+            max-width: 800px;
+            margin: 60px auto;
+        }
+        
+        .welcome-card {
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        .welcome-title {
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .user-info {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .role-badge {
+            background-color: rgba(0, 113, 227, 0.1);
+            color: var(--accent);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .role-badge.super_admin {
+            background-color: rgba(88, 86, 214, 0.1);
+            color: #5856d6;
+        }
+        
+        .role-badge.admin {
+            background-color: rgba(0, 113, 227, 0.1);
+            color: var(--accent);
+        }
+        
+        .role-badge.user {
+            background-color: rgba(52, 199, 89, 0.1);
+            color: var(--success);
+        }
+        
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .menu-btn {
+            display: block;
+            background-color: var(--card-bg);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: var(--border-radius);
+            padding: 18px 20px;
+            text-decoration: none;
+            color: var(--text-primary);
+            font-size: 17px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-align: left;
+            display: flex;
+            align-items: center;
+        }
+        
+        .menu-btn:hover {
+            background-color: var(--accent);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: var(--box-shadow);
+        }
+        
+        .menu-btn-icon {
+            margin-right: 15px;
+            font-size: 18px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .menu-btn.logout {
+            background-color: rgba(255, 59, 48, 0.1);
+            color: var(--error);
+            margin-top: 10px;
+        }
+        
+        .menu-btn.logout:hover {
+            background-color: var(--error);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="card welcome-card">
+            <div class="welcome-title">
+                <h1 class="title">Hệ thống quản lý chấm công</h1>
+                <div class="user-info">
+                    <p style="color: var(--text-secondary);">Xin chào, {{ session.get('full_name', 'Admin') }}</p>
+                    <span class="role-badge {{ session.get('role', 'user') }}">{{ session.get('role', 'user') }}</span>
+                </div>
+            </div>
+            
+            <div class="menu-buttons">
+                <!-- Theo dõi trạng thái - Tất cả các vai trò đều có thể xem -->
+                <a href="{{ url_for('view') }}" class="menu-btn">
+                    <span class="menu-btn-icon"><i class="fas fa-chart-line"></i></span>
+                    Theo dõi trạng thái
+                </a>
+                
+                <!-- Quản lý người dùng - Chỉ admin và super_admin có thể xem -->
+                {% if check_page_permission('users') %}
+                <a href="{{ url_for('users') }}" class="menu-btn">
+                    <span class="menu-btn-icon"><i class="fas fa-users"></i></span>
+                    Quản lý người dùng
+                </a>
+                {% endif %}
+                
+                <!-- Xuất dữ liệu - Chỉ admin và super_admin có thể xem -->
+                {% if check_page_permission('export') %}
+                <a href="{{ url_for('export') }}" class="menu-btn">
+                    <span class="menu-btn-icon"><i class="fas fa-file-export"></i></span>
+                    Xuất dữ liệu
+                </a>
+                {% endif %}
+                
+                <!-- Quản lý Admin - Chỉ super_admin có thể xem -->
+                {% if check_page_permission('manage_admins') %}
+                <a href="{{ url_for('manage_admins') }}" class="menu-btn">
+                    <span class="menu-btn-icon"><i class="fas fa-user-shield"></i></span>
+                    Quản lý Admin
+                </a>
+                {% endif %}
+                
+                <!-- Đăng xuất - Tất cả các vai trò đều có thể xem -->
+                <a href="{{ url_for('logout') }}" class="menu-btn logout">
+                    <span class="menu-btn-icon"><i class="fas fa-sign-out-alt"></i></span>
+                    Đăng xuất
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

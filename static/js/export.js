@@ -3,12 +3,16 @@ let attendanceData = [];
 let originalData = [];
 let currentFilePath = '';
 let currentMonth = '';  // Thêm biến này
-const BASE_URL = 'https://3hinc.nnq962.pro';
+const BASE_URL = 'http://192.168.0.105:5555/api';
 const EXPORT_ATTENDANCE_API_URL = `${BASE_URL}/export_attendance`;
 const GENERATE_EXCEL_API_URL = `${BASE_URL}/generate_excel`;
 const DOWNLOAD_URL = `${BASE_URL}/download`;
 
-const lastUpdatedElement = document.getElementById('lastUpdated');
+// Toast notification elements
+const toast = document.getElementById('toast');
+const toastIcon = document.getElementById('toastIcon');
+const toastMessage = document.getElementById('toastMessage');
+const toastDescription = document.getElementById('toastDescription');
 
 // Khởi tạo khi trang được tải
 document.addEventListener('DOMContentLoaded', function() {
@@ -46,13 +50,38 @@ function updateDateTime() {
     const month = now.getMonth() + 1; // getMonth() trả về 0-11
     const year = now.getFullYear();
     
-    // Lấy tên thứ trong tuần một cách trực tiếp
-    const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
-    const weekday = weekdays[now.getDay()];
+    // Lấy tên thứ trong tuần
+    const weekdayOptions = { weekday: 'long' };
+    const weekday = now.toLocaleDateString('vi-VN', weekdayOptions);
     
-    // Sửa dòng này: thay lastUpdatedElement bằng document.getElementById('currentDateTime')
+    // Định dạng ngày tháng giống các trang khác
     document.getElementById('currentDateTime').textContent = 
         `Cập nhật lúc ${hours}:${minutes} ${weekday}, ${day} tháng ${month}, ${year}`;
+}
+
+// Hiển thị thông báo dạng toast
+function showToast(type, title, message, duration = 3000) {
+    // Set toast type
+    toast.className = 'toast-notification ' + type;
+    
+    // Set icon
+    if (type === 'success') {
+        toastIcon.className = 'fas fa-check-circle';
+    } else if (type === 'error') {
+        toastIcon.className = 'fas fa-exclamation-circle';
+    }
+    
+    // Set content
+    toastMessage.textContent = title;
+    toastDescription.textContent = message;
+    
+    // Show toast
+    toast.classList.add('show');
+    
+    // Hide toast after duration
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, duration);
 }
 
 // Thiết lập tất cả event listeners
@@ -65,7 +94,6 @@ function setupEventListeners() {
 }
 
 // Xử lý sự kiện submit form
-// Thêm kiểm tra thêm cho form submit
 function handleFormSubmit(e) {
     e.preventDefault();
     e.stopPropagation(); // Ngăn chặn việc sự kiện truyền lên các phần tử cha
@@ -74,8 +102,8 @@ function handleFormSubmit(e) {
     const month = document.getElementById('monthSelect').value;
     
     if (!year || !month) {
-        alert('Vui lòng chọn cả năm và tháng!');
-        return false; // Thêm return false
+        showToast('error', 'Lỗi', 'Vui lòng chọn cả năm và tháng!');
+        return false;
     }
     
     // Hiển thị card xem trước
@@ -90,7 +118,7 @@ function handleFormSubmit(e) {
     // Gọi API để lấy dữ liệu
     fetchAttendanceData(year, month);
     
-    return false; // Thêm return false
+    return false;
 }
 
 // Lấy dữ liệu chấm công từ API
@@ -115,7 +143,8 @@ function fetchAttendanceData(year, month) {
         handleApiResponse(data, monthStr);
     })
     .catch(error => {
-        showError('Không thể kết nối đến máy chủ: ' + error.message);
+        showError('Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại sau.');
+        console.error('Lỗi kết nối:', error);
     });
 }
 
@@ -140,6 +169,7 @@ function handleApiResponse(response, monthStr) {
     } else {
         displayAttendanceData(attendanceData);
         document.getElementById('attendanceDataContainer').style.display = 'block';
+        showToast('success', 'Thành công', 'Đã tải dữ liệu chấm công thành công');
     }
 }
 
@@ -177,20 +207,32 @@ function displayAttendanceData(data) {
         input.addEventListener('change', function() {
             const index = parseInt(this.getAttribute('data-index'));
             attendanceData[index]['Ghi chú'] = this.value;
+            // Thông báo khi thay đổi ghi chú
+            showToast('success', 'Đã cập nhật', 'Ghi chú đã được cập nhật');
         });
     });
 }
 
-// Đã xóa hàm handleSaveChanges()
+// Hiển thị thông báo lỗi
+function showError(message) {
+    const errorElement = document.getElementById('errorMessage');
+    document.getElementById('errorText').textContent = message;
+    errorElement.style.display = 'flex';
+    document.getElementById('attendanceDataContainer').style.display = 'none';
+    document.getElementById('emptyState').style.display = 'none';
+    
+    // Hiển thị thông báo lỗi qua toast
+    showToast('error', 'Lỗi', message);
+}
 
 // Xử lý sự kiện nút Tải Xuống
 function handleDownload() {
     if (attendanceData.length === 0) {
-        showError('Không có dữ liệu để tải xuống');
+        showToast('error', 'Lỗi', 'Không có dữ liệu để tải xuống');
         return;
     }
     
-    showSuccessToast('Đang tạo tệp Excel...');
+    showToast('success', 'Đang xử lý', 'Đang tạo tệp Excel...');
     
     // Gửi dữ liệu đã chỉnh sửa để tạo Excel
     fetch(GENERATE_EXCEL_API_URL, {
@@ -207,48 +249,18 @@ function handleDownload() {
     .then(data => {
         if (data.file) {
             // Tạo Excel thành công, tiến hành tải xuống
-            window.location.href = `${DOWNLOAD_URL}?file=${encodeURIComponent(data.file)}`;
-            showSuccessToast('Đang tải xuống tệp Excel...');
+            setTimeout(() => {
+                window.location.href = `${DOWNLOAD_URL}?file=${encodeURIComponent(data.file)}`;
+                showToast('success', 'Thành công', 'Đang tải xuống tệp Excel...');
+            }, 500);
         } else {
-            showError(data.error || 'Không thể tạo tệp Excel');
+            showToast('error', 'Lỗi', data.error || 'Không thể tạo tệp Excel');
         }
     })
     .catch(error => {
-        showError('Lỗi kết nối: ' + error.message);
+        showToast('error', 'Lỗi', 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
+        console.error('Lỗi kết nối:', error);
     });
-}
-
-// Hiển thị thông báo lỗi
-function showError(message) {
-    const errorElement = document.getElementById('errorMessage');
-    document.getElementById('errorText').textContent = message;
-    errorElement.style.display = 'flex';
-    document.getElementById('attendanceDataContainer').style.display = 'none';
-    document.getElementById('emptyState').style.display = 'none';
-}
-
-// Hiển thị thông báo thành công
-function showSuccessToast(message) {
-    // Xóa toast cũ nếu có
-    const existingToast = document.querySelector('.success-toast');
-    if (existingToast) {
-        existingToast.remove();
-    }
-    
-    // Tạo toast mới
-    const toast = document.createElement('div');
-    toast.className = 'success-toast';
-    toast.innerHTML = `
-        <i class="fas fa-check-circle"></i>
-        <span>${message}</span>
-    `;
-    
-    document.body.appendChild(toast);
-    
-    // Tự động xóa sau 3 giây
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
 }
 
 // Tạo dữ liệu mẫu để xem trước (chỉ trong phiên bản demo)

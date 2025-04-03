@@ -1,7 +1,7 @@
 // Constants and variables
-const BASE_URL = 'https://3hinc.nnq962.pro';
+const BASE_URL = 'http://192.168.0.105:5555/api';
 const ATTENDANCE_API_URL = `${BASE_URL}/get_attendance`;
-const ALL_USERS_API_URL = `${BASE_URL}/get_all_users?without_face_embeddings=1`;
+const ALL_USERS_API_URL = `${BASE_URL}/get_users?without_face_embeddings=1`;
 let allEmployees = [];
 let attendanceData = [];
 let isLoading = false;
@@ -26,10 +26,38 @@ const lastUpdatedElement = document.getElementById('lastUpdated');
 const totalEmployeesElement = document.getElementById('totalEmployees');
 const searchInput = document.getElementById('searchInput');
 const emptyState = document.getElementById('emptyState');
+const toast = document.getElementById('toast');
+const toastIcon = document.getElementById('toastIcon');
+const toastMessage = document.getElementById('toastMessage');
+const toastDescription = document.getElementById('toastDescription');
 
 // Helper functions
 function formatTime(timeString) {
     return timeString || '---';
+}
+
+function showToast(type, title, message, duration = 3000) {
+    // Set toast type
+    toast.className = 'toast-notification ' + type;
+    
+    // Set icon
+    if (type === 'success') {
+        toastIcon.className = 'fas fa-check-circle';
+    } else if (type === 'error') {
+        toastIcon.className = 'fas fa-exclamation-circle';
+    }
+    
+    // Set content
+    toastMessage.textContent = title;
+    toastDescription.textContent = message;
+    
+    // Show toast
+    toast.classList.add('show');
+    
+    // Hide toast after duration
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, duration);
 }
 
 function handleRefreshClick(event) {
@@ -113,14 +141,11 @@ function hideLoading() {
 }
 
 function showError(message) {
-    errorMessage.textContent = message;
-    errorContainer.style.display = 'flex';
-    setTimeout(() => {
-        errorContainer.classList.add('pulse');
-        setTimeout(() => {
-            errorContainer.classList.remove('pulse');
-        }, 2000);
-    }, 100);
+    // Ẩn thanh lỗi phía trên
+    errorContainer.style.display = 'none';
+    
+    // Chỉ hiển thị toast notification
+    showToast('error', 'Lỗi', message);
 }
 
 function hideError() {
@@ -240,6 +265,9 @@ async function fetchAllData() {
         renderAttendanceData(allEmployees);
         updateLastUpdated();
         createFilters();
+        
+        // Hiển thị toast thông báo thành công
+        showToast('success', 'Thành công', 'Dữ liệu đã được cập nhật');
         
     } catch (error) {
         console.error('Lỗi khi lấy dữ liệu:', error);

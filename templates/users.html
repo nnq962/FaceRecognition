@@ -6,86 +6,135 @@
     <title>Quản Lý Người Dùng</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/css/styles.css">
+    <link rel="icon" href="../static/images/users.png" type="image/png">
     <style>
-        /* Thêm CSS cho thông báo popup */
-        .toast-container {
+        /* Container styles */
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 15px;
+        }
+        
+        /* Back link */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-size: 15px;
+        }
+        
+        .back-link:hover {
+            color: var(--accent);
+        }
+        
+        /* Header styles */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .title {
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .last-updated {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        /* Toast notification */
+        .toast-notification {
             position: fixed;
             bottom: 20px;
             right: 20px;
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        
-        .toast {
-            min-width: 300px;
-            max-width: 400px;
-            padding: 15px 20px;
-            border-radius: var(--border-radius);
             background-color: white;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            border-radius: 8px;
+            padding: 16px;
+            min-width: 300px;
+            z-index: 1000;
             display: flex;
             align-items: center;
-            gap: 12px;
-            animation: slideIn 0.3s ease-out, fadeOut 0.5s ease-out 4.5s forwards;
-            transform-origin: bottom right;
+            transform: translateY(150%);
+            transition: transform 0.3s ease-in-out;
         }
         
-        .toast-success {
-            border-left: 4px solid var(--success);
+        .toast-notification.show {
+            transform: translateY(0);
         }
         
-        .toast-error {
+        .toast-notification.error {
             border-left: 4px solid var(--error);
         }
         
+        .toast-notification.success {
+            border-left: 4px solid var(--success);
+        }
+        
         .toast-icon {
+            margin-right: 12px;
             font-size: 20px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
-        .toast-success .toast-icon {
-            color: var(--success);
-        }
-        
-        .toast-error .toast-icon {
-            color: var(--error);
-        }
-        
-        .toast-message {
+        .toast-content {
             flex: 1;
         }
         
-        .toast-close {
+        .toast-message {
+            margin-bottom: 3px;
+            font-weight: 500;
+        }
+        
+        .toast-description {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        /* Card styles */
+        .card {
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        /* Add user button */
+        #add-user-btn {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
             cursor: pointer;
-            font-size: 16px;
-            color: #999;
-            padding: 0 4px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(66, 133, 244, 0.3);
         }
         
-        .toast-close:hover {
-            color: #333;
-        }
-        
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
-        }
-        
-        @keyframes fadeOut {
-            from {
-                opacity: 1;
-            }
-            to {
-                opacity: 0;
-                transform: translateY(10px);
-            }
+        #add-user-btn:hover {
+            background-color: #3367D6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(66, 133, 244, 0.4);
         }
         
         /* Thêm CSS đặc biệt cho trang quản lý người dùng */
@@ -97,9 +146,9 @@
         }
         
         .user-card {
-            background-color: var(--card-bg);
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             overflow: hidden;
             transition: transform 0.2s, box-shadow 0.2s;
         }
@@ -111,7 +160,7 @@
         
         .user-header {
             position: relative;
-            background-color: var(--accent);
+            background: linear-gradient(135deg, #4285F4, #34A853);
             height: 80px;
             display: flex;
             justify-content: center;
@@ -156,12 +205,19 @@
         
         .user-dept {
             display: inline-block;
-            background-color: rgba(0, 113, 227, 0.1);
+            background: linear-gradient(135deg, rgba(0, 113, 227, 0.1), rgba(0, 113, 227, 0.2));
             color: var(--accent);
-            padding: 3px 12px;
-            border-radius: 12px;
-            font-size: 14px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
             margin-bottom: 15px;
+        }
+        
+        .user-created {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
         }
         
         .user-actions {
@@ -181,11 +237,11 @@
             color: white;
             border: none;
             cursor: pointer;
-            transition: transform 0.2s, background-color 0.2s;
+            transition: all 0.2s ease;
         }
         
         .btn-circle:hover {
-            transform: scale(1.1);
+            transform: translateY(-2px);
         }
         
         .btn-edit {
@@ -212,6 +268,7 @@
             background-color: #2db14f;
         }
         
+        /* Modal styles */
         .modal {
             display: none;
             position: fixed;
@@ -222,26 +279,38 @@
             height: 100%;
             background-color: rgba(0, 0, 0, 0.5);
             overflow: auto;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.show {
+            display: flex;
         }
         
         .modal-content {
-            background-color: #ffffff;
+            background-color: white;
             margin: 50px auto;
             max-width: 500px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
+            width: 90%;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
             position: relative;
+            overflow: hidden;
         }
         
         .modal-header {
             padding: 15px 20px;
-            background-color: rgba(0, 0, 0, 0.03);
-            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            background-color: var(--accent);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
         .modal-title {
             font-size: 18px;
-            font-weight: 600;
+            font-weight: 500;
+            margin: 0;
         }
         
         .modal-body {
@@ -250,58 +319,54 @@
         
         .modal-footer {
             padding: 15px 20px;
-            background-color: rgba(0, 0, 0, 0.03);
-            border-top: 1px solid rgba(0, 0, 0, 0.05);
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
             display: flex;
             justify-content: flex-end;
             gap: 10px;
         }
         
         .close {
-            position: absolute;
-            top: 15px;
-            right: 20px;
+            background: none;
+            border: none;
+            color: white;
             font-size: 20px;
             cursor: pointer;
-            color: #999;
-        }
-        
-        .close:hover {
-            color: #333;
         }
         
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         
         .form-label {
             display: block;
             margin-bottom: 8px;
             font-weight: 500;
+            color: #444;
         }
         
         .form-input {
             width: 100%;
-            padding: 10px 15px;
-            border-radius: var(--border-radius);
+            padding: 12px;
+            border-radius: 8px;
             border: 1px solid rgba(0, 0, 0, 0.1);
-            font-size: 16px;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            font-size: 15px;
+            transition: all 0.2s;
         }
         
         .form-input:focus {
             outline: none;
             border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2);
+            box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.2);
         }
         
         .btn {
-            padding: 10px 15px;
-            border-radius: var(--border-radius);
+            padding: 10px 16px;
+            border-radius: 8px;
             border: none;
             cursor: pointer;
-            font-size: 16px;
-            transition: background-color 0.2s;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
         }
         
         .btn-primary {
@@ -311,17 +376,19 @@
         
         .btn-primary:hover {
             background-color: #0062c7;
+            transform: translateY(-2px);
         }
         
         .btn-secondary {
-            background-color: #f0f0f0;
-            color: #333;
+            background-color: rgba(0, 0, 0, 0.1);
+            color: var(--text-primary);
         }
         
         .btn-secondary:hover {
-            background-color: #e0e0e0;
+            background-color: rgba(0, 0, 0, 0.15);
         }
         
+        /* Photo gallery */
         .photo-gallery {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -379,17 +446,20 @@
             background-color: var(--success);
             color: white;
             padding: 10px 15px;
-            border-radius: var(--border-radius);
+            border-radius: 8px;
             border: none;
             cursor: pointer;
-            font-size: 16px;
-            transition: background-color 0.2s;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
         }
         
         .upload-btn:hover {
             background-color: #2db14f;
+            transform: translateY(-2px);
         }
         
+        /* Empty state and loading */
         .empty-user-state {
             padding: 40px;
             text-align: center;
@@ -419,26 +489,27 @@
             height: 40px;
             animation: spin 1s linear infinite;
         }
-        
-        .alert {
-            padding: 15px 20px;
-            border-radius: var(--border-radius);
-            margin-bottom: 20px;
+
+        /* Responsive styles */
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            #add-user-btn {
+                align-self: flex-start;
+            }
+        }
+
+        .user-grid .loading {
+            grid-column: 1 / -1;           /* Chiếm toàn bộ các cột của grid */
             display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .alert-success {
-            background-color: rgba(52, 199, 89, 0.1);
-            color: var(--success);
-            border-left: 4px solid var(--success);
-        }
-        
-        .alert-error {
-            background-color: rgba(255, 59, 48, 0.1);
-            color: var(--error);
-            border-left: 4px solid var(--error);
+            flex-direction: column; /* Xếp nội dung theo cột (spinner ở trên, text ở dưới) */
+            justify-content: center; /* Căn giữa theo chiều dọc */
+            align-items: center;     /* Căn giữa theo chiều ngang */
+            min-height: 200px;       /* Đặt chiều cao tối thiểu để dễ nhận thấy căn giữa */
+            text-align: center;      /* Căn giữa văn bản */
         }
     </style>
 </head>
@@ -447,13 +518,28 @@
         <div class="loading-spinner"></div>
     </div>
     
-    <!-- Container cho thông báo popup -->
-    <div id="toast-container" class="toast-container"></div>
+    <!-- Toast notification -->
+    <div class="toast-notification" id="toast">
+        <div class="toast-icon">
+            <i class="fas fa-check-circle" id="toastIcon"></i>
+        </div>
+        <div class="toast-content">
+            <div class="toast-message" id="toastMessage">Thành công</div>
+            <div class="toast-description" id="toastDescription">Thao tác đã được thực hiện</div>
+        </div>
+    </div>
     
     <div class="container">
+        <a href="{{ url_for('dashboard') }}" class="back-link">
+            <i class="fas fa-arrow-left"></i> Quay lại bảng điều khiển
+        </a>
+        
         <div class="header">
-            <h1 class="title">Quản Lý Người Dùng</h1>
-            <button id="add-user-btn" class="refresh-btn">
+            <div>
+                <h1 class="title">Quản Lý Người Dùng</h1>
+                <div class="last-updated" id="lastUpdated">Cập nhật lúc <span id="last-updated-time">--/--/---- --:--:--</span></div>
+            </div>
+            <button id="add-user-btn">
                 <i class="fas fa-user-plus"></i>
                 Thêm người dùng
             </button>
@@ -467,15 +553,15 @@
         <!-- Container cho thông báo -->
         <div id="alert-container"></div>
         
-        <div class="user-grid" id="user-grid">
-            <!-- Dữ liệu người dùng sẽ được thêm vào đây bằng JavaScript -->
-            <div class="loading">
-                <div class="spinner"></div>
-                <p>Đang tải dữ liệu người dùng...</p>
+        <div class="card">
+            <div class="user-grid" id="user-grid">
+                <!-- Dữ liệu người dùng sẽ được thêm vào đây bằng JavaScript -->
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Đang tải dữ liệu người dùng...</p>
+                </div>
             </div>
         </div>
-        
-        <p class="last-updated">Cập nhật lần cuối: <span id="last-updated-time">--/--/---- --:--:--</span></p>
     </div>
     
     <!-- Modal thêm/sửa người dùng -->
@@ -483,7 +569,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title" id="user-modal-title">Thêm người dùng mới</h3>
-                <span class="close">&times;</span>
+                <button class="close">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="user-form">
@@ -510,7 +596,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 class="modal-title" id="photo-modal-title">Quản lý ảnh người dùng</h3>
-                <span class="close">&times;</span>
+                <button class="close">&times;</button>
             </div>
             <div class="modal-body">
                 <h4>Thêm ảnh mới</h4>

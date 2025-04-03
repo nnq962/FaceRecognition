@@ -53,7 +53,7 @@ class Config:
 
     # Các collection
     users_collection = db["3hinc_users"]
-    managers_collection = db["managers"]
+    admin_collection = db["3hinc_admins"]
     camera_collection = db["camera_information"]
     data_collection = db["3hinc_data"]
 
