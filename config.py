@@ -7,6 +7,7 @@ import sys
 import gdown
 from utils.logger_config import LOGGER
 from dotenv import load_dotenv
+from urllib.parse import quote_plus
 # Load .env file
 load_dotenv()
 
@@ -14,8 +15,8 @@ load_dotenv()
 class Config:
     """ Class chứa toàn bộ cấu hình của ứng dụng """
     
-    user = os.getenv("MONGODB_USERNAME")
-    password = os.getenv("MONGODB_PASSWORD")
+    user = quote_plus(os.getenv("MONGODB_USERNAME"))
+    password = quote_plus(os.getenv("MONGODB_PASSWORD"))
     host = os.getenv("MONGODB_HOST")
     port = os.getenv("MONGODB_PORT")
     database = os.getenv("MONGODB_DATABASE")
