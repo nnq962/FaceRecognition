@@ -33,6 +33,23 @@ class NotificationClient:
         self.cache_metadata = self.load_cache_metadata()
         # Lock để truy cập an toàn vào metadata
         self.metadata_lock = threading.Lock()
+        
+        # Kiểm tra xem SoX đã được cài đặt chưa
+        self._check_sox_installation()
+
+    def _check_sox_installation(self):
+        """Kiểm tra xem SoX đã được cài đặt chưa"""
+        try:
+            subprocess.run(['sox', '--version'], 
+                         stdout=subprocess.DEVNULL, 
+                         stderr=subprocess.DEVNULL, 
+                         check=True)
+            LOGGER.info("SoX đã được cài đặt và sẵn sàng sử dụng")
+        except (subprocess.SubprocessError, FileNotFoundError):
+            LOGGER.warning("SoX không được tìm thấy. Vui lòng cài đặt SoX để phát âm thanh.")
+            LOGGER.warning("Trên Ubuntu/Debian: sudo apt install sox libsox-fmt-all")
+            LOGGER.warning("Trên Fedora: sudo dnf install sox sox-plugins-all")
+            LOGGER.warning("Trên Arch Linux: sudo pacman -S sox")
 
     def load_cache_metadata(self):
         """Tải metadata của cache từ tệp JSON"""
@@ -143,7 +160,7 @@ class NotificationClient:
         return text_hash, os.path.join(self.audio_cache_dir, f"{text_hash}.mp3")
 
     def play_audio(self, text):
-        """Phát âm thanh từ text với caching thông minh"""
+        """Phát âm thanh từ text với caching thông minh sử dụng SoX"""
         try:
             text_hash, audio_file_path = self.get_audio_file_path(text)
             
@@ -159,11 +176,35 @@ class NotificationClient:
             # Cập nhật metadata
             self.update_cache_metadata(text_hash, text)
             
-            # Phát âm thanh
-            subprocess.run(['ffmpeg', '-i', audio_file_path, '-f', 'alsa', 'default'],
-                         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # Thời gian bắt đầu để đo hiệu suất
+            start_time = time.time()
+            
+            # Phát âm thanh sử dụng SoX (lệnh 'play')
+            # -q: quiet mode (không hiển thị thông báo)
+            # -V0: không hiển thị các chi tiết xử lý
+            # -d: device mặc định
+            play_command = ['play', '-q', '-V0', audio_file_path]
+            
+            LOGGER.info(f"Bắt đầu phát âm thanh lúc: {time.strftime('%H:%M:%S.%f')[:-3]}")
+            subprocess.run(play_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            # Tính thời gian phát
+            play_duration = time.time() - start_time
+            LOGGER.info(f"Kết thúc phát âm thanh lúc: {time.strftime('%H:%M:%S.%f')[:-3]}")
+            LOGGER.info(f"Tổng thời gian phát: {play_duration:.3f} giây")
             
             return True
+        except subprocess.SubprocessError as e:
+            LOGGER.error(f"Lỗi khi phát âm thanh với SoX: {e}")
+            # Thử phương pháp dự phòng với ffmpeg nếu SoX thất bại
+            try:
+                LOGGER.warning("Đang thử phương pháp dự phòng với ffmpeg...")
+                subprocess.run(['ffmpeg', '-i', audio_file_path, '-f', 'alsa', 'default'],
+                             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True
+            except Exception as ffmpeg_error:
+                LOGGER.error(f"Phương pháp dự phòng cũng thất bại: {ffmpeg_error}")
+                return False
         except Exception as e:
             LOGGER.error(f"Lỗi khi phát âm thanh: {e}")
             return False
@@ -269,12 +310,12 @@ class NotificationClient:
                 age_seconds = current_time - metadata["last_used"]
                 use_count = metadata["use_count"]
                 
-                # Xóa tệp nếu quá cũ HOẶC ít được sử dụng
-                if age_seconds > max_age_seconds or use_count < min_uses:
+                # Chỉ xóa tệp nếu không được sử dụng trong thời gian dài
+                if age_seconds > max_age_seconds:
                     try:
                         os.remove(file_path)
                         files_to_remove.append(file_hash)
-                        LOGGER.debug(f"Đã xóa file cache: {file_hash}.mp3 - "
+                        LOGGER.info(f"Đã xóa file cache: {file_hash}.mp3 - "
                                      f"(Tuổi: {age_seconds/86400:.1f} ngày, Số lần sử dụng: {use_count})")
                     except Exception as e:
                         LOGGER.error(f"Lỗi khi xóa file cache {file_hash}.mp3: {e}")
@@ -300,7 +341,7 @@ class NotificationClient:
                         try:
                             file_path = os.path.join(self.audio_cache_dir, filename)
                             os.remove(file_path)
-                            LOGGER.debug(f"Đã xóa file cache không có metadata: {filename}")
+                            LOGGER.info(f"Đã xóa file cache không có metadata: {filename}")
                         except Exception as e:
                             LOGGER.error(f"Lỗi khi xóa file không có metadata {filename}: {e}")
 
@@ -394,7 +435,7 @@ def run_client(host=host, port=9999):
     try:
         # Giữ tiến trình chính chạy và dọn dẹp cache định kỳ
         while True:
-            time.sleep(12 * 60 * 60)  # Chạy dọn dẹp cache mỗi 12 giờ
+            time.sleep(7 * 24 * 60 * 60)  # Chạy dọn dẹp cache mỗi 1 tuần
             client.clean_cache()
             
             # Hiển thị thống kê cache sau khi dọn dẹp
