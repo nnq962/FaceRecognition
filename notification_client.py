@@ -4,14 +4,16 @@ import time
 import json
 import threading
 import hashlib
+import argparse
 from gtts import gTTS
 import subprocess
 from utils.logger_config import LOGGER
 
-host = '192.168.1.142'
+DEFAULT_HOST = '192.168.1.142'
+DEFAULT_PORT = 9999
 
 class NotificationClient:
-    def __init__(self, host=host, port=9999, reconnect_interval=5):
+    def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT, reconnect_interval=5):
         self.host = host
         self.port = port
         self.client_socket = None
@@ -418,7 +420,7 @@ class NotificationClient:
         self.connected = False
         LOGGER.info("Client đã dừng")
 
-def run_client(host=host, port=9999):
+def run_client(host=DEFAULT_HOST, port=DEFAULT_PORT):
     """Hàm trợ giúp để chạy client"""
     client = NotificationClient(host, port)
     
@@ -448,4 +450,12 @@ def run_client(host=host, port=9999):
         client.stop()
 
 if __name__ == "__main__":
-    run_client()
+    # Thiết lập parser tham số dòng lệnh
+    parser = argparse.ArgumentParser(description='Notification Client')
+    parser.add_argument('--host', type=str, default=DEFAULT_HOST, help=f'Server host address (default: {DEFAULT_HOST})')
+    parser.add_argument('--port', type=int, default=DEFAULT_PORT, help=f'Server port (default: {DEFAULT_PORT})')
+    
+    args = parser.parse_args()
+    
+    # Khởi động client với các tham số từ dòng lệnh
+    run_client(host=args.host, port=args.port)

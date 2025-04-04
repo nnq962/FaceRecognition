@@ -3,11 +3,14 @@ import time
 import threading
 import json
 from utils.logger_config import LOGGER
+import argparse
 
-host = '192.168.1.142'
+DEFAULT_HOST = '192.168.1.142'
+DEFAULT_PORT = 9999
+DEFAULT_CONTROL_PORT = 9998
 
 class NotificationServer:
-    def __init__(self, host=host, port=9999, control_port=9998):
+    def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT, control_port=DEFAULT_CONTROL_PORT):
         self.host = host
         self.port = port
         self.control_port = control_port
@@ -283,7 +286,7 @@ class NotificationServer:
 # Instance toàn cục
 server_instance = None
 
-def start_server(host=host, port=9999, control_port=9998):
+def start_server(host=DEFAULT_HOST, port=DEFAULT_PORT, control_port=DEFAULT_CONTROL_PORT):
     """Khởi động server"""
     global server_instance
     if server_instance is None or not server_instance.running:
@@ -302,7 +305,7 @@ def stop_server():
         server_instance = None
         LOGGER.info("Server đã dừng")
 
-def send_notification(message, host=host, control_port=9998):
+def send_notification(message, host=DEFAULT_HOST, control_port=DEFAULT_CONTROL_PORT):
     """Gửi thông báo tới control socket của server"""
     try:
         control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -326,7 +329,17 @@ def get_server_status():
     return {"running": False, "client_count": 0}
 
 if __name__ == "__main__":
-    start_server()
+    # Thiết lập parser tham số dòng lệnh
+    parser = argparse.ArgumentParser(description='Notification Server')
+    parser.add_argument('--host', type=str, default=DEFAULT_HOST, help=f'Host address (default: {DEFAULT_HOST})')
+    parser.add_argument('--port', type=int, default=DEFAULT_PORT, help=f'Server port (default: {DEFAULT_PORT})')
+    parser.add_argument('--control-port', type=int, default=DEFAULT_CONTROL_PORT, help=f'Control port (default: {DEFAULT_CONTROL_PORT})')
+    
+    args = parser.parse_args()
+    
+    # Khởi động server với các tham số từ dòng lệnh
+    start_server(host=args.host, port=args.port, control_port=args.control_port)
+    
     try:
         while True:
             time.sleep(10)

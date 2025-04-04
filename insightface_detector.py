@@ -47,13 +47,6 @@ class InsightFaceDetector:
         self.face_mask = face_mask
         self.notification = notification
 
-        if self.raise_hand:
-            if self.webcam:
-                for camera_name in config.camera_names:
-                    self.previous_hand_states[camera_name] = {}
-            else:
-                self.previous_hand_states["Photo"] = {}
-
         self.previous_qr_results = {}
         self.previous_hand_states = {}
         self.mask_thresh = 30
@@ -78,6 +71,13 @@ class InsightFaceDetector:
             self.vid_path = media_manager.vid_path
             self.vid_writer = media_manager.vid_writer
 
+        if self.raise_hand:
+            if self.webcam:
+                for camera_name in config.camera_names:
+                    self.previous_hand_states[camera_name] = {}
+            else:
+                self.previous_hand_states["Photo"] = {}
+
         if self.face_emotion:
             self.fer = FaceEmotion()
 
@@ -90,6 +90,7 @@ class InsightFaceDetector:
         
         self.rec_model = model_zoo.get_model(self.rec_model_path)
         self.rec_model.prepare(ctx_id=0)
+        LOGGER.debug("")
 
     def get_face_detects(self, imgs):
         """
