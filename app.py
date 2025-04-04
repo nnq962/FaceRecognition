@@ -20,7 +20,6 @@ import io
 import cv2
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 import tempfile
-import secrets
 from functools import wraps
 import bcrypt
 from bson.objectid import ObjectId
