@@ -40,24 +40,36 @@ function setupYearOptions() {
 // Cập nhật ngày giờ hiện tại
 function updateDateTime() {
     const now = new Date();
-    
-    // Lấy giờ và phút một cách trực tiếp
-    const hours = now.getHours().toString().padStart(2, '0');
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-    
-    // Lấy ngày, tháng, năm
-    const day = now.getDate();
-    const month = now.getMonth() + 1; // getMonth() trả về 0-11
-    const year = now.getFullYear();
-    
+
+    if (isNaN(now.getTime())) {
+        document.getElementById('currentDateTime').textContent = '--/--/---- --:--';
+        return;
+    }
+
     // Lấy tên thứ trong tuần
-    const weekdayOptions = { weekday: 'long' };
-    const weekday = now.toLocaleDateString('vi-VN', weekdayOptions);
-    
-    // Định dạng ngày tháng giống các trang khác
-    document.getElementById('currentDateTime').textContent = 
+    let weekday;
+    try {
+        const weekdayOptions = { weekday: 'long' };
+        weekday = now.toLocaleDateString('vi-VN', weekdayOptions);
+    } catch (error) {
+        const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+        weekday = weekdays[now.getDay()];
+    }
+
+    // Lấy giờ, phút
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+
+    // Lấy ngày, tháng, năm
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+
+    // Hiển thị thời gian đã định dạng
+    document.getElementById('currentDateTime').textContent =
         `Cập nhật lúc ${hours}:${minutes} ${weekday}, ${day} tháng ${month}, ${year}`;
 }
+
 
 // Hiển thị thông báo dạng toast
 function showToast(type, title, message, duration = 3000) {

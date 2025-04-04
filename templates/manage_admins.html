@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý Admin | Hệ thống quản lý chấm công</title>
+    <title>Quản lý Admin</title>
     <link rel="stylesheet" href="../static/css/styles.css">
     <link rel="icon" href="../static/images/admins.png" type="image/png">
     <!-- Font Awesome -->
@@ -27,6 +27,32 @@
         
         .back-link:hover {
             color: var(--accent);
+        }
+        
+        /* Header styles - Tách riêng khỏi bảng */
+        .header {
+            display: flex;
+            justify-content: flex-start;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+            width: 100%;
+            text-align: left;
+        }
+        
+        .title {
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0;
+            text-align: left;
+        }
+        
+        .last-updated {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 5px;
+            text-align: left;
         }
         
         /* Card styling */
@@ -422,14 +448,24 @@
                 padding: 4px 8px;
                 font-size: 12px;
             }
+            
+            .header {
+                justify-content: flex-start;
+                text-align: left;
+                width: 100%;
+            }
+            
+            .header div {
+                width: 100%;
+                text-align: left;
+            }
+            
+            .title, .last-updated {
+                text-align: left;
+            }
         }
         
         @media (max-width: 576px) {
-            .card-header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
             .header-actions {
                 margin-top: 16px;
                 width: 100%;
@@ -448,9 +484,17 @@
             <i class="fas fa-arrow-left"></i> Quay lại bảng điều khiển
         </a>
         
+        <!-- Tách riêng phần tiêu đề ra khỏi bảng -->
+        <div class="header">
+            <div>
+                <h1 class="title">Quản lý Admin</h1>
+                <div class="last-updated"><span id="currentDateTime"></span></div>
+            </div>
+        </div>
+        
         <div class="card">
             <div class="card-header">
-                <div class="card-title">Quản lý Admin</div>
+                <div class="card-title">Danh sách Admin</div>
                 <div class="header-actions">
                     <button class="add-admin-btn" id="addAdminBtn">
                         <i class="fas fa-plus"></i> Thêm Admin mới
@@ -578,6 +622,41 @@
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Hiển thị ngày giờ hiện tại
+            function updateDateTime() {
+                const now = new Date();
+
+                if (isNaN(now.getTime())) {
+                    document.getElementById('currentDateTime').textContent = '--/--/---- --:--';
+                    return;
+                }
+
+                // Lấy thứ trong tuần
+                let weekday;
+                try {
+                    const options = { weekday: 'long' };
+                    weekday = now.toLocaleDateString('vi-VN', options);
+                } catch (error) {
+                    const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+                    weekday = weekdays[now.getDay()];
+                }
+
+                // Lấy giờ và phút
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+
+                // Lấy ngày, tháng, năm
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+
+                document.getElementById('currentDateTime').textContent =
+                    `Cập nhật lúc ${hours}:${minutes} ${weekday}, ${day} tháng ${month}, ${year}`;
+            }
+
+            // Cập nhật ngày giờ khi trang được tải
+            updateDateTime();
+            
             // Modal elements
             const modal = document.getElementById('adminModal');
             const modalTitle = document.getElementById('modalTitle');

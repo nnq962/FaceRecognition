@@ -33,23 +33,27 @@
         /* Header styles */
         .header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: flex-start;
+            align-items: flex-start;
             margin-bottom: 20px;
             flex-wrap: wrap;
             gap: 15px;
+            width: 100%;
+            text-align: left;
         }
         
         .title {
             font-size: 28px;
             font-weight: 600;
             margin: 0;
+            text-align: left;
         }
         
         .last-updated {
             color: var(--text-secondary);
             font-size: 14px;
             margin-top: 5px;
+            text-align: left;
         }
         
         /* Card styles */
@@ -327,6 +331,31 @@
             .btn {
                 width: 100%;
                 justify-content: center;
+                margin-left: 0;
+                margin-right: 0;
+                padding-left: 16px;
+                padding-right: 16px;
+                box-sizing: border-box;
+            }
+            
+            .header {
+                justify-content: flex-start;
+                text-align: left;
+                width: 100%;
+            }
+            
+            .header div {
+                width: 100%;
+                text-align: left;
+            }
+            
+            .title, .last-updated {
+                text-align: left;
+            }
+            
+            #previewBtn {
+                width: calc(100% - 48px);
+                margin: 0 24px 24px 24px;
             }
         }
     </style>

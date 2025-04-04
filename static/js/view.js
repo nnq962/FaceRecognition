@@ -108,21 +108,35 @@ function getAttendanceStatus(checkInTime, checkOutTime) {
 
 function updateLastUpdated() {
     const now = new Date();
-    const hours = now.getHours().toString().padStart(2, '0');
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-    
+
+    if (isNaN(now.getTime())) {
+        lastUpdatedElement.textContent = '--/--/---- --:--';
+        return;
+    }
+
     // Lấy tên thứ trong tuần
-    const weekdayOptions = { weekday: 'long' };
-    const weekday = now.toLocaleDateString('vi-VN', weekdayOptions);
-    
+    let weekday;
+    try {
+        const weekdayOptions = { weekday: 'long' };
+        weekday = now.toLocaleDateString('vi-VN', weekdayOptions);
+    } catch (error) {
+        const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+        weekday = weekdays[now.getDay()];
+    }
+
+    // Lấy giờ, phút
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+
     // Lấy ngày, tháng, năm
-    const day = now.getDate();
-    const month = now.getMonth() + 1; // getMonth() trả về 0-11
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
     const year = now.getFullYear();
-    
+
     // Ghép chuỗi theo định dạng yêu cầu
     lastUpdatedElement.textContent = `Cập nhật lúc ${hours}:${minutes} ${weekday}, ${day} tháng ${month}, ${year}`;
 }
+
 
 function showLoading() {
     isLoading = true;
@@ -385,3 +399,6 @@ fetchAllData();
 
 // Update time every minute
 setInterval(updateLastUpdated, 60000);
+setInterval(() => {
+    refreshBtn.click();
+}, 60000);

@@ -69,17 +69,29 @@ function showToast(type, title, message, duration = 3000) {
 function updateLastUpdatedTime() {
     const now = new Date();
     
+    if (isNaN(now.getTime())) {
+        lastUpdatedTime.textContent = '--/--/---- --:--:--';
+        return;
+    }
+    
     // Lấy tên thứ trong tuần
-    const weekdayOptions = { weekday: 'long' };
-    const weekday = now.toLocaleDateString('vi-VN', weekdayOptions);
+    let weekday;
+    try {
+        const weekdayOptions = { weekday: 'long' };
+        weekday = now.toLocaleDateString('vi-VN', weekdayOptions);
+    } catch (error) {
+        // Fallback nếu toLocaleDateString không hoạt động
+        const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+        weekday = weekdays[now.getDay()];
+    }
     
     // Lấy giờ, phút
-    const hours = now.getHours().toString().padStart(2, '0');
-    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
     
     // Lấy ngày, tháng, năm
-    const day = now.getDate();
-    const month = now.getMonth() + 1; // getMonth() trả về 0-11
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
     const year = now.getFullYear();
     
     // Ghép chuỗi theo định dạng yêu cầu
@@ -121,6 +133,8 @@ async function createUserCard(user) {
     } catch (error) {
         console.error('Không thể lấy ảnh đại diện:', error);
     }
+
+    const formattedDate = formatDate(user.created_at);
     
     card.innerHTML = `
         <div class="user-header">
@@ -134,7 +148,7 @@ async function createUserCard(user) {
         <div class="user-info">
             <h3 class="user-name">${user.full_name}</h3>
             <div class="user-dept">${user.department_id}</div>
-            <div class="user-created">Tạo ngày: ${formatDate(user.created_at)}</div>
+            <div class="user-created">Tạo ngày: ${formattedDate}</div>
             <div class="user-actions">
                 <button class="btn-circle btn-edit edit-user" title="Chỉnh sửa">
                     <i class="fas fa-pencil-alt"></i>
@@ -162,10 +176,44 @@ function formatDate(dateString) {
     if (!dateString) return 'N/A';
     
     try {
+        // Xử lý đặc biệt cho định dạng "2025-02-24 10:30:38"
+        if (typeof dateString === 'string' && dateString.includes(' ')) {
+            // Tách phần ngày và giờ
+            const parts = dateString.split(' ');
+            if (parts.length === 2) {
+                const datePart = parts[0];
+                // Tách phần ngày thành năm, tháng, ngày
+                const datePieces = datePart.split('-');
+                if (datePieces.length === 3) {
+                    const year = parseInt(datePieces[0]);
+                    const month = parseInt(datePieces[1]);
+                    const day = parseInt(datePieces[2]);
+                    
+                    // Kiểm tra tính hợp lệ của ngày, tháng, năm
+                    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                        // Định dạng lại thành dd-mm-yyyy
+                        return `${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}-${year}`;
+                    }
+                }
+            }
+        }
+        
+        // Nếu không phải định dạng đặc biệt, sử dụng cách thông thường
         const date = new Date(dateString);
-        return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
-    } catch (e) {
-        return dateString;
+        
+        // Kiểm tra nếu date không hợp lệ
+        if (isNaN(date.getTime())) {
+            return 'N/A';
+        }
+        
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        
+        return `${day}-${month}-${year}`;
+    } catch (error) {
+        console.error('Error formatting date:', error, 'for input:', dateString);
+        return 'N/A';
     }
 }
 

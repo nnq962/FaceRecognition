@@ -33,23 +33,51 @@
         /* Header styles */
         .header {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: flex-start;
+            align-items: flex-start;
             margin-bottom: 20px;
             flex-wrap: wrap;
             gap: 15px;
+            width: 100%;
+            text-align: left;
         }
         
         .title {
             font-size: 28px;
             font-weight: 600;
             margin: 0;
+            text-align: left;
         }
         
         .last-updated {
             color: var(--text-secondary);
             font-size: 14px;
             margin-top: 5px;
+            text-align: left;
+        }
+        
+        /* Add user button */
+        #add-user-btn {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(66, 133, 244, 0.3);
+            margin-top: 15px;
+        }
+        
+        #add-user-btn:hover {
+            background-color: #3367D6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(66, 133, 244, 0.4);
         }
         
         /* Toast notification */
@@ -114,35 +142,13 @@
             margin-bottom: 20px;
         }
         
-        /* Add user button */
-        #add-user-btn {
-            background-color: #4285F4;
-            color: white;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 8px;
-            font-weight: 500;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 5px rgba(66, 133, 244, 0.3);
-        }
-        
-        #add-user-btn:hover {
-            background-color: #3367D6;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(66, 133, 244, 0.4);
-        }
-        
         /* Thêm CSS đặc biệt cho trang quản lý người dùng */
         .user-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 20px;
             margin-top: 20px;
+            padding: 20px;
         }
         
         .user-card {
@@ -266,6 +272,35 @@
         
         .btn-photo:hover {
             background-color: #2db14f;
+        }
+        
+        /* Search input styling */
+        .search-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 12px 12px 40px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.2);
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-secondary);
         }
         
         /* Modal styles */
@@ -489,17 +524,10 @@
             height: 40px;
             animation: spin 1s linear infinite;
         }
-
-        /* Responsive styles */
-        @media (max-width: 768px) {
-            .header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            
-            #add-user-btn {
-                align-self: flex-start;
-            }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .user-grid .loading {
@@ -510,6 +538,57 @@
             align-items: center;     /* Căn giữa theo chiều ngang */
             min-height: 200px;       /* Đặt chiều cao tối thiểu để dễ nhận thấy căn giữa */
             text-align: center;      /* Căn giữa văn bản */
+            padding: 40px 0;
+        }
+        
+        .user-grid .loading .spinner {
+            border: 3px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top: 3px solid var(--accent);
+            width: 30px;
+            height: 30px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        /* Responsive styles */
+        @media (max-width: 768px) {
+            .header {
+                justify-content: flex-start;
+                text-align: left;
+                width: 100%;
+            }
+            
+            .header div {
+                width: 100%;
+                text-align: left;
+            }
+            
+            .title, .last-updated {
+                text-align: left;
+            }
+            
+            #add-user-btn {
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .user-grid {
+                grid-template-columns: repeat(auto-fill, minmax(100%, 1fr));
+            }
+            
+            .modal-footer {
+                flex-direction: column;
+            }
+            
+            .modal-footer .btn {
+                width: 100%;
+            }
+            
+            .file-upload {
+                flex-direction: column;
+                align-items: stretch;
+            }
         }
     </style>
 </head>
@@ -622,6 +701,89 @@
         </div>
     </div>
     
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Cập nhật hiển thị thời gian với định dạng dd-mm-yyyy
+            function updateDateTime() {
+                const now = new Date();
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                
+                const formattedDate = `${day}-${month}-${year}`;
+                const formattedTime = `${hours}:${minutes}`;
+                
+                const weekdays = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+                const weekday = weekdays[now.getDay()];
+                
+                document.getElementById('last-updated-time').textContent = 
+                    `${formattedTime} ${weekday}, ${day} tháng ${month}, ${year}`;
+            }
+            
+            // Cập nhật thời gian khi trang được tải
+            updateDateTime();
+            
+            // Gọi hàm từ file users.js
+            if (typeof initUsers === 'function') {
+                initUsers();
+            }
+        });
+
+        // Hàm hiển thị thông báo toast
+        function showToast(type, title, message, duration = 3000) {
+            const toast = document.getElementById('toast');
+            const toastIcon = document.getElementById('toastIcon');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastDescription = document.getElementById('toastDescription');
+            
+            // Set toast type
+            toast.className = 'toast-notification ' + type;
+            
+            // Set icon
+            if (type === 'success') {
+                toastIcon.className = 'fas fa-check-circle';
+            } else if (type === 'error') {
+                toastIcon.className = 'fas fa-exclamation-circle';
+            }
+            
+            // Set content
+            toastMessage.textContent = title;
+            toastDescription.textContent = message;
+            
+            // Show toast
+            toast.classList.add('show');
+            
+            // Hide toast after duration
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, duration);
+        }
+
+        // Định dạng ngày tháng đúng chuẩn
+        function formatDate(dateString) {
+            if (!dateString) return 'N/A';
+            
+            try {
+                const date = new Date(dateString);
+                
+                // Kiểm tra nếu date không hợp lệ
+                if (isNaN(date.getTime())) {
+                    return 'N/A';
+                }
+                
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                
+                return `${day}-${month}-${year}`;
+            } catch (error) {
+                console.error('Error formatting date:', error);
+                return 'N/A';
+            }
+        }
+    </script>
     <script src="../static/js/users.js"></script>
 </body>
 </html>
