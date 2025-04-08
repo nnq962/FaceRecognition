@@ -53,14 +53,15 @@ def generate_all_user_embeddings():
 
         face_embeddings = []
         photo_count = 0
+        failed_photos = 0
 
         for file_name in os.listdir(photo_folder):
             file_path = os.path.join(photo_folder, file_name)
 
             if os.path.isfile(file_path):
                 try:
-                    # Gọi hàm xử lý để lấy face embedding
-                    face_embedding = process_image(file_path, detector)
+                    # Gọi hàm xử lý để lấy face embedding và thông báo
+                    face_embedding, processing_message = process_image(file_path, detector)
 
                     if face_embedding is not None:
                         # Lưu theo dạng danh sách {photo_name, embedding}
@@ -70,9 +71,13 @@ def generate_all_user_embeddings():
                         })
 
                         photo_count += 1
-                        LOGGER.info(f"Added embedding for file {file_name} (user ID {user_id})")
+                        LOGGER.info(f"Added embedding for file {file_name} (user ID {user_id}): {processing_message}")
+                    else:
+                        failed_photos += 1
+                        LOGGER.warning(f"Failed to process file {file_name} (user ID {user_id}): {processing_message}")
 
                 except Exception as e:
+                    failed_photos += 1
                     LOGGER.error(f"Error processing file {file_path}: {e}")
 
         # Cập nhật face_embeddings vào users_collection
@@ -81,7 +86,7 @@ def generate_all_user_embeddings():
             {"$set": {"face_embeddings": face_embeddings}}
         )
 
-        LOGGER.info(f"Completed processing user ID {user_id}. Total photos processed: {photo_count}")
+        LOGGER.info(f"Completed processing user ID {user_id}. Total photos processed: {photo_count}, Failed: {failed_photos}")
 
 
 # ----------------------------------------------------------------
@@ -338,14 +343,14 @@ def upload_photo(user_id):
         # Lưu ảnh tạm
         photo.save(file_path)
 
-        # Xử lý ảnh → lấy embedding
-        face_embedding = process_image(file_path, detector)
+        # Xử lý ảnh → lấy embedding và thông báo
+        face_embedding, processing_message = process_image(file_path, detector)
 
         if face_embedding is None:
             # Không thành công → xoá ảnh tạm
             if os.path.exists(file_path):
                 os.remove(file_path)
-            return jsonify({"error": "Failed to process image"}), 400
+            return jsonify({"error": processing_message}), 400
 
         # Lưu embedding vào DB
         embedding_entry = {
@@ -362,7 +367,8 @@ def upload_photo(user_id):
 
         return jsonify({
             "message": "Photo uploaded and face features saved",
-            "photo_name": filename
+            "photo_name": filename,
+            "processing_details": processing_message
         }), 200
 
     except Exception as e:

@@ -515,38 +515,83 @@ async function deletePhoto(userId, fileName) {
     }
 }
 
-// Hàm tải lên ảnh mới
-async function uploadPhoto() {
+// Hàm tải lên nhiều ảnh cùng lúc
+async function uploadPhoto() {    
     const fileInput = photoUpload;
     
-    if (!fileInput.files || fileInput.files.length === 0) {
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
         showToast('error', 'Lỗi', 'Vui lòng chọn ảnh để tải lên');
         return;
     }
     
-    const file = fileInput.files[0];
-    
-    if (!file.type.startsWith('image/')) {
-        showToast('error', 'Lỗi', 'Vui lòng chọn tệp ảnh hợp lệ');
-        return;
-    }
+    const files = fileInput.files;
+    let successCount = 0;
+    let errorCount = 0;
+    let errorMessages = [];
     
     showLoading();
     
     try {
-        const formData = new FormData();
-        formData.append('photo', file);
-        
-        const response = await fetch(`${API_BASE_URL}/upload_photo/${currentPhotoUserId}`, {
-            method: 'POST',
-            body: formData
-        });
-        
-        if (!response.ok) {
-            throw new Error('Lỗi khi tải ảnh lên');
+        // Xử lý từng file một
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            
+            if (!file.type.startsWith('image/')) {
+                errorCount++;
+                errorMessages.push(`"${file.name}" không phải là tệp ảnh hợp lệ`);
+                continue;
+            }
+            
+            const formData = new FormData();
+            formData.append('photo', file);
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/upload_photo/${currentPhotoUserId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    errorCount++;
+                    errorMessages.push(`"${file.name}": ${result.error || 'Lỗi khi tải lên'}`);
+                } else {
+                    successCount++;
+                    console.log(`Tải lên thành công: ${file.name} - ${result.processing_details || ''}`);
+                }
+            } catch (uploadError) {
+                errorCount++;
+                errorMessages.push(`"${file.name}": Lỗi kết nối`);
+                console.error('Error uploading', file.name, uploadError);
+            }
         }
         
-        showToast('success', 'Thành công', 'Tải ảnh lên thành công!');
+        // Tính toán thời gian hiển thị toast dựa trên số lỗi
+        // Mỗi lỗi thêm 1000ms, tối thiểu 3000ms, tối đa 10000ms
+        const toastDuration = Math.min(Math.max(3000 + (errorCount * 1000), 3000), 10000);
+        
+        // Hiển thị thông báo kết quả
+        if (successCount > 0 && errorCount === 0) {
+            showToast('success', 'Thành công', `Đã tải lên ${successCount} ảnh thành công!`, 3000);
+        } else if (successCount > 0 && errorCount > 0) {
+            // Tổng hợp thông báo lỗi gọn gàng
+            const errorSummary = errorMessages.length <= 3 
+                ? errorMessages.join('\n') 
+                : errorMessages.slice(0, 3).join('\n') + `\n...và ${errorMessages.length - 3} lỗi khác`;
+            
+            showToast('warning', 'Hoàn thành một phần', 
+                `Đã tải lên ${successCount} ảnh thành công, ${errorCount} ảnh thất bại.\nLỗi: ${errorSummary}`,
+                toastDuration);
+        } else if (successCount === 0 && errorCount > 0) {
+            // Tổng hợp thông báo lỗi gọn gàng
+            const errorSummary = errorMessages.length <= 3 
+                ? errorMessages.join('\n') 
+                : errorMessages.slice(0, 3).join('\n') + `\n...và ${errorMessages.length - 3} lỗi khác`;
+            
+            showToast('error', 'Thất bại', `Không thể tải lên ${errorCount} ảnh.\nLỗi: ${errorSummary}`,
+                toastDuration);
+        }
         
         // Đặt lại input file
         fileInput.value = '';
@@ -555,7 +600,7 @@ async function uploadPhoto() {
         const photos = await fetchUserPhotos(currentPhotoUserId);
         renderPhotoGallery(photos, currentPhotoUserId);
     } catch (error) {
-        showToast('error', 'Lỗi', 'Không thể tải ảnh lên. Vui lòng thử lại sau.');
+        showToast('error', 'Lỗi', 'Có lỗi xảy ra trong quá trình xử lý. Vui lòng thử lại sau.');
         console.error('Error:', error);
     } finally {
         showLoading(false);

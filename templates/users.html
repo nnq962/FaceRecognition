@@ -470,6 +470,7 @@
         .file-upload {
             display: flex;
             align-items: center;
+            justify-content: space-between;
             gap: 10px;
         }
         
@@ -681,7 +682,7 @@
                 <h4>Thêm ảnh mới</h4>
                 <div class="form-group">
                     <div class="file-upload">
-                        <input type="file" id="photo-upload" class="file-input" accept="image/*">
+                        <input type="file" id="photo-upload" accept="image/*" multiple>
                         <button type="button" id="upload-photo-btn" class="upload-btn">Tải lên</button>
                     </div>
                 </div>

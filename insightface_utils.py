@@ -286,12 +286,15 @@ def process_image(image_path, detector):
         - detector: Đối tượng chứa các hàm `get_face_detect` và `get_face_embedding`.
 
     Returns:
-        - embedding: Mảng numpy chứa embedding của khuôn mặt (hoặc None nếu có lỗi).
+        - tuple: (embedding, message) trong đó:
+            - embedding: Mảng numpy chứa embedding của khuôn mặt (hoặc None nếu có lỗi).
+            - message: Thông báo kết quả bằng tiếng Anh.
     """
     img = cv2.imread(image_path)
     if img is None:
-        LOGGER.warning(f"Failed to read image {image_path}.")
-        return None
+        message = f"Failed to read image {image_path}."
+        LOGGER.warning(message)
+        return None, message
 
     try:
         result = detector.get_face_detects(img)
@@ -301,11 +304,13 @@ def process_image(image_path, detector):
         num_faces = len(bounding_boxes)
 
         if num_faces == 0:
-            LOGGER.warning("No face in this image")
-            return None
+            message = "No face detected in this image."
+            LOGGER.warning(message)
+            return None, message
         elif num_faces > 1:
-            LOGGER.warning(f"Multiple faces detected in this image ({num_faces} faces)")
-            return None
+            message = f"Multiple faces detected in this image ({num_faces} faces)."
+            LOGGER.warning(message)
+            return None, message
 
         # Gọi hàm crop_and_align_faces với khuôn mặt đầu tiên
         cropped_faces = crop_and_align_faces(
@@ -317,16 +322,19 @@ def process_image(image_path, detector):
         )
 
         if not cropped_faces:
-            LOGGER.warning("No face passed the confidence threshold.")
-            return None
+            message = "No face passed the confidence threshold."
+            LOGGER.warning(message)
+            return None, message
 
         # Trích xuất embedding
         embedding = detector.get_face_embeddings(cropped_faces)
-        return embedding[0]
+        message = "Face embedding extracted successfully."
+        return embedding[0], message
 
     except Exception as e:
-        LOGGER.error(f"Error processing {image_path}: {e}")
-        return None
+        message = f"Failed to process {image_path}: {str(e)}"
+        LOGGER.error(message)
+        return None, message
     
 def crop_faces_for_emotion(frame, bboxes, conf_threshold=0.5):
     """
