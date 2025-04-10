@@ -23,6 +23,8 @@ import tempfile
 from functools import wraps
 import bcrypt
 from bson.objectid import ObjectId
+import pillow_heif
+from PIL import Image
 
 
 app = Flask(__name__)
@@ -612,7 +614,16 @@ def upload_photo(user_id):
         return jsonify({"error": "No photo uploaded"}), 400
 
     photo = request.files['photo']
-    filename = photo.filename
+    original_filename = photo.filename
+    
+    # Kiểm tra xem file có phải là HEIC/HEIF không
+    is_heic = False
+    if original_filename.lower().endswith(('.heic', '.heif')):
+        is_heic = True
+        # Đổi tên file thành .png nếu là HEIC
+        filename = os.path.splitext(original_filename)[0] + '.png'
+    else:
+        filename = original_filename
 
     try:
         user_id = int(user_id)
@@ -636,15 +647,37 @@ def upload_photo(user_id):
         # Tạo đường dẫn lưu ảnh
         os.makedirs(folder_path, exist_ok=True)
         file_path = os.path.join(folder_path, filename)
+        temp_path = os.path.join(folder_path, "temp_" + original_filename)
 
         # Lưu ảnh tạm
-        photo.save(file_path)
+        photo.save(temp_path)
+        
+        # Chuyển đổi HEIC sang PNG nếu cần
+        if is_heic:
+            try:
+                # Đăng ký bộ xử lý HEIF
+                pillow_heif.register_heif_opener()
+                
+                # Mở và lưu ảnh dưới định dạng PNG
+                img = Image.open(temp_path)
+                img.save(file_path, format="PNG")
+                
+                # Xóa file tạm thời HEIC
+                os.remove(temp_path)
+            except Exception as heic_error:
+                # Nếu có lỗi khi chuyển đổi, ghi log và xóa file tạm
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                return jsonify({"error": f"Failed to convert HEIC image: {str(heic_error)}"}), 400
+        else:
+            # Nếu không phải HEIC thì di chuyển file tạm sang vị trí chính thức
+            os.rename(temp_path, file_path)
 
         # Xử lý ảnh → lấy embedding và thông báo
         face_embedding, processing_message = process_image(file_path, detector)
 
         if face_embedding is None:
-            # Không thành công → xoá ảnh tạm
+            # Không thành công → xoá ảnh
             if os.path.exists(file_path):
                 os.remove(file_path)
             return jsonify({"error": processing_message}), 400
@@ -662,15 +695,23 @@ def upload_photo(user_id):
 
         build_faiss_index()
 
+        # Thêm thông tin chuyển đổi vào processing_details nếu là HEIC
+        additional_info = ""
+        if is_heic:
+            additional_info = " (Converted from HEIC to PNG)"
+
         return jsonify({
             "message": "Photo uploaded and face features saved",
             "photo_name": filename,
-            "processing_details": processing_message
+            "processing_details": processing_message + additional_info,
+            "converted": is_heic
         }), 200
 
     except Exception as e:
-        # Nếu có lỗi khi xử lý/lưu, cũng xoá ảnh nếu đã tồn tại
-        if os.path.exists(file_path):
+        # Xóa các file tạm nếu có lỗi
+        if 'temp_path' in locals() and os.path.exists(temp_path):
+            os.remove(temp_path)
+        if 'file_path' in locals() and os.path.exists(file_path):
             os.remove(file_path)
         return jsonify({"error": f"Failed to upload photo: {str(e)}"}), 500
     
