@@ -8,8 +8,8 @@ import argparse
 DEFAULT_HOST = '192.168.1.142'
 DEFAULT_PORT = 14678
 DEFAULT_CONTROL_PORT = 14679
-ALLOWED_IPS = ['192.168.1.113']
-SECRET_KEY = "your_secret_key_here"
+ALLOWED_IPS = []
+SECRET_KEY = "3hinc14679"
 
 
 class NotificationServer:
@@ -62,7 +62,7 @@ class NotificationServer:
                 client_ip = addr[0]
                 
                 # Kiểm tra xem IP có được phép không
-                if client_ip not in ALLOWED_IPS:
+                if ALLOWED_IPS and client_ip not in ALLOWED_IPS:
                     LOGGER.warning(f"Từ chối kết nối từ IP không được phép: {addr}")
                     client_socket.close()
                     continue
