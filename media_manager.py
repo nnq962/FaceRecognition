@@ -74,7 +74,7 @@ class MediaManager:
                                        reconnect_attempts=100,
                                        reconnect_delay=20,
                                        timeout=30,
-                                       use_gstreamer=False)
+                                       use_gstreamer=True)
             
             self.batch_size = len(self.dataset) 
         else:
