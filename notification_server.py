@@ -6,8 +6,11 @@ from utils.logger_config import LOGGER
 import argparse
 
 DEFAULT_HOST = '192.168.1.142'
-DEFAULT_PORT = 9999
-DEFAULT_CONTROL_PORT = 9998
+DEFAULT_PORT = 14678
+DEFAULT_CONTROL_PORT = 14679
+ALLOWED_IPS = ['192.168.1.113']
+SECRET_KEY = "your_secret_key_here"
+
 
 class NotificationServer:
     def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT, control_port=DEFAULT_CONTROL_PORT):
@@ -52,11 +55,18 @@ class NotificationServer:
             self.cleanup()
             raise
 
-    def accept_clients(self):
-        """Luôn lắng nghe và chấp nhận kết nối từ clients"""
+    def accept_clients(self):        
         while self.running:
             try:
                 client_socket, addr = self.server_socket.accept()
+                client_ip = addr[0]
+                
+                # Kiểm tra xem IP có được phép không
+                if client_ip not in ALLOWED_IPS:
+                    LOGGER.warning(f"Từ chối kết nối từ IP không được phép: {addr}")
+                    client_socket.close()
+                    continue
+                    
                 # Thiết lập socket không chặn
                 client_socket.setblocking(0)
                 
@@ -214,13 +224,27 @@ class NotificationServer:
         return False
 
     def handle_control(self):
-        """Xử lý các kết nối từ control socket"""
+        """Xử lý các kết nối từ control socket"""        
         while self.running:
             try:
                 control_client, addr = self.control_socket.accept()
-                message = control_client.recv(1024).decode('utf-8')
-                if message:
-                    self.send_notification(message)
+                try:
+                    data = control_client.recv(1024).decode('utf-8')
+                    if data:
+                        # Kiểm tra xem có phải format JSON không
+                        try:
+                            message_data = json.loads(data)
+                            # Kiểm tra secret key
+                            if message_data.get('key') == SECRET_KEY:
+                                # Nếu key hợp lệ, gửi thông báo
+                                self.send_notification(message_data.get('message', ''))
+                            else:
+                                LOGGER.warning(f"Từ chối yêu cầu gửi thông báo với key không hợp lệ từ {addr}")
+                        except json.JSONDecodeError:
+                            LOGGER.warning(f"Từ chối yêu cầu không hợp lệ từ {addr}: không phải định dạng JSON")
+                except UnicodeDecodeError:
+                    LOGGER.warning(f"Từ chối yêu cầu không hợp lệ từ {addr}: không thể giải mã UTF-8")
+                    
                 control_client.close()
             except socket.timeout:
                 # Bỏ qua timeout, tiếp tục vòng lặp
@@ -305,14 +329,21 @@ def stop_server():
         server_instance = None
         LOGGER.info("Server đã dừng")
 
-def send_notification(message, host=DEFAULT_HOST, control_port=DEFAULT_CONTROL_PORT):
+def send_notification(message, host=DEFAULT_HOST, control_port=DEFAULT_CONTROL_PORT, secret_key="your_secret_key_here"):
     """Gửi thông báo tới control socket của server"""
     try:
         control_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # Thiết lập timeout để không chặn quá lâu
         control_socket.settimeout(5)
         control_socket.connect((host, control_port))
-        control_socket.send(message.encode('utf-8'))
+        
+        # Đóng gói message với secret key
+        message_data = json.dumps({
+            'key': secret_key,
+            'message': message
+        })
+        
+        control_socket.send(message_data.encode('utf-8'))
         control_socket.close()
         return True
     except Exception as e:
@@ -334,8 +365,17 @@ if __name__ == "__main__":
     parser.add_argument('--host', type=str, default=DEFAULT_HOST, help=f'Host address (default: {DEFAULT_HOST})')
     parser.add_argument('--port', type=int, default=DEFAULT_PORT, help=f'Server port (default: {DEFAULT_PORT})')
     parser.add_argument('--control-port', type=int, default=DEFAULT_CONTROL_PORT, help=f'Control port (default: {DEFAULT_CONTROL_PORT})')
+    parser.add_argument('--allowed-ips', type=str, default=','.join(ALLOWED_IPS), help=f'Comma-separated list of allowed IPs (default: {",".join(ALLOWED_IPS)})')
+    parser.add_argument('--secret-key', type=str, default=SECRET_KEY, help='Secret key for control authentication')
     
     args = parser.parse_args()
+    
+    # Chuyển đổi chuỗi IPs thành list
+    allowed_ips = args.allowed_ips.split(',') if args.allowed_ips else []
+    
+    # Cập nhật biến toàn cục
+    ALLOWED_IPS = allowed_ips
+    SECRET_KEY = args.secret_key
     
     # Khởi động server với các tham số từ dòng lệnh
     start_server(host=args.host, port=args.port, control_port=args.control_port)

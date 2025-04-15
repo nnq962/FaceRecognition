@@ -61,6 +61,11 @@ class Config:
     SAVE_PATH = Path(save_path)
     UPLOADS_PATH = SAVE_PATH / "uploads"
 
+    # Cấu hình thông báo websocket
+    host = '192.168.1.142'
+    control_port = 14679
+    secret_key = "3hinc14679"
+
     # Tạo thư mục nếu chưa tồn tại
     for folder in [SAVE_PATH, UPLOADS_PATH]:
         Path(folder).mkdir(parents=True, exist_ok=True)

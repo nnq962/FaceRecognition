@@ -121,18 +121,30 @@ class LoadImages:
 
 
 class LoadStreams:
-    def __init__(self, sources='streams.txt', vid_stride=1,
-                 reconnect_attempts=10, reconnect_delay=5, timeout=30):
+    def __init__(self, sources='streams.txt',
+                 vid_stride=1,
+                 reconnect_attempts=10, 
+                 reconnect_delay=5, 
+                 timeout=30,
+                 use_gstreamer=True):
+        
         LOGGER.info(
             f"Initializing LoadStreams with parameters:\n"
-            f"  • sources: {sources}\n"
-            f"  • vid_stride: {vid_stride}\n"
-            f"  • reconnect_attempts: {reconnect_attempts}\n"
-            f"  • reconnect_delay: {reconnect_delay}\n"
-            f"  • timeout: {timeout}"
+            f"→ sources: {sources}\n"
+            f"→ vid_stride: {vid_stride}\n"
+            f"→ reconnect_attempts: {reconnect_attempts}\n"
+            f"→ reconnect_delay: {reconnect_delay}\n"
+            f"→ timeout: {timeout}\n"
+            f"→ use_gstreamer: {use_gstreamer}"
         )
+
         self.mode = 'stream'
         self.vid_stride = vid_stride  # video frame-rate stride
+        self.has_gstreamer = False
+        if use_gstreamer:
+            self.has_gstreamer = cv2.videoio_registry.hasBackend(cv2.CAP_GSTREAMER)
+            if not self.has_gstreamer:
+                LOGGER.warning("OpenCV is not built with GStreamer support. Falling back to standard method.")
         
         # Thêm các tham số cho khả năng phục hồi
         self.reconnect_attempts = reconnect_attempts  # Số lần thử kết nối lại
@@ -188,11 +200,56 @@ class LoadStreams:
             # Luôn tạo thread, ngay cả khi kết nối ban đầu thất bại
             self.threads[i] = Thread(target=self.update, args=([i, cap, s]), daemon=True)
             self.threads[i].start()
+
+    def create_gstreamer_pipeline(self, source, index):
+        """Tạo pipeline GStreamer tối ưu cho độ trễ thấp"""
+        try:
+            # Kiểm tra xem source có phải là RTSP hay không
+            if isinstance(source, str) and source.startswith('rtsp://'):
+                rtsp_url = source
+                
+                # Pipeline GStreamer tối ưu cho độ trễ thấp
+                gst_pipeline = (
+                    f"rtspsrc location={rtsp_url} latency=0 protocols=tcp drop-on-latency=true ! "
+                    "rtph264depay ! h264parse ! avdec_h264 max-threads=4 ! "
+                    "videoconvert ! video/x-raw, format=BGR ! "
+                    "appsink drop=1 max-buffers=1 max-lateness=0 sync=false"
+                )
+                
+                LOGGER.info(f"Using GStreamer pipeline for RTSP stream {index}: {source}")
+                
+                # Tạo VideoCapture với GStreamer backend
+                cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
+                
+                # Kiểm tra xem GStreamer có hoạt động không
+                if not cap.isOpened():
+                    LOGGER.warning(f"GStreamer pipeline failed for stream {index}. Falling back to standard pipeline.")
+                    return False, None
+                    
+                return True, cap
+            else:
+                # Nếu không phải RTSP, không sử dụng GStreamer
+                LOGGER.info(f"Stream {index} is not RTSP. Using standard pipeline.")
+                return False, None
+                
+        except Exception as e:
+            LOGGER.error(f"Error creating GStreamer pipeline for stream {index}: {str(e)}")
+            return False, None
                 
     def create_capture(self, source, index):
         """Tạo và cấu hình VideoCapture với khả năng tự động phát hiện độ phân giải tối ưu"""
         try:
             LOGGER.info(f"Attempting to connect to stream: {source}")
+            
+            # Thử sử dụng GStreamer nếu được kích hoạt và source là RTSP
+            if self.has_gstreamer and isinstance(source, str) and source.startswith('rtsp://'):
+                success, cap = self.create_gstreamer_pipeline(source, index)
+                if success:
+                    LOGGER.info(f"Successfully connected to stream {index} using GStreamer")
+                    return True, cap
+                else:
+                    LOGGER.warning(f"GStreamer connection failed for stream {index}. Falling back to standard method.")
+
             cap = cv2.VideoCapture(source)
             
             # Kiểm tra xem camera có được mở thành công không

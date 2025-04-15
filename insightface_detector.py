@@ -90,7 +90,6 @@ class InsightFaceDetector:
         
         self.rec_model = model_zoo.get_model(self.rec_model_path)
         self.rec_model.prepare(ctx_id=0)
-        LOGGER.debug("")
 
     def get_face_detects(self, imgs):
         """
@@ -160,7 +159,10 @@ class InsightFaceDetector:
         if self.mask_detected_frames >= self.mask_thresh:
             self.mask_detected_frames = 0
             if self.notification:
-                ns_send_notification("Vui lòng tháo khẩu trang")
+                ns_send_notification(message="Vui lòng tháo khẩu trang", 
+                                     host=config.host, 
+                                     control_port=config.control_port,
+                                     secret_key=config.secret_key)
             else:
                 LOGGER.info("Vui lòng tháo khẩu trang")
 
@@ -322,15 +324,15 @@ class InsightFaceDetector:
                     emotion = result["emotion"]
 
                     # Test backend
-                    if user_id == 1:
-                        if get_raising_hand(im0, bbox):
-                            self.hand_detected_frames += 1
-                            if self.hand_detected_frames >= 20:
-                                self.hand_detected_frames = 0
-                                if self.notification:
-                                    ns_send_notification("Ok sếp ơi")
-                                else:
-                                    LOGGER.info("Ok sếp ơi")
+                    # if user_id == 1:
+                    #     if get_raising_hand(im0, bbox):
+                    #         self.hand_detected_frames += 1
+                    #         if self.hand_detected_frames >= 20:
+                    #             self.hand_detected_frames = 0
+                    #             if self.notification:
+                    #                 ns_send_notification("Ok sếp ơi")
+                    #             else:
+                    #                 LOGGER.info("Ok sếp ơi")
                     
                     # Kiểm tra giơ tay
                     if self.raise_hand:
@@ -477,9 +479,15 @@ class InsightFaceDetector:
         # Gửi thông báo
         if notification_enabled:
             if welcome_users:
-                ns_send_notification(f"Xin chào {', '.join(welcome_users)}")
+                ns_send_notification(message=f"Xin chào {', '.join(welcome_users)}",
+                                     host=config.host,
+                                     control_port=config.control_port,
+                                     secret_key=config.secret_key)
             if goodbye_users:
-                ns_send_notification(f"Chào tạm biệt {', '.join(goodbye_users)}")
+                ns_send_notification(message=f"Chào tạm biệt {', '.join(goodbye_users)}",
+                                     host=config.host,
+                                     control_port=config.control_port,
+                                     secret_key=config.secret_key)
         else:
             if welcome_users:
                 LOGGER.info(f"Xin chào {', '.join(welcome_users)}")
