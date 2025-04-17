@@ -3,14 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý Tiến trình Python</title>
+    <title>Quản lý tiến trình</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../static/css/index.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Quản lý Tiến trình Python</h1>
+            <h1>Quản lý tiến trình</h1>
         </div>
         
         <div class="main-content">
@@ -22,7 +25,7 @@
                     
                     <div class="form-group">
                         <label for="process-name">Tên tiến trình</label>
-                        <input type="text" id="process-name" class="form-control" placeholder="Nhập tên tiến trình" value="Tiến trình mới">
+                        <input type="text" id="process-name" class="form-control" placeholder="Nhập tên tiến trình" value="face_recognition_1">
                     </div>
                     
                     <div class="form-group">
@@ -38,98 +41,102 @@
                     <div class="form-group">
                         <label>Tùy chọn</label>
                         <div class="options-grid">
-                            <div class="option-item" data-option="face_recognition">
-                                <input type="checkbox" id="face_recognition" class="option-checkbox">
-                                <label for="face_recognition">Nhận diện khuôn mặt</label>
-                                <div class="tooltip">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span class="tooltip-text">Kích hoạt tính năng nhận diện khuôn mặt</span>
-                                </div>
+                      
+                          <!-- Face recognition -->
+                          <div class="option-item" data-option="face_recognition">
+                            <input type="checkbox" id="face_recognition" class="option-checkbox">
+                            <span class="option-label">Nhận diện khuôn mặt</span>
+                            <div class="tooltip">
+                              <i class="fas fa-info-circle"></i>
+                              <span class="tooltip-text">Kích hoạt tính năng nhận diện khuôn mặt</span>
                             </div>
-                            
-                            <div class="option-item dependent" data-option="face_emotion" data-depends="face_recognition">
-                                <input type="checkbox" id="face_emotion" class="option-checkbox">
-                                <label for="face_emotion">Cảm xúc khuôn mặt</label>
-                                <div class="tooltip">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span class="tooltip-text">Nhận diện cảm xúc từ khuôn mặt (yêu cầu nhận diện khuôn mặt)</span>
-                                </div>
+                          </div>
+                      
+                          <!-- Face emotion (dependent) -->
+                          <div class="option-item dependent" data-option="face_emotion" data-depends="face_recognition">
+                            <input type="checkbox" id="face_emotion" class="option-checkbox">
+                            <span class="option-label">Cảm xúc khuôn mặt</span>
+                            <div class="tooltip">
+                              <i class="fas fa-info-circle"></i>
+                              <span class="tooltip-text">Nhận diện cảm xúc từ khuôn mặt (yêu cầu nhận diện khuôn mặt)</span>
                             </div>
-                            
-                            <div class="option-item dependent" data-option="raise_hand" data-depends="face_recognition">
-                                <input type="checkbox" id="raise_hand" class="option-checkbox">
-                                <label for="raise_hand">Phát hiện giơ tay</label>
-                                <div class="tooltip">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span class="tooltip-text">Phát hiện cử chỉ giơ tay (yêu cầu nhận diện khuôn mặt)</span>
-                                </div>
+                          </div>
+                      
+                          <!-- Raise hand (dependent) -->
+                          <div class="option-item dependent" data-option="raise_hand" data-depends="face_recognition">
+                            <input type="checkbox" id="raise_hand" class="option-checkbox">
+                            <span class="option-label">Phát hiện giơ tay</span>
+                            <div class="tooltip">
+                              <i class="fas fa-info-circle"></i>
+                              <span class="tooltip-text">Phát hiện cử chỉ giơ tay (yêu cầu nhận diện khuôn mặt)</span>
                             </div>
-                            
-                            <div class="option-item" data-option="face_mask">
-                                <input type="checkbox" id="face_mask" class="option-checkbox">
-                                <label for="face_mask">Phát hiện khẩu trang</label>
-                                <div class="tooltip">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span class="tooltip-text">Phát hiện người có đeo khẩu trang hay không</span>
-                                </div>
+                          </div>
+                      
+                          <!-- Face mask -->
+                          <div class="option-item" data-option="face_mask">
+                            <input type="checkbox" id="face_mask" class="option-checkbox">
+                            <span class="option-label">Phát hiện khẩu trang</span>
+                            <div class="tooltip">
+                              <i class="fas fa-info-circle"></i>
+                              <span class="tooltip-text">Phát hiện người có đeo khẩu trang hay không</span>
                             </div>
-                            
-                            <div class="option-item" data-option="qr_code">
-                                <input type="checkbox" id="qr_code" class="option-checkbox">
-                                <label for="qr_code">Quét mã QR</label>
-                                <div class="tooltip">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span class="tooltip-text">Nhận diện và giải mã QR code</span>
-                                </div>
+                          </div>
+                      
+                          <!-- QR code -->
+                          <div class="option-item" data-option="qr_code">
+                            <input type="checkbox" id="qr_code" class="option-checkbox">
+                            <span class="option-label">Quét mã QR</span>
+                            <div class="tooltip">
+                              <i class="fas fa-info-circle"></i>
+                              <span class="tooltip-text">Nhận diện và giải mã QR code</span>
                             </div>
-                            
-                            <div class="option-item" data-option="save">
-                                <input type="checkbox" id="save" class="option-checkbox">
-                                <label for="save">Lưu hình ảnh</label>
-                                <div class="tooltip">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span class="tooltip-text">Lưu hình ảnh từ camera</span>
-                                </div>
+                          </div>
+                      
+                          <!-- Save image -->
+                          <div class="option-item" data-option="save">
+                            <input type="checkbox" id="save" class="option-checkbox">
+                            <span class="option-label">Lưu hình ảnh</span>
+                            <div class="tooltip">
+                              <i class="fas fa-info-circle"></i>
+                              <span class="tooltip-text">Lưu hình ảnh từ camera</span>
                             </div>
-                            
-                            <div class="option-item" data-option="export_data">
-                                <input type="checkbox" id="export_data" class="option-checkbox">
-                                <label for="export_data">Xuất dữ liệu</label>
-                                <div class="tooltip">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span class="tooltip-text">Xuất dữ liệu phân tích</span>
-                                </div>
-                            </div>
-                            
-                            <div class="option-item dependent" data-option="time_to_save" data-depends="export_data">
-                                <input type="checkbox" id="time_to_save_check" class="option-checkbox">
-                                <label for="time_to_save_check">Thời gian lưu</label>
-                                <div class="option-param">
-                                    <input type="number" id="time_to_save_value" value="3" min="1">
-                                </div>
-                                <div class="tooltip">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span class="tooltip-text">Thời gian lưu dữ liệu (giây)</span>
-                                </div>
-                            </div>
-                            
-                            <div class="option-item" data-option="notification">
-                                <input type="checkbox" id="notification" class="option-checkbox">
-                                <label for="notification">Thông báo</label>
-                                <div class="tooltip">
-                                    <i class="fas fa-info-circle"></i>
-                                    <span class="tooltip-text">Gửi thông báo khi phát hiện được đối tượng</span>
-                                </div>
+                          </div>
+                      
+                        <!-- Lưu dữ liệu mỗi n giây -->
+                        <div class="option-item" data-option="export_data">
+                            <input type="checkbox" id="export_data" class="option-checkbox">
+                            <span class="option-label">
+                            Lưu dữ liệu mỗi 
+                            <span class="param-text">3</span> 
+                            giây
+                            </span>
+
+                            <div class="tooltip">
+                            <i class="fas fa-info-circle"></i>
+                            <span class="tooltip-text">Lưu dữ liệu phân tích mỗi n giây (cuộn chuột để điều chỉnh)</span>
                             </div>
                         </div>
+  
+                          <!-- Notification -->
+                          <div class="option-item" data-option="notification">
+                            <input type="checkbox" id="notification" class="option-checkbox">
+                            <span class="option-label">Thông báo</span>
+                            <div class="tooltip">
+                              <i class="fas fa-info-circle"></i>
+                              <span class="tooltip-text">Gửi thông báo khi phát hiện được đối tượng</span>
+                            </div>
+                          </div>
+                      
+                        </div>
                     </div>
+                      
                     
                     <div class="button-group">
                         <button id="run-btn" class="btn btn-primary">
                             <i class="fas fa-play"></i> Chạy tiến trình
                         </button>
                         <button id="clear-btn" class="btn btn-secondary">
-                            <i class="fas fa-broom"></i> Xóa tùy chọn
+                            <i class="fas fa-broom"></i> Xóa tuỳ chọn
                         </button>
                     </div>
                 </div>
@@ -152,7 +159,7 @@
             <div class="process-output mac-card">
                 <div class="card-header">
                     <h2 class="card-title">
-                        <span id="current-process-name">Đầu ra tiến trình</span>
+                        <span id="current-process-name">Log tiến trình</span>
                         <span id="process-status-indicator" style="display: none;">
                             <span class="spinner"></span> Đang chạy
                         </span>

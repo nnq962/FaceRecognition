@@ -1,9 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Cấu hình API
+    // const API_BASE_URL = 'http://localhost:5543'; // Thay đổi URL này nếu API chạy ở port/host khác
+    
     // Các biến cục bộ
-    let selectedSources = new Set();
     let currentProcessId = null;
     let processList = {};
     let statusCheckInterval;
+    let selectedSources = new Set();
     
     // Các phần tử DOM
     const sourcesContainer = document.getElementById('sources-container');
@@ -29,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupEventListeners();
         refreshProcessList();
         handleDependentOptions();
+        setupTimeToSaveControls();
     }
     
     /**
@@ -47,9 +51,33 @@ document.addEventListener('DOMContentLoaded', () => {
         // Nút xóa tùy chọn
         clearBtn.addEventListener('click', clearOptions);
         
-        // Xử lý sự kiện với tùy chọn phụ thuộc
+        // Xử lý sự kiện với toàn bộ option-item
+        document.querySelectorAll('.option-item').forEach(optionItem => {
+            optionItem.addEventListener('click', (e) => {
+                // Bỏ qua nếu click vào nút tăng/giảm hoặc ô disabled
+                if (e.target.closest('.param-btn') || optionItem.classList.contains('disabled')) {
+                    return;
+                }
+
+                const checkbox = optionItem.querySelector('input[type="checkbox"]');
+                checkbox.checked = !checkbox.checked;
+                
+                if (checkbox.checked) {
+                    optionItem.classList.add('selected');
+                } else {
+                    optionItem.classList.remove('selected');
+                }
+                
+                // Xử lý tùy chọn phụ thuộc
+                handleDependentOptions();
+            });
+        });
+        
+        // Ngăn sự kiện click trên checkbox lan tỏa tới option-item
         document.querySelectorAll('.option-item input[type="checkbox"]').forEach(checkbox => {
-            checkbox.addEventListener('change', (e) => {
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation();
+                
                 const optionItem = e.target.closest('.option-item');
                 
                 if (e.target.checked) {
@@ -62,12 +90,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleDependentOptions();
             });
         });
+    }
+    
+    /**
+     * Thiết lập điều khiển cho thời gian lưu
+     */
+    function setupTimeToSaveControls() {
+        const exportDataOption = document.querySelector('.option-item[data-option="export_data"]');
+        const timeValueElement = exportDataOption.querySelector('.param-text');
         
-        // Xử lý sự kiện giá trị tùy chọn
-        document.querySelectorAll('.option-param input').forEach(input => {
-            input.addEventListener('click', (e) => {
-                e.stopPropagation(); // Ngăn không cho checkbox thay đổi khi click vào input
-            });
+        // Lấy giá trị ban đầu
+        let timeValue = parseInt(timeValueElement.textContent) || 3;
+        
+        // Thêm sự kiện wheel (lăn chuột) vào option-item
+        exportDataOption.addEventListener('wheel', (e) => {
+            e.preventDefault(); // Ngăn trang cuộn theo
+            
+            if (e.deltaY < 0) {
+                // Cuộn lên (tăng giá trị)
+                timeValue += 1;
+                timeValueElement.textContent = timeValue;
+            } else if (e.deltaY > 0 && timeValue > 1) {
+                // Cuộn xuống (giảm giá trị)
+                timeValue -= 1;
+                timeValueElement.textContent = timeValue;
+            }
         });
     }
     
@@ -105,7 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     /**
-     * Tải danh sách nguồn dữ liệu có sẵn
+     * Tải danh sách nguồn dữ liệu có sẵn từ API
      */
     function loadAvailableSources() {
         fetch('/get_available_sources')
@@ -122,29 +169,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         <input type="checkbox" id="source-${source.id}" value="${source.id}">
                         <label for="source-${source.id}">${source.name}</label>
                     `;
+
+                    // Xử lý sự kiện click
+                    sourceItem.addEventListener('click', e => {
+                        const cb = sourceItem.querySelector('input[type="checkbox"]');
+                        cb.checked = !cb.checked;
+                        sourceItem.classList.toggle('selected', cb.checked);
                     
-                    sourceItem.addEventListener('click', (e) => {
-                        const checkbox = sourceItem.querySelector('input[type="checkbox"]');
-                        // Nếu click trực tiếp vào checkbox thì không toggle
-                        if (e.target !== checkbox) {
-                            checkbox.checked = !checkbox.checked;
-                        }
-                        
-                        if (checkbox.checked) {
-                            sourceItem.classList.add('selected');
-                            selectedSources.add(source.id);
-                        } else {
-                            sourceItem.classList.remove('selected');
-                            selectedSources.delete(source.id);
-                        }
-                    });
+                        if (cb.checked) selectedSources.add(source.id);
+                        else selectedSources.delete(source.id);
+                    });  
                     
                     sourcesContainer.appendChild(sourceItem);
                 });
             })
             .catch(error => {
                 console.error('Lỗi khi tải nguồn dữ liệu:', error);
-                sourcesContainer.innerHTML = '<p>Không thể tải nguồn dữ liệu. Vui lòng thử lại sau.</p>';
+                sourcesContainer.innerHTML = '<p style="white-space: nowrap;">Không thể tải nguồn dữ liệu. Vui lòng thử lại sau.</p>';
             });
     }
     
@@ -152,68 +193,74 @@ document.addEventListener('DOMContentLoaded', () => {
      * Bắt đầu tiến trình mới
      */
     function startProcess() {
-        // Kiểm tra xem đã chọn nguồn dữ liệu chưa
+        // 1. Kiểm tra xem đã chọn nguồn dữ liệu chưa
         if (selectedSources.size === 0) {
-            alert('Vui lòng chọn ít nhất một nguồn dữ liệu!');
-            return;
+          showToast('Vui lòng chọn ít nhất một nguồn dữ liệu!', 'error');
+          return;
         }
-        
-        // Thu thập các tùy chọn
+      
+        // 2. Thu thập các tùy chọn
         const options = {};
         document.querySelectorAll('.option-item').forEach(item => {
-            const checkbox = item.querySelector('input[type="checkbox"]');
-            if (checkbox.checked && !item.classList.contains('disabled')) {
-                const optionName = item.dataset.option;
-                
-                // Kiểm tra xem có tham số bổ sung không
-                const paramInput = item.querySelector('.option-param input');
-                if (paramInput && optionName === 'time_to_save') {
-                    options[optionName] = paramInput.value;
-                } else {
-                    options[optionName] = true;
-                }
-            }
+        const cb = item.querySelector('input[type="checkbox"]');
+        if (!cb || !cb.checked || item.classList.contains('disabled')) return;
+
+        const opt = item.dataset.option;
+        if (opt === 'export_data') {
+            // ghi nhận bật export_data...
+            options.export_data = true;
+            // ...và thêm time_to_save với giá trị n
+            const n = parseInt(
+            item.querySelector('.param-text').textContent,
+            10
+            ) || 0;
+            options.time_to_save = n;
+        } else {
+            // các option bình thường
+            options[opt] = true;
+        }
         });
-        
-        // Dữ liệu gửi tới server
+      
+        // 3. Xây payload
         const processData = {
-            process_name: processNameInput.value || 'Tiến trình mới',
-            sources: Array.from(selectedSources),
-            options: options
+          process_name: processNameInput.value || 'Tiến trình mới',
+          sources: Array.from(selectedSources),
+          options: options
         };
-        
-        // Gửi yêu cầu
+      
+        // 4. Thông báo đang gửi
+        showToast('Đang bắt đầu tiến trình...', 'info');
+      
+        // 5. Gửi request lên server
         fetch('/run_process', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(processData)
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(processData)
         })
-        .then(response => response.json())
-        .then(data => {
+          .then(response => response.json())
+          .then(data => {
             if (data.status === 'success') {
-                // Thêm tiến trình mới vào danh sách và chọn nó
-                const processId = data.process_id;
-                refreshProcessList(processId);
-                
-                // Hiển thị thông báo
-                showToast(data.message, 'success');
+              showToast(data.message, 'success');
+              // Làm mới danh sách và chọn tiến trình mới
+              refreshProcessList(data.process_id);
             } else {
-                showToast(data.message, 'error');
+              showToast(data.message, 'error');
             }
-        })
-        .catch(error => {
+          })
+          .catch(error => {
             console.error('Lỗi khi gửi yêu cầu:', error);
             showToast('Đã xảy ra lỗi khi kết nối với server!', 'error');
-        });
-    }
+          });
+      }      
     
     /**
      * Dừng tiến trình hiện tại
      */
     function stopProcess() {
         if (!currentProcessId) return;
+        
+        // Hiển thị đang xử lý
+        showToast('Đang dừng tiến trình...', 'info');
         
         fetch('/stop_process', {
             method: 'POST',
@@ -226,8 +273,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
             if (data.status === 'success') {
                 showToast(data.message, 'success');
-                // Cập nhật lại UI và danh sách
-                refreshProcessList();
+                refreshProcessList(currentProcessId);
             } else {
                 showToast(data.message, 'error');
             }
@@ -250,6 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(error => {
                 console.error('Lỗi khi tải danh sách tiến trình:', error);
+                showToast('Không thể tải danh sách tiến trình', 'error');
             });
     }
     
@@ -383,6 +430,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 stopBtn.disabled = !data.running;
                 processStatusIndicator.style.display = data.running ? 'inline-block' : 'none';
                 
+                // Cập nhật trạng thái trong processList
+                if (processList[currentProcessId]) {
+                    processList[currentProcessId].running = data.running;
+                    
+                    // Cập nhật UI của tiến trình trong danh sách
+                    const item = document.querySelector(`.process-item[data-process-id="${currentProcessId}"]`);
+                    if (item) {
+                        // Cập nhật class
+                        item.classList.remove('running', 'stopped');
+                        item.classList.add(data.running ? 'running' : 'stopped');
+                        
+                        // Cập nhật status
+                        const statusElement = item.querySelector('.process-status');
+                        if (statusElement) {
+                            statusElement.className = `process-status ${data.running ? 'status-running' : 'status-stopped'}`;
+                            statusElement.textContent = data.running ? 'Đang chạy' : 'Đã dừng';
+                        }
+                    }
+                }
+                
                 // Cập nhật output
                 if (data.output && data.output.length > 0) {
                     terminal.innerHTML = '';
@@ -399,13 +466,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     terminal.innerHTML = '<p class="terminal-line">Chưa có dữ liệu đầu ra.</p>';
                 }
                 
-                // Nếu tiến trình đã dừng, cập nhật danh sách tiến trình
+                // Nếu tiến trình đã dừng, dừng kiểm tra trạng thái
                 if (!data.running) {
-                    refreshProcessList();
+                    clearInterval(statusCheckInterval);
                 }
             })
             .catch(error => {
                 console.error('Lỗi khi cập nhật output:', error);
+                terminal.innerHTML = '<p class="terminal-line">Không thể kết nối đến server để lấy log.</p>';
             });
     }
     
@@ -413,32 +481,40 @@ document.addEventListener('DOMContentLoaded', () => {
      * Xóa tất cả các tùy chọn đã chọn
      */
     function clearOptions() {
-        // Bỏ chọn tất cả các nguồn
-        document.querySelectorAll('.source-item').forEach(item => {
-            const checkbox = item.querySelector('input[type="checkbox"]');
-            checkbox.checked = false;
-            item.classList.remove('selected');
-        });
+        // Xóa chọn tất cả các nguồn (checkbox)
         selectedSources.clear();
-        
-        // Bỏ chọn tất cả các tùy chọn
-        document.querySelectorAll('.option-item').forEach(item => {
-            const checkbox = item.querySelector('input[type="checkbox"]');
-            checkbox.checked = false;
-            item.classList.remove('selected');
+        document.querySelectorAll('.source-item').forEach(item => {
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (cb) {
+                cb.checked = false;
+                item.classList.remove('selected');
+            }
         });
-        
-        // Đặt lại giá trị cho các tham số
-        document.getElementById('time_to_save_value').value = '3';
-        
-        // Đặt lại tên tiến trình
-        processNameInput.value = 'Tiến trình mới';
-        
-        // Xử lý lại tùy chọn phụ thuộc
+    
+        // Xóa chọn tất cả các tùy chọn
+        document.querySelectorAll('.option-item').forEach(item => {
+            const cb = item.querySelector('input[type="checkbox"]');
+            if (cb) {
+                cb.checked = false;
+                item.classList.remove('selected');
+            }
+        });
+    
+        // Reset giá trị "Lưu dữ liệu mỗi n giây" về default = 3
+        const exportParam = document.querySelector('.option-item[data-option="export_data"] .param-text');
+        if (exportParam) {
+            exportParam.textContent = '3';
+        }
+    
+        // Reset tên tiến trình
+        processNameInput.value = '';
+    
+        // Chạy lại logic phụ thuộc (face_emotion, raise_hand, ...)
         handleDependentOptions();
-        
+    
+        // Thông báo
         showToast('Đã xóa tất cả tùy chọn!', 'success');
-    }
+    }    
     
     /**
      * Hiển thị thông báo

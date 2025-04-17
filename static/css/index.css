@@ -30,7 +30,7 @@ body {
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1800px;
     margin: 0 auto;
     display: grid;
     grid-template-columns: 1fr;
@@ -53,7 +53,7 @@ body {
 
 .main-content {
     display: grid;
-    grid-template-columns: 380px 1fr;
+    grid-template-columns: 470px 1fr;
     grid-gap: 20px;
 }
 
@@ -119,41 +119,84 @@ body {
 .sources-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 44px;       /* cố định chiều cao 44px giống .options-grid */
     grid-gap: 10px;
     margin-bottom: 16px;
-}
+  }
 
 .source-item {
+    display: flex;
+    align-items: center;
     padding: 10px;
-    border-radius: 8px;
+    box-sizing: border-box;
     border: 1px solid var(--border-color);
+    border-radius: 8px;
     background-color: var(--secondary-color);
     cursor: pointer;
     transition: all 0.2s;
-    display: flex;
-    align-items: center;
+    position: relative;
+    overflow: visible;
+    min-height: 44px;
 }
 
-.source-item:hover {
-    background-color: var(--accent-color);
-    border-color: var(--primary-color);
-    color: white;
-}
-
-.source-item.selected {
-    background-color: var(--primary-color);
-    border-color: var(--primary-color);
-    color: white;
-}
-
+/* 3. Khoảng cách giữa radio và label */
 .source-item input[type="checkbox"] {
     margin-right: 8px;
+    flex-shrink: 0;
+  }
+    
+  /* 4. Style cho label */
+  .source-item label {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    flex: 1;             /* chiếm hết phần còn lại */
+    white-space: nowrap; /* không xuống dòng */
+  }
+
+/* 5. Hover & selected giống option-item */
+.source-item:hover {
+    background-color: rgba(0, 113, 227, 0.1);
+    border-color: var(--primary-color);
+  }
+  
+  .source-item.selected {
+    background-color: rgba(0, 113, 227, 0.2);
+    border-color: var(--primary-color);
+  }
+
+  /* Label bình thường nhạt */
+.source-item label {
+    color: var(--text-secondary);
+  }
+  
+  /* Khi hover lên cả ô */
+  .source-item:hover label,
+  /* Khi đã tick (có class .selected trên .source-item) */
+  .source-item.selected label {
+    color: var(--text-color);
+  }
+  
+  
+
+
+  .source-item.selected .source-label {
+    color: var(--text-color);
+  }
+
+
+/* Sửa đổi #1: Đảm bảo thông báo lỗi không xuống dòng */
+#sources-container p {
+    white-space: nowrap !important; /* Đảm bảo không xuống dòng */
+    display: inline-block; /* Hiển thị trên một dòng */
 }
 
 .options-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-gap: 10px;
+    grid-auto-rows: 44px; /* Cố định chiều cao ô */
+    overflow: visible; /* Cho phép tooltip vượt ra ngoài */
 }
 
 .option-item {
@@ -166,11 +209,16 @@ body {
     background-color: var(--secondary-color);
     cursor: pointer;
     transition: all 0.2s;
+    min-height: 44px;
+    box-sizing: border-box;
+    overflow: visible; /* Cho phép tooltip vượt ra ngoài */
+    z-index: 1; /* Vị trí z-index ban đầu */
 }
 
 .option-item:hover {
     background-color: rgba(0, 113, 227, 0.1);
     border-color: var(--primary-color);
+    z-index: 10; /* Tăng z-index khi hover */
 }
 
 .option-item.selected {
@@ -178,31 +226,53 @@ body {
     border-color: var(--primary-color);
 }
 
-.option-item input[type="checkbox"] {
+/* Sửa đổi #2: Cập nhật cấu trúc bố cục cho option-item */
+.option-item {
+    display: flex;
+    align-items: center;
+}
+
+.option-checkbox {
     margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.option-label {
+    margin-right: auto;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.param-text {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: inherit;
+    color: var(--text-secondary);
+    margin: 0 5px;
+}
+
+.tooltip {
+    position: relative;    /* giữ relative để con absolute tính đúng */
+    display: inline-block; /* hoặc flex, tuỳ bạn */
+    overflow: visible;     /* cho phép con vươn ra */
+    z-index: 1;            /* stacking context cơ bản */
+}
+
+.tooltip i {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.option-item:hover .option-label,
+.option-item.selected .option-label,
+.option-item:hover .param-text,
+.option-item.selected .param-text {
+    color: var(--text-color);
 }
 
 .option-item.disabled {
     opacity: 0.5;
     cursor: not-allowed;
-}
-
-.option-item .option-param {
-    position: absolute;
-    right: 10px;
-    display: none;
-}
-
-.option-item.selected .option-param {
-    display: inline-block;
-}
-
-.option-param input {
-    width: 60px;
-    padding: 4px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    text-align: center;
 }
 
 .button-group {
@@ -264,9 +334,10 @@ body {
 .terminal {
     background-color: var(--terminal-bg);
     color: var(--terminal-text);
-    padding: 12px;
+    /* Giảm padding-top xuống để văn bản sát cạnh trên */
+    padding: 4px 12px;
     border-radius: 8px;
-    font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
     line-height: 1.6;
     height: 400px;
@@ -274,6 +345,11 @@ body {
     overflow-x: hidden;
     white-space: pre-wrap;
     word-wrap: break-word;
+
+    /* Ép con nằm đầu khung */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
 }
 
 .terminal-line {
@@ -356,83 +432,29 @@ body {
     margin-top: 4px;
 }
 
-.tab-container {
-    display: flex;
-    margin-bottom: 16px;
-    background-color: var(--secondary-color);
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-.tab {
-    padding: 10px 20px;
-    font-size: 14px;
-    text-align: center;
-    cursor: pointer;
-    flex: 1;
-    border: none;
-    background: transparent;
-    transition: all 0.2s;
-}
-
-.tab.active {
-    background-color: var(--primary-color);
-    color: white;
-}
-
-.tab-content {
-    display: none;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-.spinner {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 50%;
-    border-top-color: white;
-    animation: spin 1s ease-in-out infinite;
-    margin-right: 6px;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-.tooltip {
-    position: relative;
-    display: inline-block;
-    margin-left: 5px;
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
 .tooltip .tooltip-text {
     visibility: hidden;
-    width: 200px;
-    background-color: #333;
-    color: white;
+    display: inline-block;
+    white-space: nowrap;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
     text-align: center;
     border-radius: 6px;
-    padding: 5px;
+    padding: 6px 10px;
     position: absolute;
-    z-index: 1;
+    z-index: 999;          /* rất cao để không bị che */
     bottom: 125%;
     left: 50%;
     transform: translateX(-50%);
     opacity: 0;
     transition: opacity 0.3s;
     font-size: 12px;
-}
-
-.tooltip:hover .tooltip-text {
+  }
+  
+  .tooltip:hover .tooltip-text {
     visibility: visible;
     opacity: 1;
-}
+  }
 
 /* Toast animation */
 @keyframes fadeIn {
@@ -482,3 +504,45 @@ body {
 .toast-info {
     background-color: var(--primary-color);
 }
+
+.option-label .param-text {
+    display: inline;
+    margin: 0 0px;
+    color: inherit;
+  }
+
+.form-group > label {
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text-color);
+  }
+
+
+/* 1. Đối với button chỉ chứa icon, loại bỏ margin-right */
+#refresh-btn i {
+    margin-right: 0 !important;
+  }
+  
+  /* 2. Căn giữa icon ngang (nếu cần) */
+#refresh-btn {
+    display: flex;
+    align-items: center;     /* căn dọc */
+    justify-content: center; /* căn ngang */
+    padding: 6px;            /* padding đều trái phải */
+  }
+
+
+/* Bọc label chiếm hết .source-item, cho phép click toàn vùng */
+.source-label-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;         /* khoảng cách checkbox ↔ text */
+    padding: 10px;    /* giống như trước */
+    cursor: pointer;
+    width: 100%;      /* chiếm hết ô */
+  }
+  
+  /* Ẩn checkbox native nếu bạn muốn custom, hoặc giữ hiển thị */
+  .source-label-wrapper input[type="checkbox"] {
+    margin: 0;
+  }
