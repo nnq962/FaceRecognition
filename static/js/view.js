@@ -260,10 +260,10 @@ async function fetchAllData() {
         
         // Combine the data
         allEmployees = users.map(user => ({
-            name: user.full_name,
-            department: user.department_id,
-            check_in_time: attendanceMap[user.full_name]?.check_in_time || null,
-            check_out_time: attendanceMap[user.full_name]?.check_out_time || null
+            name: user.name,
+            department: user.room_id,
+            check_in_time: attendanceMap[user.name]?.check_in_time || null,
+            check_out_time: attendanceMap[user.name]?.check_out_time || null
         }));
         
         // Sort data

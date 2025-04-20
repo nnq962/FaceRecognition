@@ -15,7 +15,7 @@ def process_source(source_arg):
     """
     if source_arg.isdigit():  # Single numeric ID (e.g., '0' or '1')
         if source_arg == "0":  # Webcam
-            config.camera_names.append("webcam")
+            config.camera_ids.append("webcam")
             return "0"
         else:  # Single camera
             rtsp_urls = config.create_rtsp_urls_from_mongo([int(source_arg)])

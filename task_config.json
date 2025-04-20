@@ -1,0 +1,21 @@
+{
+    "TEST": {
+      "room_id": null,
+      "camera_codes": ["WEBCAM"],
+      "enabled_features": {
+        "face_recognition": true,
+        "face_emotion": false,
+        "face_mask": false,
+        "raise_hand": false,
+        "qr_code": false,
+        "export_data": true,
+        "time_to_save": 3,
+        "line_thickness": 3,
+        "view_img": true,
+        "save": false,
+        "notification": false
+      },
+      "log_collection": "attendance_logs"
+    }
+}
+  

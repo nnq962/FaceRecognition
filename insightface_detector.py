@@ -31,8 +31,11 @@ class InsightFaceDetector:
                 raise_hand=False,
                 qr_code=False,
                 face_mask=False,
-                notification=False):
-        
+                notification=False,
+                log_collection=None,
+                room_id=None
+                ):
+                
         self.det_model_path = os.path.expanduser("~/Models/det_10g.onnx")
         self.rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
         self.det_model = None
@@ -46,6 +49,8 @@ class InsightFaceDetector:
         self.raise_hand = raise_hand
         self.face_mask = face_mask
         self.notification = notification
+        self.log_collection = log_collection
+        self.room_id = room_id
 
         self.previous_qr_results = {}
         self.previous_hand_states = {}
@@ -73,8 +78,8 @@ class InsightFaceDetector:
 
         if self.raise_hand:
             if self.webcam:
-                for camera_name in config.camera_names:
-                    self.previous_hand_states[camera_name] = {}
+                for camera_id in config.camera_ids:
+                    self.previous_hand_states[camera_id] = {}
             else:
                 self.previous_hand_states["Photo"] = {}
 
@@ -161,7 +166,7 @@ class InsightFaceDetector:
             if self.notification:
                 ns_send_notification(message="Vui lòng tháo khẩu trang", 
                                      host=config.host, 
-                                     control_port=config.control_port,
+                                     control_port=config.noti_control,
                                      secret_key=config.secret_key)
             else:
                 LOGGER.info("Vui lòng tháo khẩu trang")
@@ -183,36 +188,36 @@ class InsightFaceDetector:
     
         """
         qr_result = self.get_aruco_marker(image)
-        camera_name = config.camera_names[index] if self.webcam else "Photo"
-        previous_kq = self.previous_qr_results.get(camera_name, [])
+        camera_id = config.camera_ids[index] if self.webcam else "Photo"
+        previous_kq = self.previous_qr_results.get(camera_id, [])
 
         if qr_result and qr_result != previous_kq:
-            self.previous_qr_results[camera_name] = qr_result  # Cập nhật kết quả mới
+            self.previous_qr_results[camera_id] = qr_result  # Cập nhật kết quả mới
             send_notification({
                 "timestamp": config.get_vietnam_time(),
-                "camera": camera_name,
+                "camera": camera_id,
                 "qr_code": qr_result
             })
 
-    def detect_raise_hand(self, frame, bbox, user_id, camera_name):
+    def detect_raise_hand(self, frame, bbox, user_id, camera_id):
         if user_id == "Unknown":
             return
 
         hand_raised = get_raising_hand(frame, bbox)
-        previous_state = self.previous_hand_states[camera_name].get(user_id, None)
+        previous_state = self.previous_hand_states[camera_id].get(user_id, None)
 
         # Chỉ gửi nếu trạng thái thay đổi
         if previous_state is None or previous_state != hand_raised:
             # Cập nhật trạng thái mới vào dictionary
-            self.previous_hand_states[camera_name][user_id] = hand_raised
+            self.previous_hand_states[camera_id][user_id] = hand_raised
             
             # Ghi log và gửi thông báo
-            LOGGER.debug(f"timestamp: {config.get_vietnam_time()}, camera: {camera_name}, id: {user_id}, hand_status: {'up' if hand_raised else 'down'}")
+            LOGGER.debug(f"timestamp: {config.get_vietnam_time()}, camera: {camera_id}, id: {user_id}, hand_status: {'up' if hand_raised else 'down'}")
             
             # Code gửi thông báo nếu cần
             # send_notification({
             #     "timestamp": config.get_vietnam_time(),
-            #     "camera": camera_name,
+            #     "camera": camera_id,
             #     "id": user_id,
             #     "hand_status": "up" if hand_raised else "down"
             # })
@@ -286,12 +291,12 @@ class InsightFaceDetector:
                     {
                         "bbox": bbox[:4],
                         "conf": bbox[4],
-                        "id": id_info["id"] if id_info else "Unknown",
-                        "full_name": id_info["full_name"] if id_info else "Unknown",
-                        "similarity": f"{id_info['similarity'] * 100:.2f}%" if id_info else "",
-                        "emotion": "Unknown" if id_info is None else emotion
+                        "user_id": user_info["user_id"] if user_info else "Unknown",
+                        "name": user_info["name"] if user_info else "Unknown",
+                        "similarity": f"{user_info['similarity'] * 100:.2f}%" if user_info else "",
+                        "emotion": "Unknown" if user_info is None else emotion
                     }
-                    for bbox, id_info, emotion in zip(bounding_boxes, user_infos_for_image, emotions_for_image)
+                    for bbox, user_info, emotion in zip(bounding_boxes, user_infos_for_image, emotions_for_image)
                 ]
 
                 results_per_image.append(results)  # Lưu kết quả cho từng ảnh
@@ -312,15 +317,15 @@ class InsightFaceDetector:
                 save_path = str(self.save_dir / p.name) if (self.save or self.save_crop) else None
                 imc = im0.copy() if self.save_crop or should_export else None
                 annotator = Annotator(im0, line_width=self.line_thickness)
-                camera_name = config.camera_names[img_index] if self.webcam else "Photo"
+                camera_id = config.camera_ids[img_index] if self.webcam else "Photo"
                 
                 # Duyệt qua từng khuôn mặt trong ảnh
                 for result in results:
                     bbox = result["bbox"]
                     conf = result["conf"]
-                    name = result["full_name"]
+                    name = result["name"]
                     similarity = result["similarity"]
-                    user_id = result["id"]
+                    user_id = result["user_id"]
                     emotion = result["emotion"]
 
                     # Test backend
@@ -336,7 +341,7 @@ class InsightFaceDetector:
                     
                     # Kiểm tra giơ tay
                     if self.raise_hand:
-                        self.detect_raise_hand(im0, bbox, user_id, camera_name)
+                        self.detect_raise_hand(im0, bbox, user_id, camera_id)
 
                     # Nếu cần export dữ liệu, thu thập thông tin
                     if should_export and user_id != "Unknown":
@@ -345,7 +350,7 @@ class InsightFaceDetector:
                             "name": name,
                             "time": current_time_short,
                             "emotion": emotion,
-                            "camera": camera_name,
+                            "camera_id": camera_id,
                             "image": imc,  # Lưu ảnh để dùng cho check-in nếu cần
                             "bbox": bbox   # Lưu bbox để vẽ hình chữ nhật trên ảnh check-in
                         })
@@ -388,13 +393,13 @@ class InsightFaceDetector:
             
             # Lưu dữ liệu vào MongoDB
             if should_export and export_data_list:
-                self._process_attendance_data(export_data_list, today_date, current_time_short, self.notification)
+                self._process_attendance_data(export_data_list, today_date, current_time_short, self.notification, self.room_id)
                 start_time = time.time()
                             
         # Đảm bảo release sau khi xử lý tất cả các khung hình
         self._release_writers()
     
-    def _process_attendance_data(self, export_data_list, today_date, current_time_short, notification_enabled=False):
+    def _process_attendance_data(self, export_data_list, today_date, current_time_short, notification_enabled=False, room_id=None):
         if not export_data_list:
             return
             
@@ -405,11 +410,38 @@ class InsightFaceDetector:
         # Kiểm tra thời gian chỉ một lần
         is_after_1730 = self._is_after_time(current_time_short, 17, 30)
         
+        # Lấy danh sách user_id từ export_data_list
+        all_user_ids = list({data["user_id"] for data in export_data_list})
+        
+        # Nếu có room_id, lọc ra các user thuộc phòng đó
+        if room_id is not None:
+            # Truy vấn để lấy danh sách user_id trong phòng
+            room_users = list(config.users_collection.find(
+                {"room_id": room_id}, 
+                {"user_id": 1}
+            ))
+            room_user_ids = {user["user_id"] for user in room_users}
+
+            if not room_user_ids:
+                return
+            
+            # Lọc danh sách export_data chỉ giữ lại những người thuộc phòng này
+            export_data_list = [data for data in export_data_list if data["user_id"] in room_user_ids]
+            
+            # Nếu không còn dữ liệu sau khi lọc thì thoát
+            if not export_data_list:
+                return
+                
+            # Cập nhật lại danh sách user_id sau khi lọc
+            user_ids = list({data["user_id"] for data in export_data_list})
+        else:
+            # Nếu không có room_id, sử dụng toàn bộ danh sách
+            user_ids = all_user_ids
+        
         # Tối ưu truy vấn MongoDB
-        user_ids = list({data["user_id"] for data in export_data_list})
-        records = config.data_collection.find(
+        records = config.database[self.log_collection].find(
             {"date": today_date, "user_id": {"$in": user_ids}},
-            {"user_id": 1, "name": 1, "check_in_time": 1, "has_been_goodbye": 1}
+            {"user_id": 1, "name": 1, "check_in_time": 1, "goodbye_noti": 1}
         )
         records_dict = {record["user_id"]: record for record in records}
         
@@ -423,22 +455,24 @@ class InsightFaceDetector:
             timestamp_entry = {
                 "time": data["time"],
                 "emotion": data["emotion"],
-                "camera": data["camera"]
+                "camera_id": data["camera_id"]
             }
             
             if user_id not in records_dict:
                 # Xử lý check-in mới
                 image_path = f"{image_folder}/{user_id}_{data['time'].replace(':', '_')}_check_in.jpg"
+                welcome_noti = not is_after_1730
                 
                 new_record = {
                     "date": today_date,
                     "user_id": user_id,
                     "name": data["name"],
                     "check_in_time": data["time"],
-                    "check_in_image": image_path,
+                    "check_in_image_path": image_path,
                     "timestamps": [timestamp_entry],
                     "check_out_time": data["time"],
-                    "has_been_goodbye": False
+                    "goodbye_noti": False,
+                    "welcome_noti": welcome_noti
                 }
                 operations.append(InsertOne(new_record))
                 
@@ -448,7 +482,8 @@ class InsightFaceDetector:
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.imwrite(image_path, img, [cv2.IMWRITE_JPEG_QUALITY, 90])
                 
-                welcome_users.append(data["name"])
+                if welcome_noti:
+                    welcome_users.append(data["name"])
             else:
                 # Cập nhật dữ liệu
                 update_data = {
@@ -457,9 +492,9 @@ class InsightFaceDetector:
                 }
                 
                 record = records_dict[user_id]
-                if is_after_1730 and not record.get("has_been_goodbye", False):
+                if is_after_1730 and not record.get("goodbye_noti", False):
                     goodbye_users.append(data["name"])
-                    update_data["$set"]["has_been_goodbye"] = True
+                    update_data["$set"]["goodbye_noti"] = True
                     
                 operations.append(UpdateOne(
                     {"date": today_date, "user_id": user_id},
@@ -469,7 +504,7 @@ class InsightFaceDetector:
         # Thực hiện bulk write một lần
         if operations:
             try:
-                result = config.data_collection.bulk_write(operations)
+                result = config.database[self.log_collection].bulk_write(operations)
                 # Có thể log kết quả nếu cần
                 # logger.info(f"MongoDB operations: {result.inserted_count} inserted, {result.modified_count} modified")
             except Exception as e:
@@ -478,16 +513,20 @@ class InsightFaceDetector:
         
         # Gửi thông báo
         if notification_enabled:
-            if welcome_users:
-                ns_send_notification(message=f"Xin chào {', '.join(welcome_users)}",
-                                     host=config.host,
-                                     control_port=config.control_port,
-                                     secret_key=config.secret_key)
-            if goodbye_users:
-                ns_send_notification(message=f"Chào tạm biệt {', '.join(goodbye_users)}",
-                                     host=config.host,
-                                     control_port=config.control_port,
-                                     secret_key=config.secret_key)
+            for name in welcome_users:
+                ns_send_notification(
+                    message=f"Xin chào {name}",
+                    host=config.host,
+                    control_port=config.noti_control,
+                    secret_key=config.secret_key
+                )
+            for name in goodbye_users:
+                ns_send_notification(
+                    message=f"Chào tạm biệt {name}",
+                    host=config.host,
+                    control_port=config.noti_control,
+                    secret_key=config.secret_key
+                )
         else:
             if welcome_users:
                 LOGGER.info(f"Xin chào {', '.join(welcome_users)}")

@@ -23,8 +23,12 @@ class Config:
 
     init_database = False
     vram_limit_for_FER = 2
-    camera_names = []
-    save_path = str(Path.home()) + "/3hinc_database"
+    camera_ids = []
+
+    # Đường dẫn tới thư mục lưu ảnh
+    user_data_path = Path.home() / "user_data"
+    os.makedirs(user_data_path, exist_ok=True)
+    user_data_path = str(user_data_path)
 
     model_urls = {
     "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
@@ -50,25 +54,24 @@ class Config:
     except Exception as e:
         LOGGER.error(f"MongoDB connection failed: {e}")
 
-    db = client["my_database"]
+    database = client["my_database"]
 
     # Các collection
-    users_collection = db["3hinc_users"]
-    admin_collection = db["3hinc_admins"]
-    camera_collection = db["camera_information"]
-    data_collection = db["3hinc_data"]
-
-    SAVE_PATH = Path(save_path)
-    UPLOADS_PATH = SAVE_PATH / "uploads"
+    users_collection = database["users"]
+    admin_collection = database["3hinc_admins"]
+    camera_collection = database["cameras"]
+    data_collection = database["3hinc_data"]
 
     # Cấu hình thông báo websocket
     host = '192.168.1.142'
-    control_port = 14679
     secret_key = "3hinc14679"
+    noti = 14678
+    noti_control = 14679
 
-    # Tạo thư mục nếu chưa tồn tại
-    for folder in [SAVE_PATH, UPLOADS_PATH]:
-        Path(folder).mkdir(parents=True, exist_ok=True)
+    # Cấu hình các port
+    process_manager = 14670
+    app = 14671
+    websocket = 14672
 
     def __init__(self):
         self.update_path = self.find_file_in_anaconda("degradations.py")
@@ -76,16 +79,16 @@ class Config:
         self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
 
     def get_rtsp_by_id(self, camera_id):
-        # Tìm document theo _id
-        camera = self.camera_collection.find_one({"_id": camera_id}, {"RTSP": 1, "_id": 0})
-
-        # Trả về đường dẫn RTSP hoặc None nếu không tìm thấy
+        camera = self.camera_collection.find_one(
+            {"camera_id": camera_id},
+            {"RTSP": 1, "_id": 0}
+        )
         return camera["RTSP"] if camera else None
     
     def get_camera_name_by_id(self, camera_id):
         # Tìm document theo _id
-        camera = self.camera_collection.find_one({"_id": camera_id}, {"camera_name": 1, "_id": 0})
-        return camera["camera_name"] if camera else None
+        camera = self.camera_collection.find_one({"camera_id": camera_id}, {"name": 1, "_id": 0})
+        return camera["name"] if camera else None
 
     def get_vietnam_time(self):
         vietnam_now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
@@ -176,110 +179,48 @@ class Config:
                 except Exception as e:
                     LOGGER.error(f"Failed to download model '{model_name}': {e}")
 
-    def process_camera_input(self, source):
+    def process_camera_input(self, sources):
         """
-        Xử lý đầu vào camera từ tham số --source.
-        
+        Xử lý đầu vào camera từ danh sách nguồn ["WEBCAM", "CAM1", "CAM2"]
+
         Args:
-            source (str): Chuỗi chứa các ID camera, phân tách bởi dấu phẩy (ví dụ: "0,1,2") 
-                        hoặc đường dẫn đến tệp device.txt
-                        hoặc đường dẫn đến tệp media (video, hình ảnh)           
+            sources (List[str]): danh sách nguồn camera (ví dụ: ["WEBCAM", "CAM1", "CAM2"])
+
         Returns:
-            str: Đường dẫn tới nguồn video hoặc tên tệp chứa đường dẫn các nguồn
+            str: '0' nếu chỉ có webcam, hoặc 'device.txt' nếu nhiều nguồn
         """
-        # Kiểm tra nếu source là đường dẫn tới một tệp (không phải device.txt)
-        if os.path.isfile(source) and not source.endswith('.txt'):
-            LOGGER.info(f"Reading source from file: {source}")
-            self.camera_names.append(os.path.basename(source))
-            return source
-        
-        # Kiểm tra nếu source là tệp device.txt
-        if source.endswith('.txt'):
-            LOGGER.info(f"Reading camera source from file: {source}")
-            
-            # Kiểm tra xem tệp tồn tại
-            if not os.path.exists(source):
-                raise FileNotFoundError(f"File not found: {source}")
-            
-            # Đọc tệp và xử lý các nguồn camera
-            with open(source, 'r') as f:
-                lines = f.readlines()
-            
-            # Xử lý từng dòng trong tệp
-            for line in lines:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue  # Bỏ qua dòng trống hoặc bình luận
-                    
-                if line == "0":
-                    self.camera_names.append("webcam")
-                    LOGGER.info(f"Camera initialized: webcam [ID: 0]")
-                elif line.startswith('rtsp://') or line.startswith('http://'):
-                    # Nếu là đường dẫn RTSP/HTTP trực tiếp
-                    self.camera_names.append(f"camera_{len(self.camera_names)}")
-                    LOGGER.info(f"Camera initialized: camera_{len(self.camera_names)-1} [URL: {line}]")
-                else:
-                    try:
-                        # Giả định là ID camera
-                        camera_id = int(line)
-                        rtsp_url = self.get_rtsp_by_id(camera_id)
-                        camera_name = self.get_camera_name_by_id(camera_id)
-                        self.camera_names.append(camera_name)
-                        LOGGER.info(f"Camera initialized: {camera_name} [ID: {camera_id}, URL: {rtsp_url}]")
-                    except ValueError:
-                        LOGGER.warning(f"Warning: Unable to process camera source: {line}")
-            
-            return source
-        
-        # Tách chuỗi đầu vào thành danh sách các ID camera
-        camera_ids = source.split(',')
-        
-        # Nếu chỉ có một camera
-        if len(camera_ids) == 1:
-            camera_id = camera_ids[0].strip()
-            
-            # Nếu camera là webcam (ID = 0)
-            if camera_id == "0":
-                self.camera_names.append("webcam")
-                LOGGER.info("Camera initialized: webcam [ID: 0]")
-                return "0"
-            
-            # Nếu camera là RTSP (ID > 0)
+        if not isinstance(sources, list):
+            raise ValueError("Sources phải là danh sách (list)")
+
+        camera_sources = []
+
+        for id in sources:
+            id = id.strip().upper()
+            if id == "WEBCAM":
+                self.camera_ids.append(id)
+                camera_sources.append("0")
+                LOGGER.info("Camera initialized: WEBCAM [ID: 0]")
             else:
-                try:
-                    camera_id = int(camera_id)
-                    rtsp_url = self.get_rtsp_by_id(camera_id)
-                    camera_name = self.get_camera_name_by_id(camera_id)
-                    self.camera_names.append(camera_name)
-                    LOGGER.info(f"Camera initialized: {camera_name} [ID: {camera_id}, URL: {rtsp_url}]")
-                    return rtsp_url
-                except ValueError:
-                    raise ValueError(f"Invalid camera ID: {camera_id}")
-        
-        # Nếu có nhiều camera
-        else:
-            # Tạo tệp device.txt chứa các đường dẫn camera
-            with open("device.txt", "w") as f:
-                for camera_id in camera_ids:
-                    camera_id = camera_id.strip()
-                    
-                    if camera_id == "0":
-                        f.write("0\n")
-                        self.camera_names.append("webcam")
-                        LOGGER.info("Camera initialized: webcam [ID: 0]")
-                    else:
-                        try:
-                            camera_id = int(camera_id)
-                            rtsp_url = self.get_rtsp_by_id(camera_id)
-                            camera_name = self.get_camera_name_by_id(camera_id)
-                            f.write(f"{rtsp_url}\n")
-                            self.camera_names.append(camera_name)
-                            LOGGER.info(f"Camera initialized: {camera_name} [ID: {camera_id}, URL: {rtsp_url}]")
-                        except ValueError:
-                            raise ValueError(f"Invalid camera ID: {camera_id}")
-            
-            LOGGER.info(f"Created device.txt file with {len(camera_ids)} camera sources")
-            return "device.txt"
+                # Truy vấn RTSP từ MongoDB
+                camera_doc = self.camera_collection.find_one({"camera_id": id})
+                if not camera_doc:
+                    raise ValueError(f"Không tìm thấy camera_id '{id}' trong MongoDB")
+                rtsp_url = camera_doc["RTSP"]
+                camera_sources.append(rtsp_url)
+                self.camera_ids.append(id)
+                LOGGER.info(f"Camera initialized: {id} [RTSP: {rtsp_url}]")
+
+        # Nếu chỉ có 1 camera → trả về luôn (dùng cho webcam hoặc 1 RTSP)
+        if len(camera_sources) == 1:
+            return camera_sources[0]
+
+        # Nếu có nhiều → ghi ra file
+        with open("device.txt", "w") as f:
+            for cam in camera_sources:
+                f.write(f"{cam}\n")
+
+        LOGGER.info(f"Created device.txt file with {len(camera_sources)} camera sources")
+        return "device.txt"
 
 # Tạo instance `config` để sử dụng trong toàn bộ project
 config = Config()

@@ -17,8 +17,6 @@ elif current_os == "Linux":
     # Skip setting omp_set_num_threads
     pass
 
-users_collection = config.users_collection
-save_path = config.save_path
 
 def search_ids(embeddings, top_k=1, threshold=0.5):
     """
@@ -60,8 +58,8 @@ def search_ids(embeddings, top_k=1, threshold=0.5):
     for query_idx in range(len(query_embeddings)):
         query_results = [
             {
-                "id": index_to_id[idx]["id"],
-                "full_name": index_to_id[idx]["full_name"],
+                "user_id": index_to_id[idx]["user_id"],
+                "name": index_to_id[idx]["name"],
                 "similarity": float(similarity)
             }
             for idx, similarity in zip(I[query_idx], D[query_idx])

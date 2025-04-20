@@ -13,7 +13,7 @@ LOGGING_NAME = "InsightFace"
 def set_logging(name=LOGGING_NAME, verbose=True, debug=False):
     level = logging.DEBUG if debug else (logging.INFO if verbose else logging.WARNING)
     # - %(name)s
-    formatter_str = "%(asctime)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s"
+    formatter_str = "%(asctime)s | %(levelname)s | %(module)s:%(lineno)d | %(message)s"
     datefmt = "%Y-%m-%d %H:%M:%S"
 
     # Formatters

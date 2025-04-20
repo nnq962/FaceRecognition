@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quản lý tiến trình</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="icon" href="../static/images/cloud-computing.png" type="image/png">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="../static/css/process_manager.css">
+
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Quản lý tiến trình</h1>
+    </div>
+
+    <div class="main-content">
+      <div class="controls-column" id="control">
+        <div class="process-control mac-card">
+          <div class="card-header">
+            <h2 class="card-title">Thiết lập tiến trình</h2>
+          </div>
+
+          <div class="form-group">
+            <label for="process-name">Tên tiến trình</label>
+            <input type="text" id="process-name" class="form-control" placeholder="Nhập tên tiến trình">
+          </div>
+
+          <div class="form-group">
+            <label>Nguồn dữ liệu</label>
+            <div class="sources-grid" id="sources-container">
+              <!-- Nguồn sẽ được thêm bằng JavaScript -->
+              <div class="source-item">
+                <span class="spinner"></span> Đang tải...
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Tùy chọn</label>
+            <div class="options-grid">
+
+              <!-- Face recognition -->
+              <div class="option-item" data-option="face_recognition">
+                <input type="checkbox" id="face_recognition" class="option-checkbox">
+                <span class="option-label">Nhận diện khuôn mặt</span>
+                <div class="tooltip">
+                  <i class="fas fa-info-circle"></i>
+                  <span class="tooltip-text">Kích hoạt tính năng nhận diện khuôn mặt</span>
+                </div>
+              </div>
+
+              <!-- Face emotion (dependent) -->
+              <div class="option-item dependent" data-option="face_emotion" data-depends="face_recognition">
+                <input type="checkbox" id="face_emotion" class="option-checkbox">
+                <span class="option-label">Nhận diện cảm xúc</span>
+                <div class="tooltip">
+                  <i class="fas fa-info-circle"></i>
+                  <span class="tooltip-text">Nhận diện cảm xúc từ khuôn mặt (yêu cầu nhận diện khuôn mặt)</span>
+                </div>
+              </div>
+
+              <!-- Raise hand (dependent) -->
+              <div class="option-item dependent" data-option="raise_hand" data-depends="face_recognition">
+                <input type="checkbox" id="raise_hand" class="option-checkbox">
+                <span class="option-label">Phát hiện giơ tay</span>
+                <div class="tooltip">
+                  <i class="fas fa-info-circle"></i>
+                  <span class="tooltip-text">Phát hiện cử chỉ giơ tay (yêu cầu nhận diện khuôn mặt)</span>
+                </div>
+              </div>
+
+              <!-- Face mask -->
+              <div class="option-item" data-option="face_mask">
+                <input type="checkbox" id="face_mask" class="option-checkbox">
+                <span class="option-label">Phát hiện khẩu trang</span>
+                <div class="tooltip">
+                  <i class="fas fa-info-circle"></i>
+                  <span class="tooltip-text">Phát hiện và thông báo người có đeo khẩu trang</span>
+                </div>
+              </div>
+
+              <!-- QR code -->
+              <div class="option-item" data-option="qr_code">
+                <input type="checkbox" id="qr_code" class="option-checkbox">
+                <span class="option-label">Quét mã QR</span>
+                <div class="tooltip">
+                  <i class="fas fa-info-circle"></i>
+                  <span class="tooltip-text">Nhận diện và giải mã QR code</span>
+                </div>
+              </div>
+
+              <!-- Save image -->
+              <div class="option-item" data-option="save">
+                <input type="checkbox" id="save" class="option-checkbox">
+                <span class="option-label">Lưu ảnh/video</span>
+                <div class="tooltip">
+                  <i class="fas fa-info-circle"></i>
+                  <span class="tooltip-text">Lưu ảnh/video đã qua xử lý AI</span>
+                </div>
+              </div>
+
+              <!-- Lưu dữ liệu mỗi n giây -->
+              <div class="option-item" data-option="export_data">
+                <input type="checkbox" id="export_data" class="option-checkbox">
+                <span class="option-label">
+                  Lưu dữ liệu mỗi
+                  <span class="param-text">3</span>
+                  giây
+                </span>
+
+                <div class="tooltip">
+                  <i class="fas fa-info-circle"></i>
+                  <span class="tooltip-text">Lưu dữ liệu phân tích mỗi n giây (cuộn chuột để điều chỉnh)</span>
+                </div>
+              </div>
+
+              <!-- Notification -->
+              <div class="option-item" data-option="notification">
+                <input type="checkbox" id="notification" class="option-checkbox">
+                <span class="option-label">Thông báo âm thanh</span>
+                <div class="tooltip">
+                  <i class="fas fa-info-circle"></i>
+                  <span class="tooltip-text">Gửi thông báo tới loa</span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+
+          <div class="button-group">
+            <button id="run-btn" class="btn btn-primary">
+              <i class="fas fa-play"></i> Chạy tiến trình
+            </button>
+            <button id="clear-btn" class="btn btn-secondary">
+              <i class="fas fa-broom"></i> Xóa tuỳ chọn
+            </button>
+          </div>
+        </div>
+
+        <div class="process-list mac-card">
+          <div class="card-header">
+            <h2 class="card-title">Danh sách tiến trình</h2>
+            <button id="refresh-btn" class="btn btn-secondary" style="padding: 6px 12px;">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+          </div>
+
+          <div class="process-list-container" id="process-list-container">
+            <p class="text-center" id="no-process-message">Chưa có tiến trình nào được chạy</p>
+            <!-- Danh sách tiến trình sẽ được thêm bằng JavaScript -->
+          </div>
+        </div>
+      </div>
+
+      <div class="process-output mac-card" id="process-output">
+        <div class="card-header" id="header-terminal">
+          <h2 class="card-title">
+            <span id="current-process-name">Log tiến trình</span>
+            <span id="process-status-indicator" style="display: none;">
+              <span class="spinner"></span>
+            </span>
+          </h2>
+
+          <!-- Giữ lại div nhưng ẩn nút dừng -->
+          <div style="display: none;">
+            <button id="stop-btn" class="btn btn-danger" style="padding: 6px 12px;" disabled>
+              <i class="fas fa-stop"></i> Dừng
+            </button>
+          </div>
+        </div>
+
+        <div class="terminal" id="terminal">
+          <p class="terminal-line">Chưa có tiến trình nào được chọn. Vui lòng chạy hoặc chọn một tiến trình để xem log.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../static/js/process_manager.js"></script>
+</body>
+</html>

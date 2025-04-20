@@ -118,14 +118,14 @@ async function fetchUsers() {
 async function createUserCard(user) {
     const card = document.createElement('div');
     card.className = 'user-card';
-    card.dataset.userId = user._id;
+    card.dataset.userId = user.user_id;
     
     // Kiểm tra xem người dùng có ảnh không
     let hasPhoto = false;
     let firstPhotoName = '';
     
     try {
-        const photos = await fetchUserPhotos(user._id);
+        const photos = await fetchUserPhotos(user.user_id);
         hasPhoto = photos && photos.length > 0;
         if (hasPhoto) {
             firstPhotoName = photos[0];
@@ -140,14 +140,14 @@ async function createUserCard(user) {
         <div class="user-header">
             <div class="user-avatar">
                 ${hasPhoto 
-                    ? `<img src="${API_BASE_URL}/view_photo/${user._id}/${firstPhotoName}" alt="${user.full_name}">`
+                    ? `<img src="${API_BASE_URL}/view_photo/${user.user_id}/${firstPhotoName}" alt="${user.name}">`
                     : `<i class="fas fa-user no-photo"></i>`
                 }
             </div>
         </div>
         <div class="user-info">
-            <h3 class="user-name">${user.full_name}</h3>
-            <div class="user-dept">${user.department_id}</div>
+            <h3 class="user-name">${user.name}</h3>
+            <div class="user-dept">${user.room_id}</div>
             <div class="user-created">Tạo ngày: ${formattedDate}</div>
             <div class="user-actions">
                 <button class="btn-circle btn-edit edit-user" title="Chỉnh sửa">
@@ -165,8 +165,8 @@ async function createUserCard(user) {
     
     // Thêm các sự kiện cho các nút
     card.querySelector('.edit-user').addEventListener('click', () => openEditUserModal(user));
-    card.querySelector('.delete-user').addEventListener('click', () => confirmDeleteUser(user._id));
-    card.querySelector('.manage-photos').addEventListener('click', () => openPhotoManager(user._id, user.full_name));
+    card.querySelector('.delete-user').addEventListener('click', () => confirmDeleteUser(user.user_id));
+    card.querySelector('.manage-photos').addEventListener('click', () => openPhotoManager(user.user_id, user.name));
     
     return card;
 }
@@ -285,9 +285,9 @@ function openAddUserModal() {
 // Hàm mở modal chỉnh sửa người dùng
 function openEditUserModal(user) {
     userModalTitle.textContent = 'Chỉnh sửa thông tin người dùng';
-    userIdInput.value = user._id;
-    fullNameInput.value = user.full_name;
-    departmentInput.value = user.department_id;
+    userIdInput.value = user.user_id;
+    fullNameInput.value = user.name;
+    departmentInput.value = user.room_id;
     userModal.classList.add('show');
 }
 
@@ -319,8 +319,8 @@ async function saveUser() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    full_name: fullName,
-                    department_id: department
+                    name: fullName,
+                    room_id: department
                 })
             });
             
@@ -337,8 +337,8 @@ async function saveUser() {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    full_name: fullName,
-                    department_id: department
+                    name: fullName,
+                    room_id: department
                 })
             });
             
