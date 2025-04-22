@@ -294,70 +294,82 @@ def shorten_name(full_name):
 
 
 # ----------------------------------------------------------------
-def build_faiss_index(room_id=None):
+def build_faiss_index():
     """
-    Tạo FAISS index (.faiss) và tệp ánh xạ index → user từ MongoDB
-    
-    Args:
-        room_id (str, optional): ID của phòng cần lọc người dùng. 
-            Nếu None, xử lý tất cả người dùng.
+    Tạo FAISS index (.faiss) và tệp ánh xạ index → user từ MongoDB.
+    Lưu thông tin user_id, name và room_id trong tệp ánh xạ.
     """
     embeddings = []
-    id_mapping = {}  # Lưu mapping từ FAISS index → user (user_id, name)
+    id_mapping = {}  # Lưu mapping từ FAISS index → user (user_id, name, room_id)
     index_counter = 0
     
-    # Xác định thư mục lưu trữ
-    storage_path = f"faiss_data_base/{room_id}" if room_id else "faiss_data_base/all_room_ids"
-    os.makedirs(storage_path, exist_ok=True)
+    # Tạo thư mục chứa nếu chưa tồn tại
+    os.makedirs(os.path.dirname(config.faiss_file), exist_ok=True)
     
-    faiss_file = os.path.join(storage_path, os.path.basename(config.faiss_file))
-    mapping_file = os.path.join(storage_path, os.path.basename(config.faiss_mapping_file))
+    # Lấy thông tin từ MongoDB - tất cả người dùng
+    users = user_collection.find(
+        {}, 
+        {"user_id": 1, "name": 1, "room_id": 1, "face_embeddings": 1}
+    )
     
-    # Lấy thông tin từ MongoDB (thêm điều kiện lọc nếu có room_id)
-    query = {"room_id": room_id} if room_id else {}
-    users = user_collection.find(query, {"user_id": 1, "name": 1, "face_embeddings": 1})
-
+    user_count = 0
     for user in users:
         user_id = user.get("user_id")
         name = user.get("name", "Unknown")
-
-        face_embeddings = user.get("face_embeddings")
-        if not isinstance(face_embeddings, list):
-            LOGGER.warning(f"Bỏ qua user {user_id} không có embeddings")
-            continue  # bỏ qua user không có list embedding
-
+        room_id = user.get("room_id")
+        face_embeddings = user.get("face_embeddings", [])
+        
+        if not isinstance(face_embeddings, list) or not face_embeddings:
+            LOGGER.warning(f"Bỏ qua user {user_id}: không có embeddings hoặc định dạng không đúng")
+            continue
+            
+        user_count += 1
         for face_entry in face_embeddings:
             embedding = face_entry.get("embedding")
-            if embedding:
-                embeddings.append(embedding)
-                id_mapping[index_counter] = {
-                    "user_id": user_id,
-                    "name": name
-                }
-                index_counter += 1
-
+            if embedding and isinstance(embedding, list):
+                try:
+                    # Kiểm tra vector embedding hợp lệ
+                    if len(embedding) < 128:  # Giả sử chiều vector là 128, điều chỉnh theo thực tế
+                        LOGGER.warning(f"Bỏ qua embedding không hợp lệ của user {user_id}: độ dài {len(embedding)}")
+                        continue
+                        
+                    embeddings.append(embedding)
+                    id_mapping[index_counter] = {
+                        "user_id": user_id,
+                        "name": name,
+                        "room_id": room_id
+                    }
+                    index_counter += 1
+                except Exception as e:
+                    LOGGER.error(f"Lỗi xử lý embedding cho user {user_id}: {str(e)}")
+    
     if not embeddings:
-        LOGGER.warning(f"Không có embeddings nào trong MongoDB{' cho room_id: ' + room_id if room_id else ''}!")
-        return
-
+        LOGGER.warning("Không có embeddings nào trong MongoDB!")
+        return False
+        
     # Convert sang numpy
-    embeddings = np.array(embeddings, dtype=np.float32)
-    vector_dim = embeddings.shape[1]
-
-    # FAISS Inner Product index
-    index = faiss.IndexFlatIP(vector_dim)
-    index.add(embeddings)
-
-    # Lưu FAISS index
-    faiss.write_index(index, faiss_file)
-
-    # Lưu ánh xạ index → user_id
-    with open(mapping_file, "wb") as f:
-        pickle.dump(id_mapping, f)
-
-    LOGGER.info(f"FAISS index đã được tạo và lưu vào {faiss_file}.")
-    LOGGER.info(f"Mapping index → user_id đã được lưu vào {mapping_file}.")
-    LOGGER.info(f"Đã xử lý tổng cộng {index_counter} embeddings cho {len(set(entry['user_id'] for entry in id_mapping.values()))} người dùng.")
+    embeddings_array = np.array(embeddings, dtype=np.float32)
+    vector_dim = embeddings_array.shape[1]
+    
+    try:
+        # FAISS Inner Product index với chuẩn hóa vectors
+        index = faiss.IndexFlatIP(vector_dim)
+        index.add(embeddings_array)
+        
+        # Lưu FAISS index
+        faiss.write_index(index, config.faiss_file)
+        
+        # Lưu ánh xạ index → user info
+        with open(config.faiss_mapping_file, "wb") as f:
+            pickle.dump(id_mapping, f)
+            
+        LOGGER.info(f"FAISS index đã được tạo và lưu vào {config.faiss_file}")
+        LOGGER.info(f"Mapping index → user info đã được lưu vào {config.faiss_mapping_file}")
+        LOGGER.info(f"Đã xử lý tổng cộng {index_counter} embeddings cho {user_count} người dùng")
+        return True
+    except Exception as e:
+        LOGGER.error(f"Lỗi khi tạo hoặc lưu FAISS index: {str(e)}")
+        return False
 
 
 # ----------------------------------------------------------------

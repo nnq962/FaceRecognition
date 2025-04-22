@@ -25,7 +25,7 @@ class InsightFaceDetector:
     def __init__(self,
                 media_manager=None,
                 face_recognition=False,
-                face_emotion=False,
+                face_emotion=True,
                 export_data=False,
                 time_to_save=2,
                 raise_hand=False,
@@ -317,7 +317,7 @@ class InsightFaceDetector:
             # Lấy embeddings và truy xuất thông tin
             if all_cropped_faces_recognition:
                 all_embeddings = self.get_face_embeddings(all_cropped_faces_recognition)
-                user_infos = search_ids(all_embeddings, threshold=0.5, room_id=self.room_id)
+                user_infos = search_ids(embeddings=all_embeddings, threshold=0.5)
             
             # Ghép kết quả
             results_per_image = []  # Danh sách kết quả theo từng ảnh
@@ -333,6 +333,7 @@ class InsightFaceDetector:
                         "conf": bbox[4],
                         "user_id": user_info["user_id"] if user_info else "Unknown",
                         "name": user_info["name"] if user_info else "Unknown",
+                        "room_id": user_info["room_id"] if user_info else "Unknown",
                         "similarity": f"{user_info['similarity'] * 100:.2f}%" if user_info else "",
                         "emotion": "Unknown" if user_info is None else emotion
                     }
@@ -366,6 +367,7 @@ class InsightFaceDetector:
                     name = result["name"]
                     similarity = result["similarity"]
                     user_id = result["user_id"]
+                    room_id = result["room_id"]
                     emotion = result["emotion"]
 
                     # Kiểm tra giơ tay
@@ -374,15 +376,29 @@ class InsightFaceDetector:
 
                     # Nếu cần export dữ liệu, thu thập thông tin
                     if should_export and user_id != "Unknown":
-                        export_data_list.append({
-                            "user_id": user_id,
-                            "name": name,
-                            "time": current_time_short,
-                            "emotion": emotion,
-                            "camera_id": camera_id,
-                            "image": imc,  # Lưu ảnh để dùng cho check-in nếu cần
-                            "bbox": bbox   # Lưu bbox để vẽ hình chữ nhật trên ảnh check-in
-                        })
+                        if self.room_id is not None:
+                            # Kiểm tra user có thuộc phòng này không
+                            if room_id == self.room_id:
+                                export_data_list.append({
+                                    "user_id": user_id,
+                                    "name": name, 
+                                    "time": current_time_short,
+                                    "emotion": emotion,
+                                    "camera_id": camera_id,
+                                    "image": imc,  # Lưu ảnh để dùng cho check-in nếu cần
+                                    "bbox": bbox   # Lưu bbox để vẽ hình chữ nhật trên ảnh check-in
+                                })
+                        else:
+                            # Nếu không có room_id, thu thập dữ liệu tất cả user
+                            export_data_list.append({
+                                "user_id": user_id,
+                                "name": name,
+                                "time": current_time_short,
+                                "emotion": emotion,
+                                "camera_id": camera_id,
+                                "image": imc,
+                                "bbox": bbox
+                            })
 
                     if self.save_img or self.save_crop or self.view_img:
                         label = None
@@ -422,13 +438,13 @@ class InsightFaceDetector:
             
             # Lưu dữ liệu vào MongoDB
             if should_export and export_data_list:
-                self._process_attendance_data(export_data_list, today_date, current_time_short, self.notification, self.room_id)
+                self._process_attendance_data(export_data_list, today_date, current_time_short, self.notification)
                 start_time = time.time()
                             
         # Đảm bảo release sau khi xử lý tất cả các khung hình
         self._release_writers()
     
-    def _process_attendance_data(self, export_data_list, today_date, current_time_short, notification_enabled=False, room_id=None):
+    def _process_attendance_data(self, export_data_list, today_date, current_time_short, notification_enabled=False):
         if not export_data_list:
             return
             
@@ -439,35 +455,8 @@ class InsightFaceDetector:
         # Kiểm tra thời gian chỉ một lần
         is_after_1730 = self._is_after_time(current_time_short, 17, 30)
         
-        # Lấy danh sách user_id từ export_data_list
-        all_user_ids = list({data["user_id"] for data in export_data_list})
-        
-        # Nếu có room_id, lọc ra các user thuộc phòng đó
-        if room_id is not None:
-            # Truy vấn để lấy danh sách user_id trong phòng
-            room_users = list(config.user_collection.find(
-                {"room_id": room_id}, 
-                {"user_id": 1}
-            ))
-            room_user_ids = {user["user_id"] for user in room_users}
-
-            if not room_user_ids:
-                return
-            
-            # Lọc danh sách export_data chỉ giữ lại những người thuộc phòng này
-            export_data_list = [data for data in export_data_list if data["user_id"] in room_user_ids]
-            
-            # Nếu không còn dữ liệu sau khi lọc thì thoát
-            if not export_data_list:
-                return
-                
-            # Cập nhật lại danh sách user_id sau khi lọc
-            user_ids = list({data["user_id"] for data in export_data_list})
-        else:
-            # Nếu không có room_id, sử dụng toàn bộ danh sách
-            user_ids = all_user_ids
-        
         # Tối ưu truy vấn MongoDB
+        user_ids = list({data["user_id"] for data in export_data_list})
         records = self.log_collection.find(
             {"date": today_date, "user_id": {"$in": user_ids}},
             {"user_id": 1, "name": 1, "check_in_time": 1, "goodbye_noti": 1}
@@ -489,7 +478,7 @@ class InsightFaceDetector:
             
             if user_id not in records_dict:
                 # Xử lý check-in mới
-                image_path = f"{image_folder}/{user_id}_{data['time'].replace(':', '_')}_check_in.jpg"
+                image_path = f"{image_folder}/{user_id}_{data['time'].replace(':', '_')}_check_in.png"
                 welcome_noti = not is_after_1730
                 
                 new_record = {
@@ -505,11 +494,11 @@ class InsightFaceDetector:
                 }
                 operations.append(InsertOne(new_record))
                 
-                # Lưu ảnh (có thể chuyển thành xử lý đồng thời)
+                # Lưu ảnh
                 img = data["image"].copy()
                 x1, y1, x2, y2 = map(int, data["bbox"])
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.imwrite(image_path, img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+                cv2.imwrite(image_path, img)
                 
                 if welcome_noti:
                     welcome_users.append(data["name"])

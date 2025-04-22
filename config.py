@@ -35,10 +35,10 @@ class Config:
     "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2"
     }
 
-    ann_file = "data_base/face_index.ann"
-    mapping_file = "data_base/annoy_mapping.npy"
-    faiss_file = "face_index.faiss"
-    faiss_mapping_file = "faiss_mapping.pkl"
+    ann_file = "ann_database/face_index.ann"
+    mapping_file = "ann_database/annoy_mapping.npy"
+    faiss_file = "faiss_database/face_index.faiss"
+    faiss_mapping_file = "faiss_database/faiss_mapping.pkl"
     vector_dim = 512
     
     # Tạo MONGO_URI linh hoạt

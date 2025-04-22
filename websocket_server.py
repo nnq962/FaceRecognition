@@ -7,7 +7,10 @@ import time
 from pydantic import BaseModel
 from utils.logger_config import LOGGER
 from fastapi.staticfiles import StaticFiles
+import argparse
+import sys
 
+CONFIG_FILE = "main_config.json"
 app = FastAPI(title="WebSocket Answer Distribution Server")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -256,4 +259,22 @@ async def health_check():
 # Chạy server
 if __name__ == "__main__":
     LOGGER.info("Khởi động WebSocket Server...")
-    uvicorn.run(app, host="0.0.0.0", port=9623, log_level="info")
+    parser = argparse.ArgumentParser(description="WebSocket Server")
+    parser.add_argument('--config', type=str, required=True, help='Configuration profile to use')
+    
+    args = parser.parse_args()
+    config_name = args.config
+
+    # Đọc file cấu hình
+    try:
+        with open(CONFIG_FILE, 'r') as file:
+            all_configs = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        LOGGER.error(f"Error loading config file: {e}")
+        sys.exit(1)
+    
+    config = all_configs[config_name]
+    host = config.get("host")
+    port = config.get("websocket_port")
+
+    uvicorn.run(app, host=host, port=port, log_level="info")

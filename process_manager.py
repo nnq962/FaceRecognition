@@ -28,6 +28,18 @@ SUPERVISOR_CONF_DIR = os.path.join(SUPERVISOR_DIR, "conf")  # nơi lưu các fil
 SUPERVISOR_LOG_DIR = os.path.join(SUPERVISOR_DIR, "log")    # nơi lưu log stdout/stderr
 TASK_CONFIG_FILE = os.path.join(WORK_DIR, "main_config.json")
 
+# Biến mặc định global
+HOST = "192.168.1.142"
+PROCESS_MANAGER_PORT = 9620
+APP_PORT = 9621
+WEBSOCKET_PORT = 9623
+NOTI_PORT = 9624
+NOTI_CONTROL_PORT = 9625
+NOTI_SECRET_KEY = "3hinc"
+NOTI_ALLOWED_IPS = []
+DEFAULT_FEATURES = {}
+
+
 #
 # PHẦN 1: ROUTES CHO WEB UI
 #
@@ -522,20 +534,69 @@ def generate_task_id(name):
     
     return f"{safe_name}_{counter}"
 
-def load_json_file(db_file_path):
-    """Hàm nội bộ: Load process database from file"""
+def load_json_file(db_file_path, skip_keys=None):
+    """
+    Hàm nội bộ: Load process database from file và bỏ qua các key chỉ định
+    
+    Args:
+        db_file_path (str): Đường dẫn đến file JSON
+        skip_keys (list, optional): Danh sách các keys cần bỏ qua. Mặc định là ["DEFAULT"]
+
+    Returns:
+        dict: Dữ liệu JSON đã được đọc với các key đã được bỏ qua
+    """
+    if skip_keys is None:
+        skip_keys = ["DEFAULT"]
+        
     if os.path.exists(db_file_path):
         try:
             with open(db_file_path, 'r') as f:
-                return json.load(f)
-        except:
+                data = json.load(f)
+                # Loại bỏ các key được chỉ định
+                for key in skip_keys:
+                    if key in data:
+                        del data[key]
+                return data
+        except Exception as e:
+            LOGGER.error(f"Lỗi khi đọc file JSON {db_file_path}: {e}")
             return {}
     return {}
 
 def save_json_file(task_ids, db_file_path):
-    """Hàm nội bộ: Save process database to file"""
-    with open(db_file_path, 'w') as f:
-        json.dump(task_ids, f)
+    """
+    Hàm nội bộ: Save process database to file
+    
+    Args:
+        task_ids (dict): Thông tin các tiến trình cần lưu
+        db_file_path (str): Đường dẫn đến file JSON
+    """
+    LOGGER.debug(f"Đang lưu file JSON vào {db_file_path}")
+    
+    # Đọc dữ liệu hiện có để giữ lại DEFAULT
+    current_data = {}
+    if os.path.exists(db_file_path):
+        try:
+            with open(db_file_path, 'r') as f:
+                current_data = json.load(f)
+        except Exception as e:
+            LOGGER.error(f"Lỗi khi đọc file JSON hiện có {db_file_path}: {e}")
+    
+    # Cập nhật dữ liệu mới, giữ nguyên DEFAULT
+    for task_id, task_data in task_ids.items():
+        if task_id in current_data:
+            # Cập nhật thông tin cho task hiện có
+            current_data[task_id].update(task_data)
+        else:
+            # Thêm task mới
+            current_data[task_id] = task_data
+    
+    # Lưu toàn bộ dữ liệu
+    try:
+        with open(db_file_path, 'w') as f:
+            json.dump(current_data, f, indent=4)
+        LOGGER.info(f"Đã lưu thành công dữ liệu vào {db_file_path}")
+    except Exception as e:
+        LOGGER.error(f"Lỗi khi lưu file JSON {db_file_path}: {e}")
 
 def format_time(timestamp):
     """Hàm nội bộ: Định dạng thời gian"""
@@ -599,16 +660,29 @@ def create_process_internal(features, camera_ids, task=None, room_id=None):
         else:
             parsed_features[feat] = True
 
+    # Định nghĩa các giá trị mặc định
+    default_values = {
+        "host": HOST,
+        "process_manager_port": PROCESS_MANAGER_PORT,
+        "app_port": APP_PORT,
+        "websocket_port": WEBSOCKET_PORT,
+        "noti_port": NOTI_PORT,
+        "noti_control_port": NOTI_CONTROL_PORT,
+        "noti_secret_key": NOTI_SECRET_KEY,
+        "noti_allowed_ips": NOTI_ALLOWED_IPS,
+        "features": DEFAULT_FEATURES
+    }
 
     # Load cấu hình hiện tại
     config = load_json_file(TASK_CONFIG_FILE)
 
-    # Cập nhật task mới
+    # Cập nhật task mới với các giá trị mặc định
     config[task_id] = {
+        **default_values,  # Áp dụng các giá trị mặc định
         "room_id": room_id,
         "camera_ids": camera_ids,
         "features": parsed_features
-        }
+    }
 
     # Lưu lại file
     save_json_file(config, TASK_CONFIG_FILE)
@@ -840,10 +914,6 @@ if __name__ == '__main__':
     # Kiểm tra và tạo các thư mục cần thiết
     for dir_path in [SUPERVISOR_DIR, SUPERVISOR_CONF_DIR, SUPERVISOR_LOG_DIR]:
         os.makedirs(dir_path, exist_ok=True)
-    
-    # Khởi tạo process DB nếu chưa tồn tại
-    if not os.path.exists(TASK_CONFIG_FILE):
-        save_json_file({})
-    
+ 
     # Khởi động server
-    app.run(host='0.0.0.0', port=5543, debug=True)
+    app.run(host='0.0.0.0', port=9620, debug=True)

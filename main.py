@@ -4,8 +4,8 @@ import os
 from config import config
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
-from app import build_faiss_index
 from utils.logger_config import LOGGER
+from app import build_faiss_index
 
 def load_config(config_name):
     """Load and validate configuration from main_config.json"""
@@ -69,9 +69,6 @@ def main():
     LOGGER.info(f"WebSocket Port: {websocket_port}")
     LOGGER.info(f"Notification Control Port: {noti_control_port}")
     LOGGER.info(f"Data2WS URL: {data2ws_url}")
-
-    # Build FAISS index
-    build_faiss_index(room_id=room_id)
     
     # Xử lý danh sách camera đầu vào
     sources = config.process_camera_input(camera_ids)
@@ -104,4 +101,5 @@ def main():
     detector.run_inference()
 
 if __name__ == "__main__":
+    build_faiss_index()
     main()
