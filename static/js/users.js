@@ -19,6 +19,7 @@ const userModalTitle = document.getElementById('user-modal-title');
 const userIdInput = document.getElementById('user-id');
 const fullNameInput = document.getElementById('full-name');
 const departmentInput = document.getElementById('department');
+const employeeIdInput = document.getElementById('employee-id');
 const addUserBtn = document.getElementById('add-user-btn');
 const saveUserBtn = document.getElementById('save-user-btn');
 const cancelUserBtn = document.getElementById('cancel-user-btn');
@@ -301,9 +302,10 @@ async function saveUser() {
     const userId = userIdInput.value;
     const fullName = fullNameInput.value.trim();
     const department = departmentInput.value.trim();
+    const employeeId = employeeIdInput.value.trim();
     
     // Kiểm tra dữ liệu
-    if (!fullName || !department) {
+    if (!fullName || !department || !employeeId) {
         showToast('error', 'Lỗi', 'Vui lòng nhập đầy đủ thông tin người dùng');
         return;
     }
@@ -320,7 +322,8 @@ async function saveUser() {
                 },
                 body: JSON.stringify({
                     name: fullName,
-                    room_id: department
+                    room_id: department,
+                    user_id: employeeId
                 })
             });
             
@@ -338,7 +341,8 @@ async function saveUser() {
                 },
                 body: JSON.stringify({
                     name: fullName,
-                    room_id: department
+                    room_id: department,
+                    user_id: employeeId
                 })
             });
             

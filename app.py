@@ -36,9 +36,8 @@ app.permanent_session_lifetime = timedelta(days=30)  # Thời gian mặc định
 detector = InsightFaceDetector()
 
 # Kết nối tới MongoDB
-users_collection = config.users_collection
+user_collection = config.user_collection
 camera_collection = config.camera_collection
-data_collection = config.data_collection
 admin_collection = config.admin_collection
 
 # Define role hierarchy and permissions
@@ -218,7 +217,7 @@ def generate_all_user_embeddings():
     Cập nhật toàn bộ face_embeddings trong MongoDB,
     nếu thư mục hình ảnh của các users bị thay đổi.
     """
-    users = users_collection.find()
+    users = user_collection.find()
 
     for user in users:
         user_id = user.get("user_id")
@@ -259,7 +258,7 @@ def generate_all_user_embeddings():
                     LOGGER.error(f"Error processing file {file_path}: {e}")
 
         # Cập nhật face_embeddings vào MongoDB theo user_id
-        users_collection.update_one(
+        user_collection.update_one(
             {"user_id": user_id},
             {"$set": {"face_embeddings": face_embeddings}}
         )
@@ -295,16 +294,28 @@ def shorten_name(full_name):
 
 
 # ----------------------------------------------------------------
-def build_faiss_index():
+def build_faiss_index(room_id=None):
     """
     Tạo FAISS index (.faiss) và tệp ánh xạ index → user từ MongoDB
+    
+    Args:
+        room_id (str, optional): ID của phòng cần lọc người dùng. 
+            Nếu None, xử lý tất cả người dùng.
     """
     embeddings = []
     id_mapping = {}  # Lưu mapping từ FAISS index → user (user_id, name)
     index_counter = 0
-
-    # Lấy thông tin từ MongoDB
-    users = users_collection.find({}, {"user_id": 1, "name": 1, "face_embeddings": 1})
+    
+    # Xác định thư mục lưu trữ
+    storage_path = f"faiss_data_base/{room_id}" if room_id else "faiss_data_base/all_room_ids"
+    os.makedirs(storage_path, exist_ok=True)
+    
+    faiss_file = os.path.join(storage_path, os.path.basename(config.faiss_file))
+    mapping_file = os.path.join(storage_path, os.path.basename(config.faiss_mapping_file))
+    
+    # Lấy thông tin từ MongoDB (thêm điều kiện lọc nếu có room_id)
+    query = {"room_id": room_id} if room_id else {}
+    users = user_collection.find(query, {"user_id": 1, "name": 1, "face_embeddings": 1})
 
     for user in users:
         user_id = user.get("user_id")
@@ -312,7 +323,7 @@ def build_faiss_index():
 
         face_embeddings = user.get("face_embeddings")
         if not isinstance(face_embeddings, list):
-            LOGGER.warning("Bỏ qua user không có embeddings")
+            LOGGER.warning(f"Bỏ qua user {user_id} không có embeddings")
             continue  # bỏ qua user không có list embedding
 
         for face_entry in face_embeddings:
@@ -326,7 +337,7 @@ def build_faiss_index():
                 index_counter += 1
 
     if not embeddings:
-        LOGGER.warning("Không có embeddings nào trong MongoDB!")
+        LOGGER.warning(f"Không có embeddings nào trong MongoDB{' cho room_id: ' + room_id if room_id else ''}!")
         return
 
     # Convert sang numpy
@@ -338,14 +349,15 @@ def build_faiss_index():
     index.add(embeddings)
 
     # Lưu FAISS index
-    faiss.write_index(index, config.faiss_file)
+    faiss.write_index(index, faiss_file)
 
     # Lưu ánh xạ index → user_id
-    with open(config.faiss_mapping_file, "wb") as f:
+    with open(mapping_file, "wb") as f:
         pickle.dump(id_mapping, f)
 
-    LOGGER.info(f"FAISS index đã được tạo và lưu vào {config.faiss_file}.")
-    LOGGER.info(f"Mapping index → user_id đã được lưu vào {config.faiss_mapping_file}.")
+    LOGGER.info(f"FAISS index đã được tạo và lưu vào {faiss_file}.")
+    LOGGER.info(f"Mapping index → user_id đã được lưu vào {mapping_file}.")
+    LOGGER.info(f"Đã xử lý tổng cộng {index_counter} embeddings cho {len(set(entry['user_id'] for entry in id_mapping.values()))} người dùng.")
 
 
 # ----------------------------------------------------------------
@@ -359,7 +371,7 @@ def build_ann_index():
     index_counter = 0  # Đếm số embeddings
 
     # Lấy thông tin _id, full_name và embeddings từ MongoDB
-    users = users_collection.find({}, {"_id": 1, "full_name": 1, "face_embeddings": 1})
+    users = user_collection.find({}, {"_id": 1, "full_name": 1, "face_embeddings": 1})
     
     for user in users:
         user_id = user["_id"]
@@ -418,7 +430,7 @@ def get_users():
     if room_id:
         query['room_id'] = room_id
 
-    users = list(users_collection.find(query))
+    users = list(user_collection.find(query))
 
     for user in users:
         user.pop('_id', None)  # ❌ Bỏ _id không trả về
@@ -441,7 +453,7 @@ def add_user():
         return jsonify({"error": "Missing required fields"}), 400
     
     # Kiểm tra xem user_id đã tồn tại chưa
-    existing_user = users_collection.find_one({"user_id": data["user_id"]})
+    existing_user = user_collection.find_one({"user_id": data["user_id"]})
     if existing_user:
         return jsonify({"error": "User code already exists"}), 400
     
@@ -465,7 +477,7 @@ def add_user():
 
     try:
         # Thêm user vào MongoDB
-        result = users_collection.insert_one(user)
+        result = user_collection.insert_one(user)
         
         # Tạo thư mục cho user
         os.makedirs(folder_path, exist_ok=True)
@@ -510,7 +522,7 @@ def update_user(user_id):
     update_fields['updated_at'] = config.get_vietnam_time()
 
     # Cập nhật theo user_id
-    result = users_collection.update_one(
+    result = user_collection.update_one(
         {"user_id": user_id},
         {"$set": update_fields}
     )
@@ -530,7 +542,7 @@ def update_user(user_id):
 def delete_user(user_id):
     try:
         # Tìm user theo user_id
-        user = users_collection.find_one({"user_id": user_id})
+        user = user_collection.find_one({"user_id": user_id})
         if not user:
             return jsonify({"error": "User not found"}), 404
 
@@ -559,7 +571,7 @@ def delete_user(user_id):
             shutil.copytree(folder_path, backup_folder)
 
         # Xóa khỏi MongoDB
-        result = users_collection.delete_one({"user_id": user_id})
+        result = user_collection.delete_one({"user_id": user_id})
         if result.deleted_count == 0:
             return jsonify({"error": "Failed to delete user"}), 500
 
@@ -590,11 +602,18 @@ def get_user_data():
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
         camera_id = request.args.get("camera_id")
-
+        room_id = request.args.get("room_id")  # Thêm tham số room_id
+        
         # Kiểm tra tham số bắt buộc
         if not user_id or not start_date or not end_date or not camera_id:
             return jsonify({"error": "Missing required parameters"}), 400
-
+            
+        # Chọn collection dựa trên room_id
+        if room_id:
+            collection = config.database[f"{room_id}_logs"]
+        else:
+            collection = config.database['all_room_logs']
+            
         # Chuyển đổi định dạng thời gian
         try:
             start_datetime = datetime.strptime(start_date, "%Y-%m-%d %H:%M:%S")
@@ -605,7 +624,7 @@ def get_user_data():
             end_time_str = end_datetime.strftime("%H:%M:%S")
         except ValueError:
             return jsonify({"error": "Invalid date format. Use YYYY-MM-DD HH:MM:SS"}), 400
-
+            
         # Truy vấn dữ liệu từ MongoDB
         query = {
             "user_id": user_id,
@@ -617,14 +636,15 @@ def get_user_data():
                 }
             }
         }
-        user_data = list(data_collection.find(
+        
+        user_data = list(collection.find(
             query,
             {"_id": 0}  # Bỏ trường _id trong kết quả trả về
         ))
-
+        
         if not user_data:
             return jsonify({"error": "No data found for given criteria"}), 404
-
+            
         # Tùy chỉnh kết quả trả về (lọc timestamps nếu cần)
         filtered_data = []
         for record in user_data:
@@ -638,12 +658,12 @@ def get_user_data():
                 filtered_record = record.copy()
                 filtered_record["timestamps"] = filtered_timestamps
                 filtered_data.append(filtered_record)
-
+                
         if not filtered_data:
             return jsonify({"error": "No matching timestamps found for given criteria"}), 404
-
+            
         return jsonify(filtered_data), 200
-
+        
     except Exception as e:
         return jsonify({"error": f"Failed to fetch user data: {str(e)}"}), 500
 
@@ -685,7 +705,7 @@ def upload_photo(user_id):
         filename = original_filename
 
     # Lấy thông tin user theo user_id
-    user = users_collection.find_one({"user_id": user_id})
+    user = user_collection.find_one({"user_id": user_id})
     if not user:
         return jsonify({"error": "User not found"}), 404
 
@@ -731,7 +751,7 @@ def upload_photo(user_id):
             "embedding": face_embedding.tolist()
         }
 
-        users_collection.update_one(
+        user_collection.update_one(
             {"user_id": user_id},
             {"$push": {"face_embeddings": embedding_entry}}
         )
@@ -766,7 +786,7 @@ def delete_photo(user_id):
     file_name = data["file_name"]
 
     # Tìm user theo user_id
-    user = users_collection.find_one({"user_id": user_id})
+    user = user_collection.find_one({"user_id": user_id})
     if not user:
         return jsonify({"error": "User not found"}), 404
 
@@ -784,7 +804,7 @@ def delete_photo(user_id):
         os.remove(full_path)
 
         # Xóa embedding tương ứng trong MongoDB
-        users_collection.update_one(
+        user_collection.update_one(
             {"user_id": user_id},
             {"$pull": {"face_embeddings": {"photo_name": file_name}}}
         )
@@ -807,7 +827,7 @@ def delete_photo(user_id):
 @role_required('get_photos')
 def get_photos(user_id):
     # Tìm user theo user_id
-    user = users_collection.find_one({"user_id": user_id})
+    user = user_collection.find_one({"user_id": user_id})
     if not user:
         return jsonify({"error": "User not found"}), 404
 
@@ -841,7 +861,7 @@ def get_photos(user_id):
 @role_required('view_photo')
 def view_photo(user_id, filename):
     # Lấy thông tin user từ MongoDB
-    user = users_collection.find_one({"user_id": user_id})
+    user = user_collection.find_one({"user_id": user_id})
     if not user:
         return jsonify({"error": "User not found"}), 404
 
@@ -872,7 +892,7 @@ def get_attendance():
         today = datetime.now().strftime("%Y-%m-%d")
 
         # Truy vấn tất cả bản ghi có trường date = hôm nay
-        records = list(config.database['attendance_logs'].find({"date": today}))
+        records = list(config.database['all_roomattendance_logs'].find({"date": today}))
 
         # Tạo danh sách kết quả
         attendance_list = []
@@ -902,7 +922,7 @@ def export_attendance():
             return jsonify({"error": "Thiếu thông tin month"}), 400
         
         # Lấy danh sách nhân viên từ collection users
-        users = list(users_collection.find())
+        users = list(user_collection.find())
         results = []
 
         # Map ngày trong tuần sang tiếng Việt
@@ -1743,9 +1763,9 @@ def users():
     if not check_page_permission('users'):
         return render_template("error.html", message="Bạn không có quyền truy cập trang này"), 403
     
-    # Truy vấn danh sách người dùng từ users_collection
+    # Truy vấn danh sách người dùng từ user_collection
     try:
-        all_users = list(users_collection.find({}))
+        all_users = list(user_collection.find({}))
         # Chuyển ObjectId thành string
         for user in all_users:
             user['_id'] = str(user['_id'])

@@ -4,7 +4,12 @@ import threading
 import json
 from utils.logger_config import LOGGER
 import argparse
+import sys
 
+# Đường dẫn đến file cấu hình
+CONFIG_FILE = "main_config.json"
+
+# Đọc cấu hình mặc định - được sử dụng nếu không chỉ định config hoặc không tìm thấy
 DEFAULT_HOST = '192.168.1.142'
 DEFAULT_PORT = 14678
 DEFAULT_CONTROL_PORT = 14679
@@ -360,25 +365,45 @@ def get_server_status():
     return {"running": False, "client_count": 0}
 
 if __name__ == "__main__":
-    # Thiết lập parser tham số dòng lệnh
+    # Thiết lập parser tham số dòng lệnh - chỉ nhận một tham số config
     parser = argparse.ArgumentParser(description='Notification Server')
-    parser.add_argument('--host', type=str, default=DEFAULT_HOST, help=f'Host address (default: {DEFAULT_HOST})')
-    parser.add_argument('--port', type=int, default=DEFAULT_PORT, help=f'Server port (default: {DEFAULT_PORT})')
-    parser.add_argument('--control-port', type=int, default=DEFAULT_CONTROL_PORT, help=f'Control port (default: {DEFAULT_CONTROL_PORT})')
-    parser.add_argument('--allowed-ips', type=str, default=','.join(ALLOWED_IPS), help=f'Comma-separated list of allowed IPs (default: {",".join(ALLOWED_IPS)})')
-    parser.add_argument('--secret-key', type=str, default=SECRET_KEY, help='Secret key for control authentication')
+    parser.add_argument('--config', type=str, required=True, help='Configuration profile to use (e.g., 3HINC, EDULIVE)')
     
     args = parser.parse_args()
+    config_name = args.config
     
-    # Chuyển đổi chuỗi IPs thành list
-    allowed_ips = args.allowed_ips.split(',') if args.allowed_ips else []
+    # Đọc file cấu hình
+    try:
+        with open(CONFIG_FILE, 'r') as file:
+            all_configs = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        LOGGER.error(f"Error loading config file: {e}")
+        sys.exit(1)
+    
+    # Kiểm tra xem config được chỉ định có tồn tại không
+    if config_name not in all_configs:
+        LOGGER.error(f"Configuration '{config_name}' not found in {CONFIG_FILE}")
+        LOGGER.warning(f"Available configurations: {', '.join(all_configs.keys())}")
+        sys.exit(1)
+    
+    # Lấy cấu hình từ file
+    config = all_configs[config_name]
+    host = config.get("host", DEFAULT_HOST)
+    port = config.get("noti_port", DEFAULT_PORT)
+    control_port = config.get("noti_control_port", DEFAULT_CONTROL_PORT)
+    allowed_ips = config.get("noti_allowed_ips", ALLOWED_IPS)
+    secret_key = config.get("noti_secret_key", SECRET_KEY)
+    
+    LOGGER.info(f"Loaded configuration for '{config_name}'")
+    LOGGER.info(f"Host: {host}, Port: {port}, Control Port: {control_port}")
+    LOGGER.info(f"Allowed IPs: {', '.join(allowed_ips) if allowed_ips else 'All'}")
     
     # Cập nhật biến toàn cục
     ALLOWED_IPS = allowed_ips
-    SECRET_KEY = args.secret_key
+    SECRET_KEY = secret_key
     
-    # Khởi động server với các tham số từ dòng lệnh
-    start_server(host=args.host, port=args.port, control_port=args.control_port)
+    # Khởi động server
+    start_server(host=host, port=port, control_port=control_port)
     
     try:
         while True:
@@ -386,3 +411,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         if server_instance:
             server_instance.cleanup()
+        LOGGER.info("\nServer stopped")

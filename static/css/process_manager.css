@@ -145,6 +145,11 @@ body {
     min-height: 44px;
 }
 
+/* Đảm bảo tất cả phần tử con bên trong source-item có cursor: pointer */
+.source-item * {
+    cursor: pointer;
+}
+
 /* 3. Khoảng cách giữa radio và label */
 .source-item input[type="checkbox"] {
     margin-right: 8px;
@@ -187,6 +192,19 @@ body {
 
 .source-item.selected .source-label {
     color: var(--text-color);
+}
+
+/* Bọc label chiếm hết .source-item, cho phép click toàn vùng */
+.source-label-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* khoảng cách checkbox ↔ text */
+    padding: 10px;
+    /* giống như trước */
+    cursor: pointer;
+    width: 100%;
+    /* chiếm hết ô */
 }
 
 /* Sửa đổi #1: Đảm bảo thông báo lỗi không xuống dòng */
@@ -369,6 +387,13 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
+}
+
+.ansi-black, .ansi-red, .ansi-green, .ansi-yellow, .ansi-blue, 
+.ansi-magenta, .ansi-cyan, .ansi-white, .ansi-gray, 
+.ansi-lightred, .ansi-lightgreen, .ansi-lightyellow, 
+.ansi-lightblue, .ansi-lightmagenta, .ansi-lightcyan {
+    font-family: 'JetBrains Mono', monospace !important;
 }
 
 /* CSS cho các màu ANSI */
@@ -669,20 +694,6 @@ body {
     /* căn ngang */
     padding: 6px;
     /* padding đều trái phải */
-}
-
-
-/* Bọc label chiếm hết .source-item, cho phép click toàn vùng */
-.source-label-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    /* khoảng cách checkbox ↔ text */
-    padding: 10px;
-    /* giống như trước */
-    cursor: pointer;
-    width: 100%;
-    /* chiếm hết ô */
 }
 
 /* Ẩn checkbox native nếu bạn muốn custom, hoặc giữ hiển thị */

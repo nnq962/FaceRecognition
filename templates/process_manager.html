@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quản lý tiến trình</title>
+  <title>Manage tasks</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="icon" href="../static/images/cloud-computing.png" type="image/png">
@@ -17,30 +17,36 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>Quản lý tiến trình</h1>
+      <h1>Manage tasks</h1>
     </div>
 
     <div class="main-content">
       <div class="controls-column" id="control">
         <div class="process-control mac-card">
           <div class="card-header">
-            <h2 class="card-title">Thiết lập tiến trình</h2>
+            <h2 class="card-title">Thiết lập task</h2>
           </div>
 
           <div class="form-group">
-            <label for="process-name">Tên tiến trình</label>
+            <label for="process-name">Tên task</label>
             <input type="text" id="process-name" class="form-control" placeholder="Nhập tên tiến trình">
           </div>
 
           <div class="form-group">
             <label>Nguồn dữ liệu</label>
             <div class="sources-grid" id="sources-container">
-              <!-- Nguồn sẽ được thêm bằng JavaScript -->
               <div class="source-item">
                 <span class="spinner"></span> Đang tải...
               </div>
             </div>
           </div>
+          
+          <div class="form-group">
+            <label for="room-select">Chọn phòng</label>
+            <select id="room-select" class="form-control">
+              <option value="">Tất cả</option>
+            </select>            
+          </div>          
 
           <div class="form-group">
             <label>Tùy chọn</label>
@@ -137,7 +143,7 @@
 
           <div class="button-group">
             <button id="run-btn" class="btn btn-primary">
-              <i class="fas fa-play"></i> Chạy tiến trình
+              <i class="fas fa-play"></i> Chạy task
             </button>
             <button id="clear-btn" class="btn btn-secondary">
               <i class="fas fa-broom"></i> Xóa tuỳ chọn

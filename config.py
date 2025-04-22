@@ -37,8 +37,8 @@ class Config:
 
     ann_file = "data_base/face_index.ann"
     mapping_file = "data_base/annoy_mapping.npy"
-    faiss_file = "data_base/face_index.faiss"
-    faiss_mapping_file = "data_base/faiss_mapping.pkl"
+    faiss_file = "face_index.faiss"
+    faiss_mapping_file = "faiss_mapping.pkl"
     vector_dim = 512
     
     # Tạo MONGO_URI linh hoạt
@@ -57,21 +57,9 @@ class Config:
     database = client["my_database"]
 
     # Các collection
-    users_collection = database["users"]
+    user_collection = database["users"]
     admin_collection = database["3hinc_admins"]
     camera_collection = database["cameras"]
-    data_collection = database["3hinc_data"]
-
-    # Cấu hình thông báo websocket
-    host = '192.168.1.142'
-    secret_key = "3hinc14679"
-    noti = 14678
-    noti_control = 14679
-
-    # Cấu hình các port
-    process_manager = 14670
-    app = 14671
-    websocket = 14672
 
     def __init__(self):
         self.update_path = self.find_file_in_anaconda("degradations.py")

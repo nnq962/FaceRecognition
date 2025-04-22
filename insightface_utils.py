@@ -18,34 +18,39 @@ elif current_os == "Linux":
     pass
 
 
-def search_ids(embeddings, top_k=1, threshold=0.5):
+def search_ids(embeddings, room_id=None, top_k=1, threshold=0.5):
     """
     Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
 
     Args:
         embeddings (numpy.ndarray): Mảng các embeddings đã chuẩn hóa (shape: (n_embeddings, 512)).
-        index_path (str): Đường dẫn tới FAISS index file.
-        mapping_path (str): Đường dẫn tới file ánh xạ index -> ID.
+        room_id (str, optional): ID của phòng cần tìm kiếm. 
+            Nếu None, tìm kiếm trong tất cả dữ liệu.
         top_k (int): Số lượng kết quả gần nhất cần trả về cho mỗi embedding.
         threshold (float): Ngưỡng độ tương đồng, loại bỏ kết quả có độ tương đồng thấp hơn ngưỡng.
 
     Returns:
         list: Danh sách kết quả, với mỗi phần tử là một dictionary hoặc None nếu không có kết quả hợp lệ.
     """
+    # Xác định đường dẫn dựa vào room_id
+    storage_path = f"faiss_data_base/{room_id}" if room_id else "faiss_data_base/all_room_ids"
+    faiss_file = os.path.join(storage_path, os.path.basename(config.faiss_file))
+    mapping_file = os.path.join(storage_path, os.path.basename(config.faiss_mapping_file))
+
     # Kiểm tra file tồn tại trước khi load
-    if not os.path.exists(config.faiss_file):
-        LOGGER.warning(f"Missing Faiss index file: {config.faiss_file}")
+    if not os.path.exists(faiss_file):
+        LOGGER.warning(f"Missing Faiss index file: {faiss_file}")
         return [None] * len(embeddings)
 
-    if not os.path.exists(config.faiss_mapping_file):
-        LOGGER.warning(f"Missing mapping file: {config.faiss_mapping_file}")
+    if not os.path.exists(mapping_file):
+        LOGGER.warning(f"Missing mapping file: {mapping_file}")
         return [None] * len(embeddings)
 
     # Load FAISS index
-    index = faiss.read_index(config.faiss_file)
+    index = faiss.read_index(faiss_file)
 
     # Load ánh xạ index -> ID
-    with open(config.faiss_mapping_file, "rb") as f:
+    with open(mapping_file, "rb") as f:
         index_to_id = pickle.load(f)
 
     # Chuyển đổi embeddings thành dạng float32
@@ -63,7 +68,7 @@ def search_ids(embeddings, top_k=1, threshold=0.5):
                 "similarity": float(similarity)
             }
             for idx, similarity in zip(I[query_idx], D[query_idx])
-            if idx != -1 and similarity >= threshold  # Lọc bỏ kết quả không hợp lệ
+            if idx != -1 and idx in index_to_id and similarity >= threshold  # Lọc bỏ kết quả không hợp lệ
         ]
         # Nếu không có kết quả hợp lệ, trả về None
         results.append(query_results[0] if query_results else None)
@@ -225,32 +230,6 @@ def normalize_embeddings(embeddings):
     """
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
     return embeddings / np.maximum(norms, 1e-8)  # Tránh chia cho 0
-
-def save_data_to_mongo(data):
-    """
-    Hàm lưu dữ liệu vào MongoDB.
-
-    Parameters:
-        data (dict or list): Dữ liệu cần lưu, có thể là một tài liệu hoặc danh sách tài liệu.
-        db_name (str): Tên cơ sở dữ liệu.
-        collection_name (str): Tên collection.
-        mongo_url (str): Chuỗi kết nối MongoDB.
-
-    Returns:
-        dict: Thông tin phản hồi sau khi chèn dữ liệu.
-    """
-    try:
-        # Lưu dữ liệu
-        if isinstance(data, list):
-            result = config.data_collection.insert_many(data)
-            return {"status": "success", "inserted_ids": result.inserted_ids}
-        elif isinstance(data, dict):
-            result = config.data_collection.insert_one(data)
-            return {"status": "success", "inserted_id": result.inserted_id}
-        else:
-            return {"status": "error", "message": "Data must be a dictionary or a list of dictionaries"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
 
 def crop_and_align_faces(img, bboxes, keypoints, conf_threshold=0.5, image_size=112):
     """

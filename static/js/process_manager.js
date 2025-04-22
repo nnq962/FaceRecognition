@@ -4,13 +4,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Các biến cục bộ
     let currentProcessId = null;
-    let processList = {};
+    let taskList = {};
     let statusCheckInterval;
-    let selectedSources = new Set();
+    let selectedCameras = new Set();
     let userScrolled = false;
 
     // Các phần tử DOM
-    const sourcesContainer = document.getElementById('sources-container');
+    const camerasContainer = document.getElementById('sources-container');
+    const roomSelect = document.getElementById('room-select');
     const runBtn = document.getElementById('run-btn');
     const stopBtn = document.getElementById('stop-btn');
     const clearBtn = document.getElementById('clear-btn');
@@ -18,8 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const processListContainer = document.getElementById('process-list-container');
     const noProcessMessage = document.getElementById('no-process-message');
     const terminal = document.getElementById('terminal');
-    const processNameInput = document.getElementById('process-name');
-    const currentProcessName = document.getElementById('current-process-name');
+    const taskNameInput = document.getElementById('process-name');
+    const currentTaskName = document.getElementById('current-process-name');
     const processStatusIndicator = document.getElementById('process-status-indicator');
 
     const elementControl = document.getElementById("control");
@@ -58,7 +59,8 @@ document.addEventListener('DOMContentLoaded', () => {
      * Khởi tạo ứng dụng
      */
     function initializeApp() {
-        loadAvailableSources();
+        loadAvailableCameras();
+        loadAvailableRooms();
         setupEventListeners();
         refreshProcessList();
         handleDependentOptions();
@@ -70,16 +72,16 @@ document.addEventListener('DOMContentLoaded', () => {
      * Thiết lập các event listener
      */
     function setupEventListeners() {
-        // Nút chạy tiến trình
+        // Nút chạy task
         runBtn.addEventListener('click', () => {
-            // Chế độ tạo tiến trình mới bình thường
+            // Chế độ tạo task mới bình thường
             startProcess();
         });
 
-        // Nút dừng tiến trình
+        // Nút dừng task
         stopBtn.addEventListener('click', stopProcess);
 
-        // Nút làm mới danh sách tiến trình
+        // Nút làm mới danh sách task
         refreshBtn.addEventListener('click', refreshProcessList);
 
         // Nút xóa tùy chọn
@@ -194,65 +196,117 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Tải danh sách nguồn dữ liệu có sẵn từ API
+     * Tải danh sách các phòng có trong hệ thống từ API
      */
-    function loadAvailableSources() {
-        fetch('/get_available_sources')
+    function loadAvailableRooms() {
+        fetch("/get_available_rooms")
             .then(response => response.json())
-            .then(sources => {
-                sourcesContainer.innerHTML = '';
+            .then(rooms => {
+                roomSelect.innerHTML = `
+              <option value="">Tất cả</option>
+            `;
 
-                sources.forEach(source => {
-                    const sourceItem = document.createElement('div');
-                    sourceItem.className = 'source-item';
-                    sourceItem.dataset.sourceId = source.id;
-
-                    sourceItem.innerHTML = `
-                        <input type="checkbox" id="source-${source.id}" value="${source.id}">
-                        <label for="source-${source.id}">${source.name}</label>
-                    `;
-
-                    // Xử lý sự kiện click
-                    sourceItem.addEventListener('click', e => {
-                        const cb = sourceItem.querySelector('input[type="checkbox"]');
-                        cb.checked = !cb.checked;
-                        sourceItem.classList.toggle('selected', cb.checked);
-
-                        if (cb.checked) selectedSources.add(source.id);
-                        else selectedSources.delete(source.id);
-                    });
-
-                    sourcesContainer.appendChild(sourceItem);
+                rooms.forEach(roomId => {
+                    const option = document.createElement("option");
+                    option.value = roomId;
+                    option.textContent = roomId;
+                    roomSelect.appendChild(option);
                 });
             })
             .catch(error => {
-                console.error('Lỗi khi tải nguồn dữ liệu:', error);
-                sourcesContainer.innerHTML = '<p style="white-space: nowrap;">Không thể tải nguồn dữ liệu. Vui lòng thử lại sau.</p>';
+                console.error("Lỗi khi tải danh sách phòng:", error);
+                roomSelect.innerHTML = `
+              <option disabled selected>Không thể tải phòng</option>
+            `;
             });
     }
 
     /**
-     * Bắt đầu tiến trình mới
+     * Tải danh sách nguồn dữ liệu có sẵn từ API
+     */
+
+    function loadAvailableCameras() {
+        fetch('/get_available_cameras')
+            .then(response => response.json())
+            .then(sources => {
+                camerasContainer.innerHTML = '';
+
+                sources.forEach(source => {
+                    const sourceItem = document.createElement('div');
+                    sourceItem.className = 'source-item';
+                    sourceItem.dataset.sourceId = source.camera_id;
+
+                    sourceItem.innerHTML = `
+                            <input type="checkbox" id="source-${source.camera_id}" value="${source.camera_id}">
+                            <label for="source-${source.camera_id}">${source.name}</label>
+                        `;
+
+                    // Lấy checkbox
+                    const cb = sourceItem.querySelector('input[type="checkbox"]');
+
+                    // Xử lý sự kiện click trên source-item
+                    sourceItem.addEventListener('click', e => {
+                        // Nếu click vào checkbox hoặc label, để hành vi mặc định xảy ra
+                        if (e.target === cb || e.target.tagName === 'LABEL') {
+                            return;
+                        }
+                        // Toggle checkbox khi click vào khoảng trống trong source-item
+                        cb.checked = !cb.checked;
+                        // Cập nhật UI và selectedCameras
+                        sourceItem.classList.toggle('selected', cb.checked);
+                        if (cb.checked) {
+                            selectedCameras.add(source.camera_id);
+                        } else {
+                            selectedCameras.delete(source.camera_id);
+                        }
+                    });
+
+                    // Xử lý sự kiện change trên checkbox để đồng bộ UI
+                    cb.addEventListener('change', () => {
+                        sourceItem.classList.toggle('selected', cb.checked);
+                        if (cb.checked) {
+                            selectedCameras.add(source.camera_id);
+                        } else {
+                            selectedCameras.delete(source.camera_id);
+                        }
+                    });
+
+                    camerasContainer.appendChild(sourceItem);
+                });
+            })
+            .catch(error => {
+                console.error('Lỗi khi tải nguồn dữ liệu:', error);
+                camerasContainer.innerHTML = '<p style="white-space: nowrap;">Không thể tải nguồn dữ liệu. Vui lòng thử lại sau.</p>';
+            });
+    }
+
+
+    /**
+     * Bắt đầu task mới
      */
     function startProcess() {
         // Kiểm tra xem đang trong chế độ chỉnh sửa hay không
         const isEditMode = runBtn.dataset.editMode === 'edit';
         const editId = runBtn.dataset.editId;
 
-        // 1. Kiểm tra xem đã nhập tên tiến trình chưa
-        if (!processNameInput.value.trim()) {
-            showToast('Vui lòng nhập tên cho tiến trình!', 'error');
+
+        // 1. Kiểm tra xem đã nhập tên task chưa
+        if (!taskNameInput.value.trim()) {
+            showToast('Vui lòng nhập tên cho task!', 'error');
             return;
         }
 
         // 2. Kiểm tra xem đã chọn nguồn dữ liệu chưa
-        if (selectedSources.size === 0) {
+        if (selectedCameras.size === 0) {
             showToast('Vui lòng chọn ít nhất một nguồn dữ liệu!', 'error');
             return;
         }
 
-        // 3. Thu thập các tùy chọn
-        const options = {};
+        // 3. Lấy phòng được chọn
+        const selectedRoom = roomSelect.value;
+
+        // 4. Thu thập các tùy chọn
+        const features = {};
         document.querySelectorAll('.option-item').forEach(item => {
             const cb = item.querySelector('input[type="checkbox"]');
             if (!cb || !cb.checked || item.classList.contains('disabled')) return;
@@ -260,36 +314,37 @@ document.addEventListener('DOMContentLoaded', () => {
             const opt = item.dataset.option;
             if (opt === 'export_data') {
                 // ghi nhận bật export_data...
-                options.export_data = true;
+                features.export_data = true;
                 // ...và thêm time_to_save với giá trị n
                 const n = parseInt(
                     item.querySelector('.param-text').textContent,
                     10
                 ) || 0;
-                options.time_to_save = n;
+                features.time_to_save = n;
             } else {
                 // các option bình thường
-                options[opt] = true;
+                features[opt] = true;
             }
         });
 
-        // 4. Xây payload
+        // 5. Xây payload
         const processData = {
-            process_name: processNameInput.value.trim(),
-            sources: Array.from(selectedSources),
-            options: options
+            task_name: taskNameInput.value.trim(),
+            camera_ids: Array.from(selectedCameras),
+            features: features,
+            room_id: selectedRoom || null
         };
 
-        // Nếu là chế độ edit, thêm process_id vào payload
+        // Nếu là chế độ edit, thêm task_id vào payload
         if (isEditMode && editId) {
-            processData.process_id = editId;
+            processData.task_id = editId;
         }
 
         // 5. Thông báo đang gửi
-        showToast(`Đang ${isEditMode ? 'cập nhật' : 'bắt đầu'} tiến trình...`, 'info');
+        showToast(`Đang ${isEditMode ? 'cập nhật' : 'bắt đầu'} task...`, 'info');
 
         // 6. Gửi request lên server
-        const endpoint = isEditMode ? '/update_process' : '/run_process';
+        const endpoint = isEditMode ? '/update_task' : '/run_task';
 
         fetch(endpoint, {
             method: 'POST',
@@ -300,8 +355,8 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (data.status === 'success') {
                     showToast(data.message, 'success');
-                    // Làm mới danh sách và chọn tiến trình
-                    refreshProcessList(data.process_id);
+                    // Làm mới danh sách và chọn task
+                    refreshProcessList(data.task_id);
                     // Xoá các tuỳ chọn
                     clearOptions();
                     // Reset form về chế độ tạo mới
@@ -321,8 +376,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function removeChangeTracking() {
-        // Xóa sự kiện theo dõi thay đổi tên tiến trình
-        processNameInput.removeEventListener('input', checkForChanges);
+        // Xóa sự kiện theo dõi thay đổi tên task
+        taskNameInput.removeEventListener('input', checkForChanges);
 
         // Các phần khác cũng có thể xóa nếu cần
         // Nhưng có thể không cần thiết vì chúng ta sẽ xóa hết các phần tử 
@@ -332,7 +387,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Thêm hàm resetForm
     function resetForm() {
-        runBtn.innerHTML = '<i class="fas fa-play"></i> Chạy tiến trình';
+        runBtn.innerHTML = '<i class="fas fa-play"></i> Chạy task';
         runBtn.classList.remove('edit-mode', 'disabled-update', 'active-update');
         runBtn.dataset.editMode = '';
         runBtn.dataset.editId = '';
@@ -341,25 +396,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Dừng tiến trình hiện tại
+     * Dừng task hiện tại
      */
-    function stopProcess(processId, callback) {
-        if (!processId) return;
+    function stopProcess(taskId, callback) {
+        if (!taskId) return;
 
-        showToast('Đang dừng tiến trình...', 'info');
+        showToast('Đang dừng task...', 'info');
 
-        fetch('/stop_process', {
+        fetch('/stop_task', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ process_id: processId })
+            body: JSON.stringify({ task_id: taskId })
         })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
                     showToast(data.message, 'success');
-                    refreshProcessList(processId);
+                    refreshProcessList(taskId);
 
                     if (typeof callback === 'function') {
                         callback();
@@ -369,43 +424,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             })
             .catch(error => {
-                console.error('Lỗi khi dừng tiến trình:', error);
+                console.error('Lỗi khi dừng task:', error);
                 showToast('Đã xảy ra lỗi khi kết nối với server!', 'error');
             });
     }
 
 
     /**
-     * Làm mới danh sách tiến trình
+     * Làm mới danh sách task
      */
-    function refreshProcessList(selectProcessId = null) {
-        fetch('/get_all_processes')
+    function refreshProcessList(selectTaskId = null) {
+        fetch('/get_all_task_ids')
             .then(response => response.json())
             .then(data => {
-                processList = data;
-                updateProcessListUI(selectProcessId);
+                taskList = data;
+                updateProcessListUI(selectTaskId);
 
                 // Hiển thị thông báo thành công (tùy chọn)
-                showToast('Đã làm mới danh sách tiến trình', 'success');
+                showToast('Đã làm mới danh sách task', 'success');
             })
             .catch(error => {
-                console.error('Lỗi khi tải danh sách tiến trình:', error);
-                showToast('Không thể tải danh sách tiến trình', 'error');
+                console.error('Lỗi khi tải danh sách task:', error);
+                showToast('Không thể tải danh sách task', 'error');
             });
     }
 
+    function formatFeatures(features) {
+        return Object.entries(features)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ');
+    }
+
     /**
-     * Cập nhật giao diện danh sách tiến trình
+     * Cập nhật giao diện danh sách task
      */
     function updateProcessListUI(selectProcessId = null) {
-        const processIds = Object.keys(processList);
-        // Nếu không có tiến trình nào
+        const processIds = Object.keys(taskList);
+        // Nếu không có task nào
         if (processIds.length === 0) {
             processListContainer.innerHTML = '';
             noProcessMessage.style.display = 'block';
-            terminal.innerHTML = '<p class="terminal-line">Chưa có tiến trình nào được chạy.</p>';
+            terminal.innerHTML = '<p class="terminal-line">Chưa có task nào được chạy.</p>';
             currentProcessId = null;
-            currentProcessName.textContent = 'Đầu ra tiến trình';
+            currentTaskName.textContent = 'Đầu ra task';
             stopBtn.disabled = true;
             processStatusIndicator.style.display = 'none';
             clearInterval(statusCheckInterval);
@@ -416,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
         processListContainer.innerHTML = '';
         // Tạo từng mục process
         processIds.forEach(id => {
-            const proc = processList[id];
+            const proc = taskList[id];
             const item = document.createElement('div');
             item.className = `process-item ${proc.running ? 'running' : 'stopped'}`;
             item.dataset.processId = id;
@@ -443,7 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             </div>
             <div class="process-details">Bắt đầu: ${proc.start_time}</div>
-            <div class="process-command">${proc.command}</div>
+            <div class="process-command">${formatFeatures(proc.features)}</div>
             `;
 
             // Thêm event listener cho tất cả item
@@ -457,13 +518,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Thêm event listener cho nút edit
             item.querySelector('.btn-edit').addEventListener('click', e => {
                 e.stopPropagation();
-                editProcess(id);
+                editTask(id);
             });
 
             // Nút Delete
             item.querySelector('.btn-delete').addEventListener('click', e => {
                 e.stopPropagation();
-                if (confirm(`Bạn có chắc muốn xóa tiến trình "${proc.name}" không?`)) {
+                if (confirm(`Bạn có chắc muốn xóa task "${proc.name}" không?`)) {
                     deleteProcess(id);
                 }
             });
@@ -483,11 +544,11 @@ document.addEventListener('DOMContentLoaded', () => {
             processListContainer.appendChild(item);
         });
 
-        // Chọn tiến trình mặc định
-        if (selectProcessId && processList[selectProcessId]) {
+        // Chọn task mặc định
+        if (selectProcessId && taskList[selectProcessId]) {
             document.querySelector(`.process-item[data-process-id="${selectProcessId}"]`).classList.add('active');
             selectProcess(selectProcessId);
-        } else if (!currentProcessId || !processList[currentProcessId]) {
+        } else if (!currentProcessId || !taskList[currentProcessId]) {
             const firstId = processIds[0];
             document.querySelector(`.process-item[data-process-id="${firstId}"]`).classList.add('active');
             selectProcess(firstId);
@@ -498,117 +559,108 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     /*
-     * Chỉnh sửa một tiến trình
+     * Chỉnh sửa một task
     */
-    function editProcess(id) {
-        // Hiển thị thông báo đang tải
-        showToast('Đang tải thông tin tiến trình...', 'info');
+    function editTask(id) {
+        // Hiển thị toast đang tải
+        showToast('Đang tải thông tin task...', 'info');
 
-        // Lấy thông tin chi tiết của tiến trình từ server
-        fetch(`/get_process_details?process_id=${id}`)
-            .then(response => response.json())
+        fetch(`/get_task_details?task_id=${id}`)
+            .then(res => res.json())
             .then(data => {
                 if (data.status === 'error') {
                     showToast(data.message, 'error');
                     return;
                 }
 
-                const process = data.process;
+                // Lấy config từ payload
+                const cfg = data.config;
+                if (!cfg) {
+                    showToast('Server trả về thiếu config', 'error');
+                    return;
+                }
 
-                // Lưu trạng thái ban đầu để so sánh
+                // Chuẩn hóa các trường
+                const taskName = cfg.name || id;
+                const roomId = cfg.room_id ?? '';
+                const cameraIds = Array.isArray(cfg.camera_ids) ? cfg.camera_ids : [];
+                const features = (cfg.features && typeof cfg.features === 'object')
+                    ? cfg.features : {};
+
+                // Lưu state gốc
                 window.originalProcessState = {
-                    name: process.name,
-                    sources: [...process.sources],
-                    options: JSON.parse(JSON.stringify(process.options))
+                    name: taskName,
+                    room_id: roomId,
+                    camera_ids: [...cameraIds],
+                    features: JSON.parse(JSON.stringify(features))
                 };
 
-                // Xóa các nguồn và tùy chọn hiện tại
+                // Reset UI trước khi fill lại
                 clearOptions();
+                taskNameInput.value = taskName;
+                roomSelect.value = roomId;
 
-                // Điền tên tiến trình
-                processNameInput.value = process.name;
+                // Khôi phục danh sách camera (sources)
+                selectedCameras = new Set(cameraIds);
+                cameraIds.forEach(cam => {
+                    const item = document.querySelector(`.source-item[data-source-id="${cam}"]`);
+                    if (!item) return;
+                    const cb = item.querySelector('input[type="checkbox"]');
+                    cb.checked = true;
+                    item.classList.add('selected');
+                });
 
-                // Khôi phục các nguồn đã chọn
-                if (process.sources && Array.isArray(process.sources)) {
-                    selectedSources = new Set(process.sources);
-                    process.sources.forEach(sourceId => {
-                        const sourceItem = document.querySelector(`.source-item[data-source-id="${sourceId}"]`);
-                        if (sourceItem) {
-                            const checkbox = sourceItem.querySelector('input[type="checkbox"]');
-                            if (checkbox) {
-                                checkbox.checked = true;
-                                sourceItem.classList.add('selected');
-                            }
-                        }
-                    });
-                }
+                // Khôi phục các feature đã chọn
+                Object.keys(features).forEach(feat => {
+                    const item = document.querySelector(`.option-item[data-option="${feat}"]`);
+                    if (!item) return;
+                    const cb = item.querySelector('input[type="checkbox"]');
+                    cb.checked = true;
+                    item.classList.add('selected');
 
-                // Khôi phục các tùy chọn đã chọn
-                if (process.options) {
-                    Object.keys(process.options).forEach(option => {
-                        // Tìm option-item tương ứng
-                        const optionItem = document.querySelector(`.option-item[data-option="${option}"]`);
-                        if (optionItem) {
-                            const checkbox = optionItem.querySelector('input[type="checkbox"]');
-                            if (checkbox) {
-                                checkbox.checked = true;
-                                optionItem.classList.add('selected');
-                            }
+                    // Nếu có time_to_save thì show giá trị
+                    if (feat === 'export_data' && features.time_to_save != null) {
+                        const txt = item.querySelector('.param-text');
+                        if (txt) txt.textContent = features.time_to_save;
+                    }
+                });
 
-                            // Xử lý đặc biệt cho option export_data với time_to_save
-                            if (option === 'export_data' && process.options.time_to_save) {
-                                const timeValueElement = optionItem.querySelector('.param-text');
-                                if (timeValueElement) {
-                                    timeValueElement.textContent = process.options.time_to_save;
-                                }
-                            }
-                        }
-                    });
-                }
-
-                // Cập nhật các tùy chọn phụ thuộc
+                // Cập nhật các tùy chọn phụ thuộc và tracking
                 handleDependentOptions();
-
-                // Cài đặt sự kiện change và click để kiểm tra thay đổi
                 setupChangeTracking();
 
-                // Cấu hình giao diện cho chế độ chỉnh sửa
+                // Chuyển nút Run → Cập nhật
                 runBtn.innerHTML = 'Cập nhật';
                 runBtn.classList.add('edit-mode');
                 runBtn.dataset.editMode = 'edit';
                 runBtn.dataset.editId = id;
-
-                // Ban đầu, vô hiệu hóa nút cập nhật vì chưa có thay đổi
                 runBtn.disabled = true;
+                runBtn.title = 'Không có thay đổi để cập nhật';
 
-                // Hiển thị tooltip hoặc thông báo
-                runBtn.setAttribute('title', 'Không có thay đổi để cập nhật');
+                // Scroll form vào view
+                const scrollEl = document.getElementById('control')
+                    || document.querySelector('.process-control')
+                    || document.querySelector('.process-list');
+                if (scrollEl) scrollEl.scrollIntoView({ behavior: 'smooth' });
 
-                // Cuộn lên trên để người dùng thấy form
-                // Ưu tiên các selector khác nhau
-                const scrollElement = document.getElementById('control') ||
-                    document.querySelector('.process-control') ||
-                    document.querySelector('.process-list');
-
-                if (scrollElement) {
-                    scrollElement.scrollIntoView({ behavior: 'smooth' });
-                }
-
-                // Hiển thị thông báo
-                showToast('Đang chỉnh sửa tiến trình: ' + process.name, 'info');
+                showToast('Đang chỉnh sửa task: ' + taskName, 'info');
             })
-            .catch(error => {
-                console.error('Lỗi khi lấy thông tin tiến trình:', error);
-                showToast('Không thể tải thông tin tiến trình', 'error');
+            .catch(err => {
+                console.error('Lỗi khi lấy thông tin task:', err);
+                showToast('Không thể tải thông tin task', 'error');
             });
     }
+
 
     /**
      * Kiểm tra xem có thay đổi nào trong các tùy chọn hay không
      */
     function setupChangeTracking() {
-        // Theo dõi sự thay đổi tên tiến trình
-        processNameInput.addEventListener('input', checkForChanges);
+        // Theo dõi sự thay đổi tên task
+        taskNameInput.addEventListener('input', checkForChanges);
+
+        // Theo dõi
+        roomSelect.addEventListener('change', checkForChanges);
 
         // Theo dõi sự thay đổi các nguồn
         document.querySelectorAll('.source-item').forEach(item => {
@@ -635,31 +687,37 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!window.originalProcessState) return;
 
         // 1. Kiểm tra tên
-        const nameChanged = processNameInput.value !== window.originalProcessState.name;
+        const nameChanged = taskNameInput.value !== window.originalProcessState.name;
 
-        // 2. Kiểm tra nguồn dữ liệu
-        const currentSources = Array.from(selectedSources);
-        const sourcesChanged = !arraysEqual(currentSources, window.originalProcessState.sources);
+        // 2. Kiểm tra room_id
+        const roomChanged = roomSelect.value !== (window.originalProcessState.room_id ?? '');
 
-        // 3. Kiểm tra tùy chọn
-        const currentOptions = getCurrentOptions();
-        const optionsChanged = !objectsEqual(currentOptions, window.originalProcessState.options);
+        // 2. Kiểm tra camera_ids
+        const currentSources = Array.from(selectedCameras);
+        const sourcesChanged = !arraysEqual(
+            currentSources,
+            window.originalProcessState.camera_ids   // <-- sửa ở đây
+        );
 
-        // Kích hoạt nút nếu có bất kỳ thay đổi nào
-        const hasChanges = nameChanged || sourcesChanged || optionsChanged;
+        // 3. Kiểm tra features
+        const currentFeatures = getCurrentOptions(); // giả sử trả về object { face_recognition: true, ... }
+        const featuresChanged = !objectsEqual(
+            currentFeatures,
+            window.originalProcessState.features     // <-- và ở đây
+        );
+
+        const hasChanges = nameChanged || roomChanged || sourcesChanged || featuresChanged;
 
         if (hasChanges) {
-            // Kích hoạt nút và áp dụng kiểu cho nút đã kích hoạt
             runBtn.disabled = false;
             runBtn.removeAttribute('title');
             runBtn.classList.remove('disabled-update');
-            runBtn.classList.add('active-update');  // Thêm class mới
+            runBtn.classList.add('active-update');
         } else {
-            // Vô hiệu hóa nút
             runBtn.disabled = true;
             runBtn.setAttribute('title', 'Không có thay đổi để cập nhật');
             runBtn.classList.add('disabled-update');
-            runBtn.classList.remove('active-update');  // Xóa class
+            runBtn.classList.remove('active-update');
         }
     }
 
@@ -707,16 +765,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Chọn một tiến trình để xem
+     * Chọn một task để xem
      */
     function selectProcess(processId) {
-        // Đặt tiến trình hiện tại
+        // Đặt task hiện tại
         currentProcessId = processId;
 
         // Cập nhật UI
-        const process = processList[processId];
+        const process = taskList[processId];
         if (process) {
-            currentProcessName.textContent = process.name;
+            currentTaskName.textContent = process.name;
             stopBtn.disabled = !process.running;
             processStatusIndicator.style.display = process.running ? 'inline-block' : 'none';
 
@@ -837,11 +895,10 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * Cập nhật output trong terminal
      */
-    let previousOutputLength = 0;
     function updateTerminalOutput() {
         if (!currentProcessId) return;
 
-        fetch(`/get_process_status?process_id=${currentProcessId}`)
+        fetch(`/get_task_status?task_id=${currentProcessId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'error') {
@@ -855,8 +912,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 processStatusIndicator.style.display = data.running ? 'inline-block' : 'none';
 
                 // Cập nhật trạng thái trong processList
-                if (processList[currentProcessId]) {
-                    processList[currentProcessId].running = data.running;
+                if (taskList[currentProcessId]) {
+                    taskList[currentProcessId].running = data.running;
                 }
 
                 // 3) Cập nhật chấm màu ở danh sách
@@ -903,7 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     terminal.innerHTML = '<p class="terminal-line">Chưa có dữ liệu đầu ra.</p>';
                 }
 
-                // Nếu tiến trình đã dừng, dừng kiểm tra trạng thái
+                // Nếu task đã dừng, dừng kiểm tra trạng thái
                 if (!data.running) {
                     clearInterval(statusCheckInterval);
                 }
@@ -920,7 +977,7 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     function clearOptions() {
         // Xóa chọn tất cả các nguồn (checkbox)
-        selectedSources.clear();
+        selectedCameras.clear();
         document.querySelectorAll('.source-item').forEach(item => {
             const cb = item.querySelector('input[type="checkbox"]');
             if (cb) {
@@ -944,8 +1001,13 @@ document.addEventListener('DOMContentLoaded', () => {
             exportParam.textContent = '3';
         }
 
-        // Reset tên tiến trình
-        processNameInput.value = '';
+        // Reset tên task
+        taskNameInput.value = '';
+
+        // Reset roomSelect về "Tất cả các phòng"
+        if (roomSelect) {
+            roomSelect.value = '';
+        }
 
         // Chạy lại logic phụ thuộc (face_emotion, raise_hand, ...)
         handleDependentOptions();
@@ -956,10 +1018,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     function deleteProcess(processId) {
-        fetch('/delete_process', {
+        fetch('/delete_task', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ process_id: processId })
+            body: JSON.stringify({ task_id: processId })
         })
             .then(r => r.json())
             .then(data => {
@@ -970,19 +1032,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(data.message, 'error');
                 }
             })
-            .catch(() => showToast('Lỗi khi xóa tiến trình', 'error'));
+            .catch(() => showToast('Lỗi khi xóa task', 'error'));
     }
 
     function restartProcess(processId) {
-        showToast('Đang restart...', 'info');
+        // Lưu tham chiếu đến toast thông báo đang xử lý
+        const processingToastId = showToastWithId('Đang restart...', 'info');
 
-        fetch('/restart_process', {
+        fetch('/restart_task', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ process_id: processId })
+            body: JSON.stringify({ task_id: processId })
         })
             .then(r => r.json())
             .then(data => {
+                // Đóng toast "đang xử lý" trước khi hiển thị kết quả mới
+                closeToast(processingToastId);
+
                 if (data.status === 'success') {
                     showToast(data.message, 'success');
                     refreshProcessList(processId);
@@ -990,7 +1056,69 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast(data.message, 'error');
                 }
             })
-            .catch(() => showToast('Lỗi khi gọi restart', 'error'));
+            .catch(() => {
+                // Đóng toast "đang xử lý" trước khi hiển thị lỗi
+                closeToast(processingToastId);
+                showToast('Lỗi khi gọi restart', 'error');
+            });
+    }
+
+    // Phiên bản mở rộng của showToast trả về ID để có thể đóng nó sau
+    function showToastWithId(message, type = 'info', duration = null) {
+        // Kiểm tra xem đã có toast container chưa
+        let toastContainer = document.querySelector('.toast-container');
+
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'toast-container';
+            document.body.appendChild(toastContainer);
+        }
+
+        // Tạo toast
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+
+        // Tạo ID duy nhất cho toast
+        const toastId = 'toast-' + Date.now();
+        toast.id = toastId;
+
+        // Icon
+        const icon = document.createElement('i');
+        icon.className = `fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}`;
+        icon.style.marginRight = '8px';
+
+        // Text
+        const text = document.createElement('span');
+        text.textContent = message;
+
+        toast.appendChild(icon);
+        toast.appendChild(text);
+        toastContainer.appendChild(toast);
+
+        // Chỉ tự động ẩn nếu duration được chỉ định
+        if (duration !== null) {
+            setTimeout(() => {
+                closeToast(toastId);
+            }, duration);
+        }
+
+        return toastId;
+    }
+
+    // Hàm đóng toast theo ID
+    function closeToast(toastId) {
+        const toast = document.getElementById(toastId);
+        if (toast) {
+            toast.style.animation = 'fadeOut 0.3s';
+            toast.addEventListener('animationend', () => {
+                toast.remove();
+                // Xóa container nếu không còn toast
+                const toastContainer = document.querySelector('.toast-container');
+                if (toastContainer && toastContainer.children.length === 0) {
+                    toastContainer.remove();
+                }
+            });
+        }
     }
 
     /**

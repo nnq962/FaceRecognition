@@ -98,25 +98,25 @@ def detect_aruco_answers(corners, ids):
     - ids: Danh sách ID của các marker.
     
     Trả về:
-    - Danh sách chứa dictionary với ID và đáp án tương ứng.
+    - Dictionary với key là ID của marker và value là đáp án tương ứng.
     """
-    marker_list = []
-
+    answers = {}
+    
     if len(corners) > 0:
         ids = ids.flatten()
-
+        
         for (markerCorner, markerID) in zip(corners, ids):
             # Lấy tọa độ 4 góc của marker
             corners = markerCorner.reshape((4, 2))
             (topLeft, topRight, bottomRight, bottomLeft) = corners
-
+            
             # ✅ Tính góc xoay của marker
             vector = np.array(topRight) - np.array(topLeft)  # Vector từ top-left đến top-right
             angle = np.degrees(np.arctan2(vector[1], vector[0]))  # Tính góc bằng arctan2
             if angle < 0:
                 angle += 360  # Chuyển về khoảng [0, 360]
-
-            # Lưu kết quả dưới dạng {ID, Answer}
-            marker_list.append({"ID": int(markerID), "Answer": convert_angle_to_answer(round(angle, 1))})
+            
+            # Thêm vào dictionary với key là ID (dưới dạng string) và value là đáp án
+            answers[str(markerID)] = convert_angle_to_answer(round(angle, 1))
     
-    return marker_list
+    return dict(sorted(answers.items(), key=lambda item: int(item[0])))

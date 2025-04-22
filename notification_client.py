@@ -5,12 +5,18 @@ import json
 import threading
 import hashlib
 import argparse
+import queue
 from gtts import gTTS
 import subprocess
 from utils.logger_config import LOGGER
+import sys
 
+# Đường dẫn đến file cấu hình
+CONFIG_FILE = "main_config.json"
+
+# Cấu hình mặc định
 DEFAULT_HOST = '192.168.1.142'
-DEFAULT_PORT = 9999
+DEFAULT_PORT = 9624
 
 class NotificationClient:
     def __init__(self, host=DEFAULT_HOST, port=DEFAULT_PORT, reconnect_interval=5):
@@ -21,6 +27,11 @@ class NotificationClient:
         self.connected = False
         self.reconnect_interval = reconnect_interval
         self.connection_lock = threading.Lock()  # Lock để truy cập an toàn tới socket
+        
+        # Thêm hàng đợi thông báo để xử lý tuần tự
+        self.notification_queue = queue.Queue()
+        self.processing_notification = False
+        self.notification_event = threading.Event()
         
         # Thư mục lưu trữ cache âm thanh
         self.audio_cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "audio_cache")
@@ -223,7 +234,8 @@ class NotificationClient:
                     notification_text = message.get("message", "")
                     if notification_text:
                         LOGGER.info(f"Nhận được thông báo: '{notification_text}'")
-                        self.play_audio(notification_text)
+                        # Thêm thông báo vào hàng đợi thay vì phát ngay lập tức
+                        self.add_to_notification_queue(notification_text)
                 
                 elif message.get("type") == "pong":
                     # Đây là phản hồi ping, có thể bỏ qua
@@ -232,10 +244,64 @@ class NotificationClient:
             except json.JSONDecodeError:
                 # Không phải JSON, xử lý như thông báo bình thường
                 LOGGER.info(f"Nhận được thông báo (legacy): '{data}'")
-                self.play_audio(data)
+                # Thêm thông báo vào hàng đợi thay vì phát ngay lập tức
+                self.add_to_notification_queue(data)
                 
         except Exception as e:
             LOGGER.error(f"Lỗi khi xử lý thông điệp: {e}")
+
+    def add_to_notification_queue(self, notification_text):
+        """Thêm thông báo vào hàng đợi và kích hoạt sự kiện xử lý"""
+        self.notification_queue.put(notification_text)
+        LOGGER.info(f"Đã thêm thông báo vào hàng đợi: '{notification_text}'")
+        
+        # Thông báo cho luồng xử lý hàng đợi
+        self.notification_event.set()
+    
+    def notification_processor(self):
+        """Luồng xử lý các thông báo từ hàng đợi tuần tự"""
+        LOGGER.info("Khởi động luồng xử lý hàng đợi thông báo")
+        
+        while self.running:
+            # Đợi cho đến khi có thông báo mới hoặc timeout
+            self.notification_event.wait(timeout=1.0)
+            
+            # Kiểm tra xem có thông báo nào trong hàng đợi không
+            if not self.notification_queue.empty():
+                try:
+                    # Lấy thông báo tiếp theo từ hàng đợi
+                    notification_text = self.notification_queue.get(block=False)
+                    
+                    # Số lượng thông báo còn lại trong hàng đợi
+                    remaining = self.notification_queue.qsize()
+                    if remaining > 0:
+                        LOGGER.info(f"Đang xử lý thông báo, còn {remaining} thông báo trong hàng đợi")
+                    
+                    # Đánh dấu đang xử lý
+                    self.processing_notification = True
+                    
+                    # Phát âm thanh
+                    self.play_audio(notification_text)
+                    
+                    # Đánh dấu hoàn thành
+                    self.notification_queue.task_done()
+                    self.processing_notification = False
+                    
+                except queue.Empty:
+                    # Hàng đợi trống (có thể do đã được xử lý bởi luồng khác)
+                    pass
+                except Exception as e:
+                    LOGGER.error(f"Lỗi khi xử lý thông báo từ hàng đợi: {e}")
+                    # Đánh dấu hoàn thành để tránh bị treo
+                    try:
+                        self.notification_queue.task_done()
+                    except:
+                        pass
+                    self.processing_notification = False
+            
+            # Reset sự kiện nếu hàng đợi đã trống
+            if self.notification_queue.empty():
+                self.notification_event.clear()
 
     def listen_for_messages(self):
         """Lắng nghe và xử lý tin nhắn từ server"""
@@ -382,6 +448,16 @@ class NotificationClient:
                 "recently_used": recently_used
             }
 
+    def get_queue_stats(self):
+        """Lấy thống kê về hàng đợi thông báo hiện tại"""
+        queue_size = self.notification_queue.qsize()
+        is_processing = self.processing_notification
+        
+        return {
+            "queue_size": queue_size,
+            "is_processing": is_processing
+        }
+
     def start(self):
         """Khởi động client và các luồng xử lý"""
         self.running = True
@@ -401,6 +477,10 @@ class NotificationClient:
         listen_thread = threading.Thread(target=self.listen_for_messages, daemon=True)
         listen_thread.start()
         
+        # Luồng xử lý hàng đợi thông báo
+        queue_processor_thread = threading.Thread(target=self.notification_processor, daemon=True)
+        queue_processor_thread.start()
+        
         LOGGER.info("Client đã khởi động đầy đủ")
         
         return self
@@ -408,6 +488,9 @@ class NotificationClient:
     def stop(self):
         """Dừng client và dọn dẹp tài nguyên"""
         self.running = False
+        
+        # Đảm bảo thức dậy các luồng đang đợi
+        self.notification_event.set()
         
         with self.connection_lock:
             if self.client_socket:
@@ -435,27 +518,69 @@ def run_client(host=DEFAULT_HOST, port=DEFAULT_PORT):
     client.start()
     
     try:
-        # Giữ tiến trình chính chạy và dọn dẹp cache định kỳ
+        # Kiểm tra và báo cáo trạng thái hàng đợi mỗi phút
+        check_interval = 60  # Giây
+        clean_interval = 7 * 24 * 60 * 60  # 1 tuần
+        last_clean_time = time.time()
+        
         while True:
-            time.sleep(7 * 24 * 60 * 60)  # Chạy dọn dẹp cache mỗi 1 tuần
-            client.clean_cache()
+            time.sleep(check_interval)
             
-            # Hiển thị thống kê cache sau khi dọn dẹp
-            stats = client.get_cache_stats()
-            LOGGER.info(f"Thống kê cache sau khi dọn dẹp: {stats['total_files']} tệp, "
-                       f"{stats['total_size_mb']:.2f}MB")
+            # Kiểm tra trạng thái hàng đợi
+            queue_stats = client.get_queue_stats()
+            if queue_stats["queue_size"] > 0:
+                LOGGER.info(f"Trạng thái hàng đợi: {queue_stats['queue_size']} thông báo đang chờ xử lý")
+                if queue_stats["is_processing"]:
+                    LOGGER.info("Đang xử lý thông báo hiện tại")
+                else:
+                    LOGGER.info("Không có thông báo nào đang được xử lý")
+            
+            # Dọn dẹp cache định kỳ
+            current_time = time.time()
+            if current_time - last_clean_time >= clean_interval:
+                LOGGER.info("Thực hiện dọn dẹp cache định kỳ")
+                client.clean_cache()
+                last_clean_time = current_time
+                
+                # Hiển thị thống kê cache sau khi dọn dẹp
+                stats = client.get_cache_stats()
+                LOGGER.info(f"Thống kê cache sau khi dọn dẹp: {stats['total_files']} tệp, "
+                           f"{stats['total_size_mb']:.2f}MB")
+                
     except KeyboardInterrupt:
         LOGGER.info("Nhận tín hiệu ngắt, đang dừng client...")
     finally:
         client.stop()
 
 if __name__ == "__main__":
-    # Thiết lập parser tham số dòng lệnh
+    # Thiết lập parser tham số dòng lệnh - chỉ nhận một tham số config
     parser = argparse.ArgumentParser(description='Notification Client')
-    parser.add_argument('--host', type=str, default=DEFAULT_HOST, help=f'Server host address (default: {DEFAULT_HOST})')
-    parser.add_argument('--port', type=int, default=DEFAULT_PORT, help=f'Server port (default: {DEFAULT_PORT})')
+    parser.add_argument('--config', type=str, required=True, help='Configuration profile to use (e.g., 3HINC, EDULIVE)')
     
     args = parser.parse_args()
+    config_name = args.config
     
-    # Khởi động client với các tham số từ dòng lệnh
-    run_client(host=args.host, port=args.port)
+    # Đọc file cấu hình
+    try:
+        with open(CONFIG_FILE, 'r') as file:
+            all_configs = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        LOGGER.error(f"Error loading config file: {e}")
+        sys.exit(1)
+    
+    # Kiểm tra xem config được chỉ định có tồn tại không
+    if config_name not in all_configs:
+        LOGGER.error(f"Configuration '{config_name}' not found in {CONFIG_FILE}")
+        LOGGER.error(f"Available configurations: {', '.join(all_configs.keys())}")
+        sys.exit(1)
+    
+    # Lấy cấu hình từ file
+    config = all_configs[config_name]
+    host = config.get("host", DEFAULT_HOST)
+    port = config.get("noti_port", DEFAULT_PORT)
+    
+    LOGGER.info(f"Loaded configuration for '{config_name}'")
+    LOGGER.info(f"Host: {host}, Port: {port}")
+    
+    # Khởi động client
+    run_client(host=host, port=port)

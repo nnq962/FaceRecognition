@@ -12,10 +12,10 @@ from utils.plots import Annotator
 from face_emotion import FaceEmotion
 from insightface_utils import normalize_embeddings, crop_and_align_faces, crop_faces_for_emotion, search_ids, crop_image
 from hand_raise_detector import get_raising_hand
-from websocket_server import send_notification
+from answer_sender import send_data_to_server
 from config import config
 from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
-from notification_server import send_notification as ns_send_notification
+from notification_server import send_notification
 import face_mask_detection
 from pymongo.operations import InsertOne, UpdateOne
 from utils.logger_config import LOGGER
@@ -32,8 +32,11 @@ class InsightFaceDetector:
                 qr_code=False,
                 face_mask=False,
                 notification=False,
-                log_collection=None,
-                room_id=None
+                room_id=None,
+                host=None,
+                data2ws_url=None,
+                noti_control_port=None,
+                noti_secret_key=None
                 ):
                 
         self.det_model_path = os.path.expanduser("~/Models/det_10g.onnx")
@@ -49,8 +52,12 @@ class InsightFaceDetector:
         self.raise_hand = raise_hand
         self.face_mask = face_mask
         self.notification = notification
-        self.log_collection = log_collection
         self.room_id = room_id
+        self.data2ws_url = data2ws_url
+        self.noti_control_port = noti_control_port
+        self.noti_secret_key = noti_secret_key
+        self.host = host
+        self.log_collection = config.database[f"{self.room_id}_logs"] if self.room_id else config.database["all_room_logs"]
 
         self.previous_qr_results = {}
         self.previous_hand_states = {}
@@ -63,6 +70,8 @@ class InsightFaceDetector:
         self.arucoDict = cv2.aruco.getPredefinedDictionary(self.arucoDictType)
         self.arucoParams = cv2.aruco.DetectorParameters()
         self.aruco_detector = cv2.aruco.ArucoDetector(self.arucoDict, self.arucoParams)
+        self.hand_state_counters = {}  # Đếm số lần liên tiếp phát hiện cùng một trạng thái
+        self.hand_state_threshold = 5  # Số lần tối thiểu để xác nhận trạng thái mới
 
         if media_manager is not None:
             self.dataset = media_manager.get_dataloader()
@@ -150,10 +159,7 @@ class InsightFaceDetector:
         if not results:  # Không có marker nào được phát hiện
             return
 
-        # Sắp xếp danh sách marker theo ID để đảm bảo so sánh chính xác
-        sorted_markers = sorted(results, key=lambda x: x["ID"])
-
-        return sorted_markers
+        return results
     
     def detect_face_masks(self, image):
         mask_count = face_mask_detection.inference(image, target_shape=(360, 360))
@@ -164,10 +170,12 @@ class InsightFaceDetector:
         if self.mask_detected_frames >= self.mask_thresh:
             self.mask_detected_frames = 0
             if self.notification:
-                ns_send_notification(message="Vui lòng tháo khẩu trang", 
-                                     host=config.host, 
-                                     control_port=config.noti_control,
-                                     secret_key=config.secret_key)
+                send_notification(
+                    message="Vui lòng tháo khẩu trang", 
+                    host=self.host, 
+                    control_port=self.noti_control_port,
+                    secret_key=self.noti_secret_key
+                )
             else:
                 LOGGER.info("Vui lòng tháo khẩu trang")
 
@@ -193,34 +201,66 @@ class InsightFaceDetector:
 
         if qr_result and qr_result != previous_kq:
             self.previous_qr_results[camera_id] = qr_result  # Cập nhật kết quả mới
-            send_notification({
-                "timestamp": config.get_vietnam_time(),
-                "camera": camera_id,
-                "qr_code": qr_result
-            })
+            send_data_to_server(
+                data_type="qr_code",
+                payload=qr_result,
+                room_id=self.room_id,
+                server_address=self.data2ws_url,
+                    meta={
+                        "camera_id": camera_id,
+                        "source": "classroom_system",
+                        "version": "2.0"
+                    }
+            )
 
     def detect_raise_hand(self, frame, bbox, user_id, camera_id):
         if user_id == "Unknown":
             return
 
         hand_raised = get_raising_hand(frame, bbox)
-        previous_state = self.previous_hand_states[camera_id].get(user_id, None)
 
-        # Chỉ gửi nếu trạng thái thay đổi
-        if previous_state is None or previous_state != hand_raised:
-            # Cập nhật trạng thái mới vào dictionary
-            self.previous_hand_states[camera_id][user_id] = hand_raised
-            
-            # Ghi log và gửi thông báo
-            LOGGER.debug(f"timestamp: {config.get_vietnam_time()}, camera: {camera_id}, id: {user_id}, hand_status: {'up' if hand_raised else 'down'}")
-            
-            # Code gửi thông báo nếu cần
-            # send_notification({
-            #     "timestamp": config.get_vietnam_time(),
-            #     "camera": camera_id,
-            #     "id": user_id,
-            #     "hand_status": "up" if hand_raised else "down"
-            # })
+        # Khởi tạo counters cho user_id và camera này nếu chưa có
+        if camera_id not in self.hand_state_counters:
+            self.hand_state_counters[camera_id] = {}
+        if user_id not in self.hand_state_counters[camera_id]:
+            self.hand_state_counters[camera_id][user_id] = {'up': 0, 'down': 0}
+        
+        # Tăng counter cho trạng thái hiện tại
+        if hand_raised:
+            self.hand_state_counters[camera_id][user_id]['up'] += 1
+            self.hand_state_counters[camera_id][user_id]['down'] = 0
+        else:
+            self.hand_state_counters[camera_id][user_id]['down'] += 1
+            self.hand_state_counters[camera_id][user_id]['up'] = 0
+        
+        # Chỉ thay đổi trạng thái khi đạt ngưỡng
+        previous_state = self.previous_hand_states[camera_id].get(user_id, None)
+        
+        # Kiểm tra ngưỡng để thay đổi trạng thái
+        new_hand_raised = None
+        if self.hand_state_counters[camera_id][user_id]['up'] >= self.hand_state_threshold:
+            new_hand_raised = True
+        elif self.hand_state_counters[camera_id][user_id]['down'] >= self.hand_state_threshold:
+            new_hand_raised = False
+        
+        # Cập nhật và gửi thông báo nếu trạng thái thay đổi
+        if new_hand_raised is not None and (previous_state is None or previous_state != new_hand_raised):
+            # Cập nhật trạng thái mới vào dictionary theo camera
+            self.previous_hand_states[camera_id][user_id] = new_hand_raised
+            # Gửi dữ liệu giơ tay
+            send_data_to_server(
+                data_type="hand_status",
+                payload={
+                    user_id: "up" if new_hand_raised else "down"
+                },
+                room_id=self.room_id,
+                server_address=self.data2ws_url,
+                meta={
+                    "camera_id": camera_id,
+                    "source": "classroom_system",
+                    "version": "2.0"
+                }
+            )
 
     def run_inference(self):
         """
@@ -277,7 +317,7 @@ class InsightFaceDetector:
             # Lấy embeddings và truy xuất thông tin
             if all_cropped_faces_recognition:
                 all_embeddings = self.get_face_embeddings(all_cropped_faces_recognition)
-                user_infos = search_ids(all_embeddings, threshold=0.5)
+                user_infos = search_ids(all_embeddings, threshold=0.5, room_id=self.room_id)
             
             # Ghép kết quả
             results_per_image = []  # Danh sách kết quả theo từng ảnh
@@ -328,17 +368,6 @@ class InsightFaceDetector:
                     user_id = result["user_id"]
                     emotion = result["emotion"]
 
-                    # Test backend
-                    # if user_id == 1:
-                    #     if get_raising_hand(im0, bbox):
-                    #         self.hand_detected_frames += 1
-                    #         if self.hand_detected_frames >= 20:
-                    #             self.hand_detected_frames = 0
-                    #             if self.notification:
-                    #                 ns_send_notification("Ok sếp ơi")
-                    #             else:
-                    #                 LOGGER.info("Ok sếp ơi")
-                    
                     # Kiểm tra giơ tay
                     if self.raise_hand:
                         self.detect_raise_hand(im0, bbox, user_id, camera_id)
@@ -416,7 +445,7 @@ class InsightFaceDetector:
         # Nếu có room_id, lọc ra các user thuộc phòng đó
         if room_id is not None:
             # Truy vấn để lấy danh sách user_id trong phòng
-            room_users = list(config.users_collection.find(
+            room_users = list(config.user_collection.find(
                 {"room_id": room_id}, 
                 {"user_id": 1}
             ))
@@ -439,7 +468,7 @@ class InsightFaceDetector:
             user_ids = all_user_ids
         
         # Tối ưu truy vấn MongoDB
-        records = config.database[self.log_collection].find(
+        records = self.log_collection.find(
             {"date": today_date, "user_id": {"$in": user_ids}},
             {"user_id": 1, "name": 1, "check_in_time": 1, "goodbye_noti": 1}
         )
@@ -504,7 +533,7 @@ class InsightFaceDetector:
         # Thực hiện bulk write một lần
         if operations:
             try:
-                result = config.database[self.log_collection].bulk_write(operations)
+                result = self.log_collection.bulk_write(operations)
                 # Có thể log kết quả nếu cần
                 # logger.info(f"MongoDB operations: {result.inserted_count} inserted, {result.modified_count} modified")
             except Exception as e:
@@ -514,18 +543,18 @@ class InsightFaceDetector:
         # Gửi thông báo
         if notification_enabled:
             for name in welcome_users:
-                ns_send_notification(
+                send_notification(
                     message=f"Xin chào {name}",
-                    host=config.host,
-                    control_port=config.noti_control,
-                    secret_key=config.secret_key
+                    host=self.host,
+                    control_port=self.noti_control_port,
+                    secret_key=self.noti_secret_key
                 )
             for name in goodbye_users:
-                ns_send_notification(
+                send_notification(
                     message=f"Chào tạm biệt {name}",
-                    host=config.host,
-                    control_port=config.noti_control,
-                    secret_key=config.secret_key
+                    host=self.host,
+                    control_port=self.noti_control_port,
+                    secret_key=self.noti_secret_key
                 )
         else:
             if welcome_users:
