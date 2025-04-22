@@ -598,6 +598,38 @@ def save_json_file(task_ids, db_file_path):
     except Exception as e:
         LOGGER.error(f"Lỗi khi lưu file JSON {db_file_path}: {e}")
 
+def delete_json_config(db_file_path, config_key):
+    """
+    Xóa một cấu hình cụ thể khỏi file JSON
+
+    Args:
+        db_file_path (str): Đường dẫn đến file JSON
+        config_key (str): Tên key cấu hình cần xóa
+    """
+    try:
+        # Đọc dữ liệu hiện có
+        with open(db_file_path, 'r') as f:
+            current_data = json.load(f)
+        
+        # Kiểm tra và xóa key nếu tồn tại
+        if config_key in current_data:
+            del current_data[config_key]
+            
+            # Lưu lại file JSON
+            with open(db_file_path, 'w') as f:
+                json.dump(current_data, f, indent=4)
+            
+            LOGGER.info(f"Đã xóa cấu hình '{config_key}' thành công từ {db_file_path}")
+        else:
+            LOGGER.warning(f"Không tìm thấy cấu hình '{config_key}' trong file JSON")
+    
+    except FileNotFoundError:
+        LOGGER.error(f"File JSON không tồn tại: {db_file_path}")
+    except json.JSONDecodeError:
+        LOGGER.error(f"Lỗi đọc file JSON: {db_file_path}")
+    except Exception as e:
+        LOGGER.error(f"Lỗi khi xóa cấu hình {config_key}: {e}")
+
 def format_time(timestamp):
     """Hàm nội bộ: Định dạng thời gian"""
     if isinstance(timestamp, (int, float)):
@@ -868,8 +900,7 @@ def delete_task_internal(task_id):
         subprocess.run(["supervisorctl", "update"], check=True)
 
         # 4. Gỡ khỏi DB
-        del task_ids[task_id]
-        save_json_file(task_ids, TASK_CONFIG_FILE)
+        delete_json_config(TASK_CONFIG_FILE, task_id)
 
         return {
             'status': 'success',
