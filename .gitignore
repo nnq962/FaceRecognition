@@ -13,3 +13,4 @@ log_nohup.txt
 .env
 audio_cache
 supervisor
+main_config.json
