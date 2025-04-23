@@ -199,6 +199,7 @@ function renderAttendanceData(data) {
             
         return `
             <tr>
+                <td>${employee.user_id || 'N/A'}</td>
                 <td>${employee.name}</td>
                 <td><span class="badge department-badge">${employee.department || 'N/A'}</span></td>
                 <td>
@@ -260,6 +261,7 @@ async function fetchAllData() {
         
         // Combine the data
         allEmployees = users.map(user => ({
+            user_id: user.user_id,
             name: user.name,
             department: user.room_id,
             check_in_time: attendanceMap[user.name]?.check_in_time || null,

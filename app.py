@@ -1826,4 +1826,4 @@ def manage_admins():
 
 # ----------------------------------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=config.app, debug=True)
+    app.run(host="0.0.0.0", port=9621, debug=True)
