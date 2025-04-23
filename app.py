@@ -904,7 +904,7 @@ def get_attendance():
         today = datetime.now().strftime("%Y-%m-%d")
 
         # Truy vấn tất cả bản ghi có trường date = hôm nay
-        records = list(config.database['all_roomattendance_logs'].find({"date": today}))
+        records = list(config.database['all_room_logs'].find({"date": today}))
 
         # Tạo danh sách kết quả
         attendance_list = []
@@ -965,7 +965,7 @@ def export_attendance():
                     weekday_str = weekday_map[current_date.weekday()]
 
                     # Lấy dữ liệu từ mô hình mới
-                    attendance_data = config.database['attendance_logs'].find_one({
+                    attendance_data = config.database['all_room_logs'].find_one({
                         "date": date_str,
                         "user_id": user_id
                     })
