@@ -20,7 +20,7 @@ app = Flask(__name__)
 # --- Đường dẫn chính ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 WORK_DIR = BASE_DIR
-USER = "pc"
+USER = "3hinc"
 
 # --- Thư mục supervisor (gồm: db, conf, log) ---
 SUPERVISOR_DIR = os.path.join(WORK_DIR, "supervisor")
@@ -32,12 +32,15 @@ TASK_CONFIG_FILE = os.path.join(WORK_DIR, "main_config.json")
 HOST = "192.168.1.142"
 PROCESS_MANAGER_PORT = 9620
 APP_PORT = 9621
-WEBSOCKET_PORT = 9623
-NOTI_PORT = 9624
-NOTI_CONTROL_PORT = 9625
+WEBSOCKET_PORT = 9622
+NOTI_PORT = 9623
+NOTI_CONTROL_PORT = 9624
 NOTI_SECRET_KEY = "3hinc"
 NOTI_ALLOWED_IPS = []
 DEFAULT_FEATURES = {}
+
+# Đường dẫn tới python
+PYTHON_PATH = ""
 
 
 #
@@ -399,7 +402,7 @@ def update_task():
                 parsed_features[feat] = True
 
         # Xây dựng lệnh Python mới
-        python_cmd = f"python3 main.py --config {task_id}"
+        python_cmd = f"{PYTHON_PATH} main.py --config {task_id}"
         
         # Cập nhật cấu hình tiến trình
         config[task_id].update({
@@ -418,7 +421,7 @@ def update_task():
         save_json_file(config, TASK_CONFIG_FILE)
 
         # Cập nhật file cấu hình supervisor
-        cmd_str = f"/bin/bash -c 'source /home/pc/anaconda3/bin/activate nnq && cd {WORK_DIR} && {python_cmd}'"
+        cmd_str = f"/bin/bash -c 'cd {WORK_DIR} && {python_cmd}'"
         conf_content = f"""[program:{task_id}]
 command={cmd_str}
 directory={WORK_DIR}
@@ -720,10 +723,10 @@ def create_process_internal(features, camera_ids, task=None, room_id=None):
     save_json_file(config, TASK_CONFIG_FILE)
 
     # Xây dựng lệnh Python
-    python_cmd = f"python3 main.py --config {task_id}"
-        
-    # Lệnh hoàn chỉnh với kích hoạt Conda
-    cmd_str = f"/bin/bash -c 'source /home/pc/anaconda3/bin/activate nnq && cd {WORK_DIR} && {python_cmd}'"
+    python_cmd = f"{PYTHON_PATH} main.py --config {task_id}"
+
+    # Lệnh hoàn chỉnh
+    cmd_str = f"/bin/bash -c 'cd {WORK_DIR} && {python_cmd}'"
 
     # File log đúng đường dẫn supervisor/log/
     stdout_log = os.path.join(SUPERVISOR_LOG_DIR, f"{task_id}.log")
@@ -947,4 +950,4 @@ if __name__ == '__main__':
         os.makedirs(dir_path, exist_ok=True)
  
     # Khởi động server
-    app.run(host='0.0.0.0', port=9620, debug=True)
+    app.run(host='0.0.0.0', port=9620, debug=False)

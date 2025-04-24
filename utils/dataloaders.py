@@ -10,6 +10,8 @@ import cv2
 import numpy as np
 import re
 from utils.logger_config import LOGGER
+import json
+import subprocess
 
 # Parameters
 IMG_FORMATS = 'bmp', 'dng', 'jpeg', 'jpg', 'mpo', 'png', 'tif', 'tiff', 'webp', 'pfm'  # include image suffixes
@@ -201,29 +203,120 @@ class LoadStreams:
             self.threads[i] = Thread(target=self.update, args=([i, cap, s]), daemon=True)
             self.threads[i].start()
 
+    def detect_codec_ffmpeg(self, rtsp_url):
+        """
+        Sử dụng ffprobe để phát hiện codec của luồng RTSP
+        
+        Args:
+            rtsp_url (str): URL của luồng RTSP
+            
+        Returns:
+            str: 'h264', 'h265', hoặc None nếu không phát hiện được
+        """
+        try:
+            LOGGER.info(f"Đang phát hiện codec cho {rtsp_url}...")
+            # Chạy ffprobe để lấy thông tin codec
+            cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-show_streams",
+                "-select_streams", "v:0",
+                "-print_format", "json",
+                rtsp_url
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            data = json.loads(result.stdout)
+            
+            # Lấy tên codec từ luồng video
+            codec_name = data.get("streams", [{}])[0].get("codec_name", "").lower()
+            LOGGER.info(f"Phát hiện codec: {codec_name}")
+            
+            if codec_name in ["h264", "avc", "avc1"]:
+                return "h264"
+            elif codec_name in ["h265", "hevc"]:
+                return "h265"
+            else:
+                LOGGER.warning(f"Không hỗ trợ codec: {codec_name}")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            LOGGER.error(f"Hết thời gian chờ khi phát hiện codec cho {rtsp_url}")
+            return None
+        except Exception as e:
+            LOGGER.error(f"Lỗi khi phát hiện codec: {str(e)}")
+            return None
+
+    def create_pipeline_for_codec(self, rtsp_url, codec=None):
+        """
+        Tạo pipeline GStreamer phù hợp với codec
+        
+        Args:
+            rtsp_url (str): URL của luồng RTSP
+            codec (str): 'h264', 'h265' hoặc None để tự động phát hiện
+            
+        Returns:
+            str: Pipeline GStreamer hoàn chỉnh
+        """
+        # Nếu codec chưa được xác định, tiến hành phát hiện
+        if codec is None:
+            codec = self.detect_codec_ffmpeg(rtsp_url)
+        
+        # Phần đầu của pipeline là giống nhau
+        base_pipeline = f"rtspsrc location={rtsp_url} latency=0 protocols=tcp drop-on-latency=true ! "
+        
+        # Tạo pipeline dựa trên codec
+        if codec == "h264":
+            pipeline = (
+                f"{base_pipeline}rtph264depay ! h264parse ! avdec_h264 max-threads=4 ! "
+                "videoconvert ! video/x-raw, format=BGR ! "
+                "appsink drop=1 max-buffers=1 max-lateness=0 sync=false"
+            )
+            LOGGER.info(f"Sử dụng pipeline H264: {pipeline}")
+        elif codec == "h265":
+            pipeline = (
+                f"{base_pipeline}rtph265depay ! h265parse ! avdec_h265 max-threads=4 ! "
+                "videoconvert ! video/x-raw, format=BGR ! "
+                "appsink drop=1 max-buffers=1 max-lateness=0 sync=false"
+            )
+            LOGGER.info(f"Sử dụng pipeline H265: {pipeline}")
+        else:
+            # Mặc định sử dụng H264 nếu không phát hiện được codec
+            LOGGER.warning(f"Không phát hiện được codec, sử dụng H264 làm mặc định")
+            pipeline = (
+                f"{base_pipeline}rtph264depay ! h264parse ! avdec_h264 max-threads=4 ! "
+                "videoconvert ! video/x-raw, format=BGR ! "
+                "appsink drop=1 max-buffers=1 max-lateness=0 sync=false"
+            )
+        
+        return pipeline
+
     def create_gstreamer_pipeline(self, source, index):
-        """Tạo pipeline GStreamer tối ưu cho độ trễ thấp"""
+        """
+        Tạo pipeline GStreamer tối ưu cho độ trễ thấp và tự động phát hiện codec
+        """
         try:
             # Kiểm tra xem source có phải là RTSP hay không
             if isinstance(source, str) and source.startswith('rtsp://'):
                 rtsp_url = source
                 
-                # Pipeline GStreamer tối ưu cho độ trễ thấp
-                gst_pipeline = (
-                    f"rtspsrc location={rtsp_url} latency=0 protocols=tcp drop-on-latency=true ! "
-                    "rtph264depay ! h264parse ! avdec_h264 max-threads=4 ! "
-                    "videoconvert ! video/x-raw, format=BGR ! "
-                    "appsink drop=1 max-buffers=1 max-lateness=0 sync=false"
-                )
+                # Phát hiện codec và tạo pipeline phù hợp
+                pipeline = self.create_pipeline_for_codec(rtsp_url)
                 
                 LOGGER.info(f"Using GStreamer pipeline for RTSP stream {index}: {source}")
                 
                 # Tạo VideoCapture với GStreamer backend
-                cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
+                cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
                 
                 # Kiểm tra xem GStreamer có hoạt động không
                 if not cap.isOpened():
                     LOGGER.warning(f"GStreamer pipeline failed for stream {index}. Falling back to standard pipeline.")
+                    return False, None
+                    
+                # Đọc thử một frame để xác nhận pipeline hoạt động
+                ret, _ = cap.read()
+                if not ret:
+                    LOGGER.warning(f"Could not read frame from stream {index}. Pipeline may be incorrect.")
+                    cap.release()
                     return False, None
                     
                 return True, cap
@@ -231,7 +324,7 @@ class LoadStreams:
                 # Nếu không phải RTSP, không sử dụng GStreamer
                 LOGGER.info(f"Stream {index} is not RTSP. Using standard pipeline.")
                 return False, None
-                
+                    
         except Exception as e:
             LOGGER.error(f"Error creating GStreamer pipeline for stream {index}: {str(e)}")
             return False, None
