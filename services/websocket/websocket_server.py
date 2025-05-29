@@ -23,7 +23,7 @@ static_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'
 templates_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'templates'))
 
 # Config
-CONFIG_FILE = "config.yaml"
+CONFIG_FILE = CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'config.yaml'))
 
 # Khởi tạo FastAPI app
 app = FastAPI(title="WebSocket Answer Distribution Server")
