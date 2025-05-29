@@ -22,9 +22,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # Cấu hình mặc định
-    DEFAULT_HOST = "192.168.1.142"
-    DEFAULT_PORT = 9625
-    DEFAULT_SECRET_KEY = "3hinc"
+    DEFAULT_HOST = "192.168.1.90"
+    DEFAULT_PORT = 9624
+    DEFAULT_SECRET_KEY = "edulive"
     
     # Nếu có chỉ định config, đọc từ file JSON
     if args.config:
