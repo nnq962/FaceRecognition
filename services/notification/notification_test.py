@@ -6,10 +6,12 @@ import argparse
 import sys
 import yaml
 from notification_server import send_notification
+import os
+import sys
 
 if __name__ == "__main__":
     # Đường dẫn đến file cấu hình
-    CONFIG_FILE = "config.yaml"
+    CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'config.yaml'))
 
     # Thiết lập parser tham số dòng lệnh
     parser = argparse.ArgumentParser(description="Gửi thông báo tới server")

@@ -14,7 +14,7 @@ from utils.logger_config import LOGGER
 import yaml  # Thêm import yaml
 
 # Đường dẫn đến file cấu hình
-CONFIG_FILE = "config.yaml"  # Thay đổi từ main_config.json sang config.yaml
+CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'config.yaml'))
 
 # Cấu hình mặc định
 DEFAULT_HOST = '192.168.1.142'

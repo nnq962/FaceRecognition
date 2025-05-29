@@ -11,7 +11,7 @@ import argparse
 import sys
 
 # Đường dẫn đến file cấu hình
-CONFIG_FILE = "config.yaml"
+CONFIG_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'config.yaml'))
 
 # Đọc cấu hình mặc định - được sử dụng nếu không chỉ định config hoặc không tìm thấy
 DEFAULT_HOST = '192.168.1.142'
