@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phản hồi hệ thống chấm công</title>
+    <link rel="icon" href="../static/images/icons/feedback.png" type="image/x-icon">
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen transition-colors duration-300">
+    <div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <!-- Back button -->
+        <a href="/dashboard"
+            class="flex items-center text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 mb-6 transition-colors duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                    clip-rule="evenodd" />
+            </svg>
+            <span>Quay lại Dashboard</span>
+        </a>
+
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-semibold text-gray-800 dark:text-white mb-2">
+                Phản hồi hệ thống chấm công
+            </h1>
+        </div>
+
+        <!-- Main Form -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <form id="feedback-form" class="space-y-6">
+                <!-- Feedback Type -->
+                <div>
+                    <label for="feedback-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        Loại phản hồi <span class="text-red-500">*</span>
+                    </label>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <label class="relative">
+                            <input type="radio" name="feedback_type" value="bug" class="sr-only peer" required>
+                            <div class="flex items-center p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer transition-all duration-200 peer-checked:border-red-500 peer-checked:bg-red-50 dark:peer-checked:bg-red-900/20 hover:border-gray-300 dark:hover:border-gray-500">
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                                    </svg>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">Báo lỗi</div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">Hệ thống hoạt động sai</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="relative">
+                            <input type="radio" name="feedback_type" value="suggestion" class="sr-only peer">
+                            <div class="flex items-center p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer transition-all duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 dark:peer-checked:bg-blue-900/20 hover:border-gray-300 dark:hover:border-gray-500">
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                                    </svg>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">Đề xuất</div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">Ý kiến cải thiện</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+
+                        <label class="relative">
+                            <input type="radio" name="feedback_type" value="question" class="sr-only peer">
+                            <div class="flex items-center p-4 border-2 border-gray-200 dark:border-gray-600 rounded-xl cursor-pointer transition-all duration-200 peer-checked:border-green-500 peer-checked:bg-green-50 dark:peer-checked:bg-green-900/20 hover:border-gray-300 dark:hover:border-gray-500">
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <div>
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white">Câu hỏi</div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400">Hỗ trợ sử dụng</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Subject -->
+                <div>
+                    <label for="subject" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Tiêu đề <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="subject" name="subject" required placeholder="Mô tả ngắn gọn vấn đề..."
+                        class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                </div>
+
+                <!-- Priority -->
+                <div>
+                    <label for="priority" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Mức độ ưu tiên <span class="text-red-500">*</span>
+                    </label>
+                    <select id="priority" name="priority" required
+                        class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none">
+                        <option value="">Chọn mức độ ưu tiên</option>
+                        <option value="low">Thấp - Không ảnh hưởng đến công việc</option>
+                        <option value="medium">Trung bình - Ảnh hưởng nhẹ</option>
+                        <option value="high">Cao - Ảnh hưởng nghiêm trọng</option>
+                        <option value="urgent">Khẩn cấp - Cần xử lý ngay</option>
+                    </select>
+                </div>
+
+                <!-- Description -->
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Mô tả chi tiết <span class="text-red-500">*</span>
+                    </label>
+                    <textarea id="description" name="description" required rows="5" 
+                        placeholder="Mô tả chi tiết vấn đề, các bước tái tạo lỗi, hoặc đề xuất cải thiện..."
+                        class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-vertical"></textarea>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Tối thiểu 20 ký tự</p>
+                </div>
+
+                <!-- Screenshots Upload -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        Hình ảnh minh họa
+                    </label>
+                    <div class="space-y-4">
+                        <!-- Upload Area -->
+                        <div id="upload-area" 
+                            class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors duration-200 cursor-pointer">
+                            <input type="file" id="image-input" name="images" multiple accept="image/*" class="hidden">
+                            <svg class="w-8 h-8 text-gray-400 dark:text-gray-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 mb-1">Nhấp để chọn hoặc kéo thả hình ảnh</p>
+                            <p class="text-xs text-gray-500 dark:text-gray-500">PNG, JPG, JPEG (tối đa 5MB mỗi file)</p>
+                        </div>
+
+                        <!-- Preview Area -->
+                        <div id="image-preview" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 hidden"></div>
+                    </div>
+                </div>
+
+                <!-- Contact Info (Optional) -->
+                <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">Thông tin liên hệ (tùy chọn)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="contact-email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Email liên hệ
+                            </label>
+                            <input type="email" id="contact-email" name="contact_email" placeholder="email@company.com"
+                                class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                        </div>
+                        <div>
+                            <label for="contact-phone" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Số điện thoại
+                            </label>
+                            <input type="tel" id="contact-phone" name="contact_phone" placeholder="0xxx xxx xxx"
+                                class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <button type="button" id="cancel-btn"
+                        class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-medium transition-colors duration-200">
+                        Hủy
+                    </button>
+                    <button type="submit" id="submit-btn"
+                        class="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
+                        </svg>
+                        Gửi phản hồi
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Help Section -->
+        <div class="mt-8 bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800">
+            <div class="flex items-start">
+                <svg class="w-5 h-5 text-blue-500 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div>
+                    <h3 class="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">Hướng dẫn gửi phản hồi hiệu quả</h3>
+                    <ul class="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+                        <li>• Mô tả rõ ràng các bước dẫn đến lỗi</li>
+                        <li>• Đính kèm ảnh chụp màn hình minh họa</li>
+                        <li>• Ghi rõ thời gian xảy ra sự cố</li>
+                        <li>• Cung cấp thông tin thiết bị và trình duyệt</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 flex items-center space-x-3">
+            <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <span class="text-gray-700 dark:text-gray-300">Đang gửi phản hồi...</span>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 right-4 z-50 hidden">
+        <div id="toast-content" class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg p-4 flex items-center space-x-3 transform translate-x-full transition-transform duration-300">
+            <div id="toast-icon" class="flex-shrink-0"></div>
+            <div>
+                <p id="toast-title" class="font-medium text-gray-900 dark:text-white"></p>
+                <p id="toast-message" class="text-sm text-gray-500 dark:text-gray-400"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/utils/darkmode.js"></script>
+    <script type="module" src="../static/js/pages/feedbacks.js"></script>
+</body>
+
+</html>

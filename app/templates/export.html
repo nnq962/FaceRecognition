@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo Cáo Chấm Công</title>
+    <link rel="icon" href="../static/images/icons/export.png" type="image/x-icon">
+    <link rel="stylesheet" href="../static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Chrome, Edge, Safari - Date picker */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            opacity: 0;
+            display: none;
+        }
+
+        /* Firefox - Date picker */
+        input[type="date"]::-moz-calendar-picker-indicator {
+            opacity: 0;
+            display: none;
+        }
+
+        /* Safari/iOS - Date picker */
+        input[type="date"] {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        /* Chrome, Edge, Safari - Month picker */
+        input[type="month"]::-webkit-calendar-picker-indicator {
+            opacity: 0;
+            display: none;
+        }
+
+        /* Firefox - Month picker */
+        input[type="month"]::-moz-calendar-picker-indicator {
+            opacity: 0;
+            display: none;
+        }
+
+        /* Safari/iOS - Month picker */
+        input[type="month"] {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        /* Loại bỏ outline mặc định khi focus */
+        input[type="date"]:focus,
+        input[type="month"]:focus,
+        select:focus {
+            outline: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen font-sans antialiased">
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <!-- Back to Dashboard button -->
+        <a href="/dashboard"
+            class="flex items-center text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 mb-6 transition-colors duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                    clip-rule="evenodd" />
+            </svg>
+            <span>Quay lại Dashboard</span>
+        </a>
+
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-semibold text-gray-800 dark:text-white mb-2">
+                Báo Cáo Chấm Công
+            </h1>
+        </div>
+
+        <!-- Filter Section -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-8">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 space-y-4 sm:space-y-0">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Bộ Lọc</h2>
+                <div
+                    class="flex flex-col sm:flex-row items-stretch sm:items-center space-y-3 sm:space-y-0 sm:space-x-3">
+                    <button id="resetFiltersBtn"
+                        class="inline-flex items-center justify-center px-4 py-3 rounded-xl text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:text-blue-800 dark:hover:text-blue-300 transition-all duration-200 transform hover:scale-105">
+                        Đặt lại
+                    </button>
+                    <button id="refreshBtn"
+                        class="inline-flex items-center justify-center px-4 py-3 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 transform hover:scale-105">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        Làm mới
+                    </button>
+                    <button id="exportBtn"
+                        class="inline-flex items-center justify-center px-4 py-3 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition-all duration-200 transform hover:scale-105 shadow-lg hover:shadow-xl">
+                        <i class="fas fa-download mr-2"></i>
+                        Xuất Excel
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div class="space-y-2">
+                    <label for="monthFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Tháng
+                    </label>
+                    <div class="relative">
+                        <input type="month" id="monthFilter"
+                            class="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none">
+                        <!-- Icon lịch có thể click -->
+                        <button type="button"
+                            onclick="document.getElementById('monthFilter').showPicker?.() || document.getElementById('monthFilter').focus();"
+                            class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400" tabindex="-1">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round"
+                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- User Filter -->
+                <div class="space-y-2">
+                    <label for="userFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Nhân viên
+                    </label>
+                    <div class="relative">
+                        <select id="userFilter"
+                            class="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none">
+                            <option value="">Tất cả nhân viên</option>
+                            <!-- Options will be populated by JS -->
+                        </select>
+                        <!-- Mũi tên custom -->
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Room Filter -->
+                <div class="space-y-2">
+                    <label for="roomFilter" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Phòng ban
+                    </label>
+                    <div class="relative">
+                        <select id="roomFilter"
+                            class="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 appearance-none">
+                            <option value="">Tất cả phòng ban</option>
+                            <!-- Options will be populated by JS -->
+                        </select>
+                        <!-- Mũi tên custom -->
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Apply Filter Button -->
+                <!-- Apply Filter Button -->
+                <div class="space-y-2 flex flex-col h-full">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Áp dụng lọc
+                    </label>
+                    <div class="relative h-full">
+                        <button id="applyFiltersBtn"
+                            class="w-full h-full px-4 py-3 pr-12 rounded-xl border border-gray-300 dark:border-gray-600 bg-green-600 hover:bg-green-700 text-white text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                            <i class="fas fa-filter mr-2"></i>
+                            Áp dụng
+                        </button>
+                    </div>
+                </div>
+
+
+            </div>
+        </div>
+
+        <!-- Summary Stats -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div
+                class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transform hover:scale-105 transition-all duration-200">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center">
+                            <i class="fas fa-users text-blue-600 dark:text-blue-400 text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Tổng nhân viên</p>
+                        <p id="totalUsers" class="text-2xl font-bold text-gray-900 dark:text-white">--</p>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transform hover:scale-105 transition-all duration-200">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div
+                            class="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center">
+                            <i class="fas fa-calendar-check text-green-600 dark:text-green-400 text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Ngày làm việc</p>
+                        <p id="workingDays" class="text-2xl font-bold text-gray-900 dark:text-white">--</p>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transform hover:scale-105 transition-all duration-200">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div
+                            class="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center">
+                            <i class="fas fa-file-alt text-purple-600 dark:text-purple-400 text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Tổng bản ghi</p>
+                        <p id="totalRecords" class="text-2xl font-bold text-gray-900 dark:text-white">--</p>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 transform hover:scale-105 transition-all duration-200">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div
+                            class="w-12 h-12 bg-orange-100 dark:bg-orange-900 rounded-xl flex items-center justify-center">
+                            <i class="fas fa-exclamation-triangle text-orange-600 dark:text-orange-400 text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Báo cáo đã duyệt</p>
+                        <p id="approvedReports" class="text-2xl font-bold text-gray-900 dark:text-white">--</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <!-- Table Header -->
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Dữ Liệu Chấm Công</h3>
+                <div class="flex items-center space-x-3">
+                    <span id="recordCount" class="text-sm text-gray-500 dark:text-gray-400">0 bản ghi</span>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loadingState" class="hidden">
+                <div class="flex items-center justify-center h-48">
+                    <div class="flex items-center space-x-3">
+                        <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+                            viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                            </path>
+                        </svg>
+                        <span class="text-gray-700 dark:text-gray-300 font-medium">Đang tải dữ liệu...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="hidden">
+                <div class="flex flex-col items-center justify-center h-48">
+                    <div
+                        class="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-xl flex items-center justify-center mb-4">
+                        <i class="fas fa-inbox text-gray-400 text-2xl"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Chưa có dữ liệu</h3>
+                    <p class="text-gray-500 dark:text-gray-400 text-center max-w-md">Vui lòng chọn tháng và áp dụng bộ
+                        lọc để xem dữ liệu chấm công</p>
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div id="tableContainer" class="overflow-x-auto">
+                <table class="min-w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700">
+                    <colgroup>
+                        <col class="w-16"> <!-- ID -->
+                        <col class="w-48"> <!-- Tên nhân viên -->
+                        <col class="w-32"> <!-- Ngày -->
+                        <col class="w-20"> <!-- Thứ -->
+                        <col class="w-24"> <!-- Giờ vào -->
+                        <col class="w-24"> <!-- Giờ ra -->
+                        <col class="w-24"> <!-- Tổng giờ -->
+                        <col class="w-28"> <!-- Phạt tiền -->
+                        <col class="w-64"> <!-- Ghi chú -->
+                    </colgroup>
+                    <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
+                        <tr>
+                            <th
+                                class="px-3 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                ID
+                            </th>
+                            <th
+                                class="px-3 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                Tên nhân viên
+                            </th>
+                            <th
+                                class="px-3 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                Ngày
+                            </th>
+                            <th
+                                class="px-3 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                Thứ
+                            </th>
+                            <th
+                                class="px-3 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                Giờ vào
+                            </th>
+                            <th
+                                class="px-3 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                Giờ ra
+                            </th>
+                            <th
+                                class="px-3 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                Tổng giờ
+                            </th>
+                            <th
+                                class="px-3 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                Phạt tiền
+                            </th>
+                            <th
+                                class="px-3 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider whitespace-nowrap">
+                                Ghi chú
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"
+                        class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        <!-- Table rows will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div id="paginationContainer"
+                class="px-4 sm:px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                <div class="flex items-center justify-center sm:justify-start text-sm text-gray-500 dark:text-gray-400">
+                    <span>Hiển thị</span>
+                    <div class="relative mx-2">
+                        <select id="pageSizeSelect"
+                            class="px-3 py-1 pr-8 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white appearance-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
+                            <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+                    <span>của <span id="totalRecordsText">0</span> bản ghi</span>
+                </div>
+
+                <div class="flex items-center justify-center space-x-2">
+                    <button id="prevPageBtn"
+                        class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+
+                    <div id="pageNumbers" class="flex items-center space-x-1">
+                        <!-- Page numbers will be populated by JavaScript -->
+                    </div>
+
+                    <button id="nextPageBtn"
+                        class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript will be added here -->
+    <script src="../static/js/utils/darkmode.js"></script>
+    <script type="module" src="../static/js/pages/export.js"></script>
+
+</html>

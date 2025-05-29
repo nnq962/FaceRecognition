@@ -14,3 +14,8 @@ log_nohup.txt
 audio_cache
 supervisor
 main_config.json
+models/
+users_data/
+logs/
+config.yaml
+user_data_deleted/

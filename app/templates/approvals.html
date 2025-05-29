@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phê Duyệt Báo Cáo Nghỉ Việc</title>
+    <link rel="icon" href="../static/images/icons/approvals.png" type="image/x-icon">
+    <link rel="stylesheet" href="../static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Chrome, Edge, Safari */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            opacity: 0;
+            display: none;
+        }
+
+        /* Firefox */
+        input[type="date"]::-moz-calendar-picker-indicator {
+            opacity: 0;
+            display: none;
+        }
+
+        /* Safari/iOS - đã xử lý bằng appearance-none */
+        input[type="date"] {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen transition-colors duration-300">
+    <div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <!-- Back to Dashboard button -->
+        <a href="/dashboard"
+            class="flex items-center text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 mb-6 transition-colors duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                    clip-rule="evenodd" />
+            </svg>
+            <span>Quay lại Dashboard</span>
+        </a>
+
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-semibold text-gray-800 dark:text-white mb-2">
+                Phê Duyệt Các Báo Cáo
+            </h1>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div
+                            class="w-8 h-8 bg-yellow-100 dark:bg-yellow-900 rounded-lg flex items-center justify-center">
+                            <svg class="w-4 h-4 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Chờ phê duyệt</p>
+                        <p class="text-2xl font-semibold text-gray-900 dark:text-white">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
+                            <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M5 13l4 4L19 7"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Đã phê duyệt</p>
+                        <p class="text-2xl font-semibold text-gray-900 dark:text-white">0</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <div class="w-8 h-8 bg-red-100 dark:bg-red-900 rounded-lg flex items-center justify-center">
+                            <svg class="w-4 h-4 text-red-600 dark:text-red-400" fill="none" stroke="currentColor"
+                                viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Đã từ chối</p>
+                        <p class="text-2xl font-semibold text-gray-900 dark:text-white">0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports container -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold">Các báo cáo cần phê duyệt</h2>
+                <button type="button"
+                    class="p-2 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors w-8 h-8 flex items-center justify-center"
+                    id="refreshReports" title="Làm mới">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+
+            <div class="p-4">
+                <div
+                    class="border-b border-gray-200 dark:border-gray-700 flex justify-start mb-4 gap-1 sm:overflow-x-auto sm:scrollbar-hide">
+                    <button type="button"
+                        class="flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:whitespace-nowrap border-b-2 border-blue-500 text-blue-500 font-medium text-sm sm:text-base truncate"
+                        data-report-type="all">Tất cả</button>
+                    <button type="button"
+                        class="flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:whitespace-nowrap border-b-2 border-transparent hover:text-blue-500 dark:hover:text-blue-400 text-sm sm:text-base truncate"
+                        data-report-type="incorrect_photo">Ảnh không đúng</button>
+                    <button type="button"
+                        class="flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:whitespace-nowrap border-b-2 border-transparent hover:text-blue-500 dark:hover:text-blue-400 text-sm sm:text-base truncate"
+                        data-report-type="machine_error">Lỗi máy</button>
+                    <button type="button"
+                        class="flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:whitespace-nowrap border-b-2 border-transparent hover:text-blue-500 dark:hover:text-blue-400 text-sm sm:text-base truncate"
+                        data-report-type="leave_request">Giấy phép</button>
+                </div>
+
+                <!-- Lọc trạng thái -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <!-- Ô trạng thái: thêm ID để JS thao tác -->
+                    <div id="statusFilterWrapper" class="relative sm:col-span-1">
+                        <select id="statusFilter"
+                            class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm min-w-0 pr-10 appearance-none"
+                            style="min-height: 40px;">
+                            <option value="all">Tất cả trạng thái</option>
+                            <option value="pending">Đang chờ xử lý</option>
+                            <option value="rejected">Đã từ chối</option>
+                            <option value="approved">Đã phê duyệt</option>
+                        </select>
+                        <!-- Mũi tên -->
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Từ ngày + Đến ngày (ẩn mặc định) -->
+                    <div class="grid grid-cols-2 gap-2 items-center hidden" id="dateFilter">
+                        <!-- Ô Từ ngày -->
+                        <div class="relative">
+                            <input type="date" id="fromDate"
+                                class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm min-w-0 pr-10 appearance-none"
+                                style="min-height: 40px;">
+                            <label for="fromDate"
+                                class="absolute -top-2 left-2 text-xs bg-white dark:bg-gray-800 px-1 text-gray-500 dark:text-gray-400">
+                                Từ ngày
+                            </label>
+                            <button type="button"
+                                onclick="document.getElementById('fromDate').showPicker?.() || document.getElementById('fromDate').focus();"
+                                class="absolute inset-y-0 right-0 flex items-center px-2 text-gray-500" tabindex="-1">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Ô Đến ngày -->
+                        <div class="relative">
+                            <input type="date" id="toDate"
+                                class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm min-w-0 pr-10 appearance-none"
+                                style="min-height: 40px;">
+                            <label for="toDate"
+                                class="absolute -top-2 left-2 text-xs bg-white dark:bg-gray-800 px-1 text-gray-500 dark:text-gray-400">
+                                Đến ngày
+                            </label>
+                            <button type="button"
+                                onclick="document.getElementById('toDate').showPicker?.() || document.getElementById('toDate').focus();"
+                                class="absolute inset-y-0 right-0 flex items-center px-2 text-gray-500" tabindex="-1">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Danh sách báo cáo -->
+                <div class="reports-list space-y-4 min-h-[300px]" id="reportsList">
+                    <!-- Nội dung sẽ được thêm bởi JavaScript -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <script src="../static/js/utils/darkmode.js"></script>
+    <script type="module" src="../static/js/pages/approvals.js"></script>
+</body>
+
+</html>

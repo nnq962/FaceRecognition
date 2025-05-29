@@ -6,14 +6,14 @@ import pandas as pd
 import os
 import shutil
 from insightface_detector import InsightFaceDetector
-from insightface_utils import process_image
+from utils.insightface_utils import process_image
 import numpy as np
 from flask_cors import CORS
 from config import config
 from annoy import AnnoyIndex
 import faiss
 import pickle
-import onvif_camera_tools
+import utils.onvif_camera_tools as onvif_camera_tools
 from utils.logger_config import LOGGER
 from qr_code.generate_aruco_tags import generate_aruco_marker
 import io

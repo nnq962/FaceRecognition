@@ -10,13 +10,13 @@ ort.set_default_logger_severity(3)
 
 from utils.plots import Annotator
 from face_emotion import FaceEmotion
-from insightface_utils import normalize_embeddings, crop_and_align_faces, crop_faces_for_emotion, search_ids, crop_image
+from utils.insightface_utils import normalize_embeddings, crop_and_align_faces, crop_faces_for_emotion, search_ids, crop_image
 from hand_raise_detector import get_raising_hand
-from answer_sender import send_data_to_server
+from services.websocket.answer_sender import send_data_to_server
 from config import config
 from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
-from notification_server import send_notification
-import face_mask_detection
+from services.notification.notification_server import send_notification
+# import face_mask_detection
 from pymongo.operations import InsertOne, UpdateOne
 from utils.logger_config import LOGGER
 
@@ -39,8 +39,8 @@ class InsightFaceDetector:
                 noti_secret_key=None
                 ):
                 
-        self.det_model_path = os.path.expanduser("~/Models/det_10g.onnx")
-        self.rec_model_path = os.path.expanduser("~/Models/w600k_r50.onnx")
+        self.det_model_path = os.path.expanduser("models/det_10g.onnx")
+        self.rec_model_path = os.path.expanduser("models/w600k_r50.onnx")
         self.det_model = None
         self.rec_model = None
 
@@ -447,10 +447,6 @@ class InsightFaceDetector:
     def _process_attendance_data(self, export_data_list, today_date, current_time_short, notification_enabled=False):
         if not export_data_list:
             return
-            
-        # Tạo thư mục lưu ảnh
-        image_folder = f"attendance_images/{today_date.replace('-', '_')}"
-        os.makedirs(image_folder, exist_ok=True)
         
         # Kiểm tra thời gian chỉ một lần
         is_after_1730 = self._is_after_time(current_time_short, 17, 30)
@@ -478,7 +474,10 @@ class InsightFaceDetector:
             
             if user_id not in records_dict:
                 # Xử lý check-in mới
-                image_path = f"{image_folder}/{user_id}_{data['time'].replace(':', '_')}_check_in.png"
+                image_folder = f"user_data/{user_id}/attendance_photos/{today_date.replace('-', '_')}"
+                os.makedirs(image_folder, exist_ok=True)
+
+                check_in_image_path = f"{image_folder}/check_in.png"
                 welcome_noti = not is_after_1730
                 
                 new_record = {
@@ -486,7 +485,6 @@ class InsightFaceDetector:
                     "user_id": user_id,
                     "name": data["name"],
                     "check_in_time": data["time"],
-                    "check_in_image_path": image_path,
                     "timestamps": [timestamp_entry],
                     "check_out_time": data["time"],
                     "goodbye_noti": False,
@@ -498,7 +496,7 @@ class InsightFaceDetector:
                 img = data["image"].copy()
                 x1, y1, x2, y2 = map(int, data["bbox"])
                 cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                cv2.imwrite(image_path, img)
+                cv2.imwrite(check_in_image_path, img)
                 
                 if welcome_noti:
                     welcome_users.append(data["name"])
@@ -513,12 +511,19 @@ class InsightFaceDetector:
                 if is_after_1730 and not record.get("goodbye_noti", False):
                     goodbye_users.append(data["name"])
                     update_data["$set"]["goodbye_noti"] = True
+                    # Lưu ảnh check-out
+                    image_folder = f"user_data/{user_id}/attendance_photos/{today_date.replace('-', '_')}"
+                    os.makedirs(image_folder, exist_ok=True)
+                    check_out_image_path = f"{image_folder}/check_out.png"
+                    img = data["image"].copy()
+                    x1, y1, x2, y2 = map(int, data["bbox"])
+                    cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.imwrite(check_out_image_path, img)
                     
                 operations.append(UpdateOne(
                     {"date": today_date, "user_id": user_id},
                     update_data
-                ))
-        
+                ))        
         # Thực hiện bulk write một lần
         if operations:
             try:

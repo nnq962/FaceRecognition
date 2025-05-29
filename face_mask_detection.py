@@ -1,14 +1,19 @@
 import cv2
 import argparse
 import numpy as np
+from face_mask.MainModel import MainModel
 from face_mask.utils.anchor_generator import generate_anchors
 from face_mask.utils.anchor_decode import decode_bbox
 from face_mask.utils.nms import single_class_non_max_suppression
 from face_mask.pytorch_loader import load_pytorch_model, pytorch_inference
+import os
 
+# Lấy đường dẫn thực sự đến model
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))  # dir chứa face_mask_detection.py
+MODEL_PATH = os.path.join(CURRENT_DIR, 'face_mask', 'model360.pth')
+model = load_pytorch_model(MODEL_PATH)
 
 # model = load_pytorch_model('models/face_mask_detection.pth');
-model = load_pytorch_model('face_mask/model360.pth')
 # anchor configuration
 #feature_map_sizes = [[33, 33], [17, 17], [9, 9], [5, 5], [3, 3]]
 feature_map_sizes = [[45, 45], [23, 23], [12, 12], [6, 6], [4, 4]]

@@ -1,0 +1,220 @@
+/* Thêm vào phía dưới của file src/input.css */
+@import "tailwindcss";
+
+/* Toast Notification Styles */
+@layer components {
+  .toast-container {
+    position: fixed;
+    bottom: 1.25rem;
+    right: 1.25rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    /* Responsive adjustments */
+    max-width: calc(100% - 2rem); /* Giới hạn chiều rộng trên mobile */
+  }
+  
+  .toast {
+    display: flex;
+    align-items: flex-start;
+    min-width: min(300px, 80vw); /* Sử dụng min() để giới hạn chiều rộng tối thiểu */
+    max-width: min(28rem, 90vw); /* Giới hạn chiều rộng tối đa trên mobile */
+    padding: 0.938rem;
+    margin-bottom: 0.25rem;
+    border-radius: 0.5rem;
+    background-color: white;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transform: translateY(30px) translateX(0);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    pointer-events: none;
+    overflow: hidden;
+    /* Responsive improvements */
+    font-size: 0.875rem; /* Nhỏ hơn trên mobile */
+  }
+  
+  /* Mobile optimization */
+  @media (max-width: 640px) {
+    .toast-container {
+      bottom: 1rem;
+      right: 1rem;
+      left: 1rem; /* Mở rộng sang trái để căn giữa */
+      align-items: center; /* Căn giữa toast trên mobile */
+    }
+    
+    .toast {
+      width: 100%; /* Chiếm toàn bộ chiều rộng container */
+      min-width: unset; /* Bỏ giới hạn tối thiểu */
+      padding: 0.75rem; /* Padding nhỏ hơn */
+    }
+    
+    .toast-icon {
+      margin-right: 0.625rem; /* Giảm margin */
+    }
+    
+    .toast-icon svg {
+      width: 20px; /* Icon nhỏ hơn */
+      height: 20px;
+    }
+    
+    .toast-message {
+      font-size: 0.875rem; /* Chữ nhỏ hơn */
+    }
+    
+    .toast-description {
+      font-size: 0.75rem; /* Chữ mô tả nhỏ hơn */
+    }
+  }
+  
+  /* Dark mode styling */
+  .dark .toast {
+    background-color: #1f2937;
+    border-color: #374151;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  }
+  
+  /* Toast colors */
+  .toast-success {
+    border-left: 4px solid #28c840 !important;
+  }
+  
+  .toast-error {
+    border-left: 4px solid #ff5f57 !important;
+  }
+  
+  .toast-warning {
+    border-left: 4px solid #ffcc00 !important;
+  }
+  
+  .toast-info {
+    border-left: 4px solid #0071e3 !important;
+  }
+  
+  /* Toast show state */
+  .toast.show {
+    transform: translateY(0) translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  /* Toast icon container */
+  .toast-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 0.938rem;
+    flex-shrink: 0; /* Không cho phép icon co lại */
+  }
+  
+  /* Toast icon colors */
+  .toast-icon svg.text-green-500 {
+    color: #28c840;
+  }
+  
+  .toast-icon svg.text-red-500 {
+    color: #ff5f57;
+  }
+  
+  .toast-icon svg.text-yellow-500 {
+    color: #ffcc00;
+  }
+  
+  .toast-icon svg.text-blue-500 {
+    color: #0071e3;
+  }
+  
+  /* Toast content area */
+  .toast-content {
+    flex: 1;
+    min-width: 0; /* Cho phép truncate nội dung dài */
+  }
+  
+  /* Toast message (title) */
+  .toast-message {
+    font-weight: 600;
+    margin-bottom: 0.188rem;
+    color: #111827;
+    word-wrap: break-word; /* Cho phép ngắt từ */
+  }
+  
+  .dark .toast-message {
+    color: #f9fafb;
+  }
+  
+  /* Toast description */
+  .toast-description {
+    font-size: 0.875rem;
+    color: #4b5563;
+    word-wrap: break-word; /* Cho phép ngắt từ */
+  }
+  
+  .dark .toast-description {
+    color: #9ca3af;
+  }
+  
+  /* Close button */
+  .toast-close {
+    color: #6b7280;
+    background: transparent;
+    border: none;
+    padding: 0.25rem;
+    cursor: pointer;
+    margin-left: 0.5rem;
+    border-radius: 0.25rem;
+    transition: background-color 0.2s;
+    flex-shrink: 0; /* Không cho phép nút co lại */
+  }
+  
+  .toast-close:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+  
+  .dark .toast-close {
+    color: #9ca3af;
+  }
+  
+  .dark .toast-close:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  /* Progress bar container */
+  .toast-progress-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background-color: rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+  }
+  
+  .dark .toast-progress-container {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  /* Progress bar */
+  .toast-progress-bar {
+    height: 100%;
+    transition: width 0.1s linear;
+  }
+  
+  .toast-success .toast-progress-bar {
+    background-color: #28c840;
+  }
+  
+  .toast-error .toast-progress-bar {
+    background-color: #ff5f57;
+  }
+  
+  .toast-warning .toast-progress-bar {
+    background-color: #ffcc00;
+  }
+  
+  .toast-info .toast-progress-bar {
+    background-color: #0071e3;
+  }
+}

@@ -1,6 +1,6 @@
 import argparse
-import json
 import os
+import yaml
 from config import config
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
@@ -8,29 +8,29 @@ from utils.logger_config import LOGGER
 from app import build_faiss_index
 
 def load_config(config_name):
-    """Load and validate configuration from main_config.json"""
+    """Load and validate configuration from config.yaml"""
     try:
         # Kiểm tra tồn tại của file config
-        config_path = "main_config.json"
+        config_path = "config.yaml"
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"File cấu hình '{config_path}' không tìm thấy")
             
         # Load toàn bộ config từ file
         with open(config_path, "r", encoding="utf-8") as f:
             try:
-                all_configs = json.load(f)
-            except json.JSONDecodeError:
-                raise ValueError(f"File '{config_path}' không phải là JSON hợp lệ")
+                all_configs = yaml.safe_load(f)
+            except yaml.YAMLError as e:
+                raise ValueError(f"File '{config_path}' không phải là YAML hợp lệ: {str(e)}")
         
         # Kiểm tra config_name có tồn tại trong config hay không
         if config_name not in all_configs:
             # Liệt kê các cấu hình có sẵn để thông báo
             available_configs = ", ".join(all_configs.keys())
-            raise ValueError(f"'{config_name}' không có trong main_config.json. Các cấu hình có sẵn: {available_configs}")
+            raise ValueError(f"'{config_name}' không có trong config.yaml. Các cấu hình có sẵn: {available_configs}")
         
         # Lấy config theo tên
         main_config = all_configs[config_name]
-        LOGGER.info(f"Đã tải cấu hình '{config_name}' thành công")
+        LOGGER.info(f"Đã tải cấu hình '{config_name}' thành công từ config.yaml")
         return main_config
         
     except Exception as e:
@@ -40,7 +40,7 @@ def load_config(config_name):
 def main():
     # Phân tích tham số dòng lệnh
     parser = argparse.ArgumentParser(description="Run face detection and analysis based on main config.")
-    parser.add_argument("--config", type=str, default="DEFAULT", help="Config code defined in main_config.json")
+    parser.add_argument("--config", type=str, default="DEFAULT", help="Config code defined in config.yaml")
     args = parser.parse_args()
     
     # Load config

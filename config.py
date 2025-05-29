@@ -26,19 +26,17 @@ class Config:
     camera_ids = []
 
     # Đường dẫn tới thư mục lưu ảnh
-    user_data_path = Path.home() / "user_data"
-    os.makedirs(user_data_path, exist_ok=True)
-    user_data_path = str(user_data_path)
+    BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
     model_urls = {
     "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
     "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2"
     }
 
-    ann_file = "ann_database/face_index.ann"
-    mapping_file = "ann_database/annoy_mapping.npy"
-    faiss_file = "faiss_database/face_index.faiss"
-    faiss_mapping_file = "faiss_database/faiss_mapping.pkl"
+    ann_file = "ann_data/face_index.ann"
+    mapping_file = "ann_data/annoy_mapping.npy"
+    faiss_file = "faiss_data/face_index.faiss"
+    faiss_mapping_file = "faiss_data/faiss_mapping.pkl"
     vector_dim = 512
     
     # Tạo MONGO_URI linh hoạt
@@ -54,17 +52,19 @@ class Config:
     except Exception as e:
         LOGGER.error(f"MongoDB connection failed: {e}")
 
-    database = client["my_database"]
+    database = client["face_recognition"]
 
     # Các collection
     user_collection = database["users"]
-    admin_collection = database["3hinc_admins"]
+    admin_collection = database["edulive_admins"]
     camera_collection = database["cameras"]
+    reports_collection = database["reports"]
+    feedbacks_collection = database["feedbacks"]
 
     def __init__(self):
         self.update_path = self.find_file_in_anaconda("degradations.py")
         # self.update_import(file_path=self.update_path)
-        self.prepare_models(model_urls=self.model_urls, save_dir="~/Models")
+        self.prepare_models(model_urls=self.model_urls, save_dir="models")
 
     def get_rtsp_by_id(self, camera_id):
         camera = self.camera_collection.find_one(

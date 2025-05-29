@@ -7,12 +7,15 @@ from flask import Flask, render_template, jsonify, request, send_from_directory
 import subprocess
 import os
 import time
-import json
+import yaml  # Thay đổi từ json sang yaml
 import re
 from config import config
 import cv2
 from unidecode import unidecode
 from utils.logger_config import LOGGER
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -20,13 +23,13 @@ app = Flask(__name__)
 # --- Đường dẫn chính ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 WORK_DIR = BASE_DIR
-USER = "3hinc"
+USER = os.getenv("USER")
 
 # --- Thư mục supervisor (gồm: db, conf, log) ---
 SUPERVISOR_DIR = os.path.join(WORK_DIR, "supervisor")
 SUPERVISOR_CONF_DIR = os.path.join(SUPERVISOR_DIR, "conf")  # nơi lưu các file .conf
 SUPERVISOR_LOG_DIR = os.path.join(SUPERVISOR_DIR, "log")    # nơi lưu log stdout/stderr
-TASK_CONFIG_FILE = os.path.join(WORK_DIR, "main_config.json")
+TASK_CONFIG_FILE = os.path.join(WORK_DIR, "config.yaml")  # Thay đổi từ main_config.json sang config.yaml
 
 # Biến mặc định global
 HOST = "192.168.1.142"
@@ -255,7 +258,7 @@ def get_task_details():
                 'message': 'Thiếu ID tiến trình'
             }), 400
 
-        config = load_json_file(TASK_CONFIG_FILE)
+        config = load_yaml_file(TASK_CONFIG_FILE)
         
         if task_id not in config:
             return jsonify({
@@ -301,7 +304,7 @@ def restart_task():
         return jsonify(status='error', message='Thiếu task_id'), 400
     try:
         # Lấy thông tin từ database
-        db = load_json_file(TASK_CONFIG_FILE)
+        db = load_yaml_file(TASK_CONFIG_FILE)
         if pid not in db:
             return jsonify(status='error', message=f'Không tìm thấy tiến trình {pid}'), 404
         
@@ -318,7 +321,7 @@ def restart_task():
         # Cập nhật start_time mới
         if pid in db:
             db[pid]['start_time'] = time.time()
-            save_json_file(db, TASK_CONFIG_FILE)
+            save_yaml_file(db, TASK_CONFIG_FILE)
             
         return jsonify(status='success', message=f'Đã restart: {name}')
     
@@ -347,7 +350,7 @@ def update_task():
             }), 400
         
         # Load cấu hình hiện tại
-        config = load_json_file(TASK_CONFIG_FILE)
+        config = load_yaml_file(TASK_CONFIG_FILE)
         
         # Kiểm tra xem tiến trình có tồn tại không
         if task_id not in config:
@@ -418,7 +421,7 @@ def update_task():
         })
 
         # Lưu lại file cấu hình
-        save_json_file(config, TASK_CONFIG_FILE)
+        save_yaml_file(config, TASK_CONFIG_FILE)
 
         # Cập nhật file cấu hình supervisor
         cmd_str = f"/bin/bash -c 'cd {WORK_DIR} && {python_cmd}'"
@@ -452,7 +455,7 @@ environment=HOME="{os.path.expanduser('~')}",USER="{USER}"
                 subprocess.run(["supervisorctl", "start", f"{task_id}"], check=True)
                 config[task_id]["status"] = "RUNNING"
                 config[task_id]["start_time"] = time.time()
-                save_json_file(config, TASK_CONFIG_FILE)  # Lưu lại trạng thái RUNNING
+                save_yaml_file(config, TASK_CONFIG_FILE)  # Lưu lại trạng thái RUNNING
             
             return jsonify({
                 'status': 'success',
@@ -524,7 +527,7 @@ def generate_task_id(name):
         safe_name = "process"
     
     # Kiểm tra xem ID này đã tồn tại chưa
-    task_ids = load_json_file(TASK_CONFIG_FILE)
+    task_ids = load_yaml_file(TASK_CONFIG_FILE)
     
     # Nếu ID chưa tồn tại, sử dụng ngay
     if safe_name not in task_ids:
@@ -537,16 +540,16 @@ def generate_task_id(name):
     
     return f"{safe_name}_{counter}"
 
-def load_json_file(db_file_path, skip_keys=None):
+def load_yaml_file(db_file_path, skip_keys=None):
     """
-    Hàm nội bộ: Load process database from file và bỏ qua các key chỉ định
+    Hàm nội bộ: Load process database from YAML file và bỏ qua các key chỉ định
     
     Args:
-        db_file_path (str): Đường dẫn đến file JSON
+        db_file_path (str): Đường dẫn đến file YAML
         skip_keys (list, optional): Danh sách các keys cần bỏ qua. Mặc định là ["DEFAULT"]
 
     Returns:
-        dict: Dữ liệu JSON đã được đọc với các key đã được bỏ qua
+        dict: Dữ liệu YAML đã được đọc với các key đã được bỏ qua
     """
     if skip_keys is None:
         skip_keys = ["DEFAULT"]
@@ -554,35 +557,35 @@ def load_json_file(db_file_path, skip_keys=None):
     if os.path.exists(db_file_path):
         try:
             with open(db_file_path, 'r') as f:
-                data = json.load(f)
+                data = yaml.safe_load(f)
                 # Loại bỏ các key được chỉ định
                 for key in skip_keys:
                     if key in data:
                         del data[key]
                 return data
         except Exception as e:
-            LOGGER.error(f"Lỗi khi đọc file JSON {db_file_path}: {e}")
+            LOGGER.error(f"Lỗi khi đọc file YAML {db_file_path}: {e}")
             return {}
     return {}
 
-def save_json_file(task_ids, db_file_path):
+def save_yaml_file(task_ids, db_file_path):
     """
-    Hàm nội bộ: Save process database to file
+    Hàm nội bộ: Save process database to YAML file
     
     Args:
         task_ids (dict): Thông tin các tiến trình cần lưu
-        db_file_path (str): Đường dẫn đến file JSON
+        db_file_path (str): Đường dẫn đến file YAML
     """
-    LOGGER.debug(f"Đang lưu file JSON vào {db_file_path}")
+    LOGGER.debug(f"Đang lưu file YAML vào {db_file_path}")
     
     # Đọc dữ liệu hiện có để giữ lại DEFAULT
     current_data = {}
     if os.path.exists(db_file_path):
         try:
             with open(db_file_path, 'r') as f:
-                current_data = json.load(f)
+                current_data = yaml.safe_load(f) or {}
         except Exception as e:
-            LOGGER.error(f"Lỗi khi đọc file JSON hiện có {db_file_path}: {e}")
+            LOGGER.error(f"Lỗi khi đọc file YAML hiện có {db_file_path}: {e}")
     
     # Cập nhật dữ liệu mới, giữ nguyên DEFAULT
     for task_id, task_data in task_ids.items():
@@ -596,40 +599,40 @@ def save_json_file(task_ids, db_file_path):
     # Lưu toàn bộ dữ liệu
     try:
         with open(db_file_path, 'w') as f:
-            json.dump(current_data, f, indent=4)
+            yaml.dump(current_data, f, default_flow_style=False, sort_keys=False)
         LOGGER.info(f"Đã lưu thành công dữ liệu vào {db_file_path}")
     except Exception as e:
-        LOGGER.error(f"Lỗi khi lưu file JSON {db_file_path}: {e}")
+        LOGGER.error(f"Lỗi khi lưu file YAML {db_file_path}: {e}")
 
-def delete_json_config(db_file_path, config_key):
+def delete_yaml_config(db_file_path, config_key):
     """
-    Xóa một cấu hình cụ thể khỏi file JSON
+    Xóa một cấu hình cụ thể khỏi file YAML
 
     Args:
-        db_file_path (str): Đường dẫn đến file JSON
+        db_file_path (str): Đường dẫn đến file YAML
         config_key (str): Tên key cấu hình cần xóa
     """
     try:
         # Đọc dữ liệu hiện có
         with open(db_file_path, 'r') as f:
-            current_data = json.load(f)
+            current_data = yaml.safe_load(f)
         
         # Kiểm tra và xóa key nếu tồn tại
         if config_key in current_data:
             del current_data[config_key]
             
-            # Lưu lại file JSON
+            # Lưu lại file YAML
             with open(db_file_path, 'w') as f:
-                json.dump(current_data, f, indent=4)
+                yaml.dump(current_data, f, default_flow_style=False, sort_keys=False)
             
             LOGGER.info(f"Đã xóa cấu hình '{config_key}' thành công từ {db_file_path}")
         else:
-            LOGGER.warning(f"Không tìm thấy cấu hình '{config_key}' trong file JSON")
+            LOGGER.warning(f"Không tìm thấy cấu hình '{config_key}' trong file YAML")
     
     except FileNotFoundError:
-        LOGGER.error(f"File JSON không tồn tại: {db_file_path}")
-    except json.JSONDecodeError:
-        LOGGER.error(f"Lỗi đọc file JSON: {db_file_path}")
+        LOGGER.error(f"File YAML không tồn tại: {db_file_path}")
+    except yaml.YAMLError:
+        LOGGER.error(f"Lỗi đọc file YAML: {db_file_path}")
     except Exception as e:
         LOGGER.error(f"Lỗi khi xóa cấu hình {config_key}: {e}")
 
@@ -641,7 +644,7 @@ def format_time(timestamp):
 
 def get_task_ids_internal():
     """Hàm nội bộ: Lấy danh sách các tiến trình"""
-    task_ids = load_json_file(TASK_CONFIG_FILE)
+    task_ids = load_yaml_file(TASK_CONFIG_FILE)
     
     try:
         result = subprocess.run(["supervisorctl", "status"], capture_output=True, text=True)
@@ -672,7 +675,7 @@ def get_task_ids_internal():
                 except Exception as detail_error:
                     process["status"] = "UNKNOWN"
         
-        save_json_file(task_ids, TASK_CONFIG_FILE)
+        save_yaml_file(task_ids, TASK_CONFIG_FILE)
     except Exception as e:
         LOGGER.error(f"Lỗi khi cập nhật trạng thái: {str(e)}")
     
@@ -709,7 +712,7 @@ def create_process_internal(features, camera_ids, task=None, room_id=None):
     }
 
     # Load cấu hình hiện tại
-    config = load_json_file(TASK_CONFIG_FILE)
+    config = load_yaml_file(TASK_CONFIG_FILE)
 
     # Cập nhật task mới với các giá trị mặc định
     config[task_id] = {
@@ -720,7 +723,7 @@ def create_process_internal(features, camera_ids, task=None, room_id=None):
     }
 
     # Lưu lại file
-    save_json_file(config, TASK_CONFIG_FILE)
+    save_yaml_file(config, TASK_CONFIG_FILE)
 
     # Xây dựng lệnh Python
     python_cmd = f"{PYTHON_PATH} main.py --config {task_id}"
@@ -775,7 +778,7 @@ environment=HOME="{os.path.expanduser('~')}",USER="{USER}"
         subprocess.run(["supervisorctl", "start", f"{task_id}"], check=True)
         
         # Lưu thông tin tiến trình với tên ở bên trong thông tin
-        config = load_json_file(TASK_CONFIG_FILE)
+        config = load_yaml_file(TASK_CONFIG_FILE)
         config[task_id].update({
             "name": get_unique_task_name(task),
             "command": python_cmd,
@@ -784,7 +787,7 @@ environment=HOME="{os.path.expanduser('~')}",USER="{USER}"
             "log_file": stdout_log,
             "error_log": stderr_log
         })
-        save_json_file(config, TASK_CONFIG_FILE)
+        save_yaml_file(config, TASK_CONFIG_FILE)
         
         return {
             "status": "success",
@@ -810,7 +813,7 @@ environment=HOME="{os.path.expanduser('~')}",USER="{USER}"
 
 def stop_task_internal(task_id):
     """Hàm nội bộ: Dừng tiến trình"""
-    task_ids = load_json_file(TASK_CONFIG_FILE)
+    task_ids = load_yaml_file(TASK_CONFIG_FILE)
     
     if task_id not in task_ids:
         return {"status": "error", "message": "Không tìm thấy tiến trình"}
@@ -825,7 +828,7 @@ def stop_task_internal(task_id):
         
         # Cập nhật trạng thái
         task_ids[task_id]["status"] = "STOPPED"
-        save_json_file(task_ids, TASK_CONFIG_FILE)
+        save_yaml_file(task_ids, TASK_CONFIG_FILE)
         
         return {
             "status": "success",
@@ -840,7 +843,7 @@ def stop_task_internal(task_id):
 
 def get_process_log_internal(task_id):
     """Hàm nội bộ: Lấy log của tiến trình"""
-    task_ids = load_json_file(TASK_CONFIG_FILE)
+    task_ids = load_yaml_file(TASK_CONFIG_FILE)
     
     if task_id not in task_ids:
         return {"status": "error", "message": "Không tìm thấy tiến trình"}
@@ -872,7 +875,7 @@ def get_process_log_internal(task_id):
         }
 
 def delete_task_internal(task_id):
-    task_ids = load_json_file(TASK_CONFIG_FILE)
+    task_ids = load_yaml_file(TASK_CONFIG_FILE)
 
     if task_id not in task_ids:
         return {'status': 'error', 'message': 'Không tìm thấy tiến trình'}
@@ -903,7 +906,7 @@ def delete_task_internal(task_id):
         subprocess.run(["supervisorctl", "update"], check=True)
 
         # 4. Gỡ khỏi DB
-        delete_json_config(TASK_CONFIG_FILE, task_id)
+        delete_yaml_config(TASK_CONFIG_FILE, task_id)
 
         return {
             'status': 'success',
@@ -924,7 +927,7 @@ def get_unique_task_name(name):
     if os.path.exists(TASK_CONFIG_FILE):
         try:
             with open(TASK_CONFIG_FILE, 'r') as f:
-                db = json.load(f)
+                db = yaml.safe_load(f)
         except:
             db = {}
     else:

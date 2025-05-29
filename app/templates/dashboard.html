@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Hệ Thống Chấm Công</title>
+    <link rel="icon" href="../static/images/icons/dashboard.png" type="image/x-icon">
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+
+<body class="bg-gray-50 dark:bg-gray-900 min-h-screen transition-colors duration-300">
+    <!-- Main Content -->
+    <div class="transition-all duration-300">
+        <!-- Top Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="max-w-7xl mx-auto px-4 md:px-6 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center">
+                        <h2 class="text-xl font-semibold text-gray-800 dark:text-white">Dashboard</h2>
+                    </div>
+                    <!-- User Profile Section -->
+                    <div class="flex items-center space-x-2 sm:space-x-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="relative">
+                                <div id="userAvatar"
+                                    class="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden shadow-sm">
+                                    <svg class="w-6 h-6 text-gray-400 dark:text-gray-400" fill="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path
+                                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                                    </svg>
+                                </div>
+                                <div
+                                    class="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-gray-800">
+                                </div>
+                            </div>
+                            <div class="hidden md:block">
+                                <p id="userName" class="text-sm font-medium text-gray-800 dark:text-white">Đang tải...
+                                </p>
+                                <div class="flex items-center space-x-2">
+                                    <!-- Xóa userRoleText, chỉ giữ badge -->
+                                    <span id="userRoleBadge"
+                                        class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
+                                        Role
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Logout Button -->
+                        <button id="logoutBtn" class="flex items-center justify-center gap-0 sm:gap-2 
+                            w-10 h-10 sm:w-auto sm:h-auto 
+                            p-0 sm:px-4 sm:py-2 
+                            bg-red-500 hover:bg-red-600 text-white 
+                            rounded-full sm:rounded-lg transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="currentColor"
+                                viewBox="0 0 52 52">
+                                <path
+                                    d="M21 48.5v-3c0-.8-.7-1.5-1.5-1.5h-10c-.8 0-1.5-.7-1.5-1.5v-33C8 8.7 8.7 8 9.5 8h10c.8 0 1.5-.7 1.5-1.5v-3c0-.8-.7-1.5-1.5-1.5H6C3.8 2 2 3.8 2 6v40c0 2.2 1.8 4 4 4h13.5c.8 0 1.5-.7 1.5-1.5" />
+                                <path
+                                    d="M49.6 27c.6-.6.6-1.5 0-2.1L36.1 11.4c-.6-.6-1.5-.6-2.1 0l-2.1 2.1c-.6.6-.6 1.5 0 2.1l5.6 5.6c.6.6.2 1.7-.7 1.7H15.5c-.8 0-1.5.6-1.5 1.4v3c0 .8.7 1.6 1.5 1.6h21.2c.9 0 1.3 1.1.7 1.7l-5.6 5.6c-.6.6-.6 1.5 0 2.1l2.1 2.1c.6.6 1.5.6 2.1 0z" />
+                            </svg>
+                            <span class="hidden sm:block">Đăng xuất</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <main class="p-4 md:p-6 transition-all max-w-7xl mx-auto">
+            <!-- Welcome Section -->
+            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl p-4 sm:p-6 md:p-8 shadow-md mb-6">
+                <div class="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
+                    <div class="text-center md:text-left">
+                        <h1 class="text-xl sm:text-2xl font-bold text-white mb-2">Xin chào</h1>
+                        <p class="text-blue-100 text-sm sm:text-base">Chào mừng bạn quay trở lại với hệ thống chấm công.
+                        </p>
+                    </div>
+                    <div class="flex flex-row items-center justify-center space-x-2 sm:space-x-3">
+                        <div
+                            class="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-white/20 text-white rounded-full text-xs sm:text-sm backdrop-blur-sm whitespace-nowrap">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span id="currentDate" class="font-medium">--/--/----</span>
+                        </div>
+                        <div
+                            class="flex items-center space-x-2 px-3 sm:px-4 py-2 bg-white/15 text-white rounded-full text-xs sm:text-sm backdrop-blur-sm whitespace-nowrap">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span id="currentTime" class="font-medium">--:--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Card 1: Theo dõi chấm công -->
+                <a href="/tracking"
+                    class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
+                    <div class="flex items-center mb-4">
+                        <div class="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-lg mr-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-500" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Theo dõi chấm công</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm">Xem và quản lý thông tin chấm công của nhân
+                        viên.</p>
+                </a>
+
+                <!-- Card 2: Phê duyệt -->
+                <a href="/approvals"
+                    class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-all duration-300 hover:shadow-md hover:translate-y-[-2px] relative">
+                    <!-- Badge thông báo - không nhấp nháy -->
+                    <div
+                        class="hidden absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center shadow-lg animate-bounce">
+                        <span id="pendingApprovals"></span>
+                    </div>
+
+                    <div class="flex items-center mb-4">
+                        <div class="p-3 bg-green-50 dark:bg-green-900/30 rounded-lg mr-4 relative">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-500" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-lg font-semibold text-gray-800 dark:text-white flex items-center">
+                                Phê duyệt
+                            </h3>
+                        </div>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm">
+                        Phê duyệt chấm công và yêu cầu nghỉ phép.
+                    </p>
+                </a>
+
+                <!-- Card 3: Xuất dữ liệu -->
+                <a href="/export"
+                    class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
+                    <div class="flex items-center mb-4">
+                        <div class="p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg mr-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-500" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Xuất dữ liệu</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm">Xuất báo cáo chấm công dưới dạng Excel.
+                    </p>
+                </a>
+
+                <!-- Card 4: Quản lý users -->
+                <a href="/users"
+                    class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
+                    <div class="flex items-center mb-4">
+                        <div class="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg mr-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Quản lý users</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm">Quản lý thông tin tài khoản nhân viên.
+                    </p>
+                </a>
+
+                <!-- Card 5: Feedback -->
+                <a href="/feedbacks"
+                    class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
+                    <div class="flex items-center mb-4">
+                        <div class="p-3 bg-pink-50 dark:bg-pink-900/30 rounded-lg mr-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-pink-500" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Feedback</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm">Phản hồi về hệ thống chấm công.</p>
+                </a>
+
+                <!-- Card 6: Cài đặt -->
+                <a href="/settings"
+                    class="hidden bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 transition-all duration-300 hover:shadow-md hover:translate-y-[-2px]">
+                    <div class="flex items-center mb-4">
+                        <div class="p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg mr-4">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-500" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37z" />
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-white">Cài đặt</h3>
+                    </div>
+                    <p class="text-gray-600 dark:text-gray-400 text-sm">Tùy chỉnh thông tin cá nhân.</p>
+                </a>
+            </div>
+        </main>
+    </div>
+
+    <script src="../static/js/utils/darkmode.js"></script>
+    <script type="module" src="../static/js/pages/dashboard.js"></script>
+</body>
+
+</html>

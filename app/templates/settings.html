@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cài đặt tài khoản</title>
+    <link rel="icon" href="../static/images/icons/setting.png" type="image/x-icon">
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen transition-colors duration-300">
+    <div class="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        <!-- Back button -->
+        <a href="/dashboard"
+            class="flex items-center text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 mb-6 transition-colors duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                    clip-rule="evenodd" />
+            </svg>
+            <span>Quay lại Dashboard</span>
+        </a>
+
+        <!-- Header -->
+        <div class="mb-8">
+            <h1 class="text-2xl font-semibold text-gray-800 dark:text-white mb-2">
+                Cài đặt tài khoản
+            </h1>
+        </div>
+
+        <!-- Profile Section -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-white mb-6">Thông tin cá nhân</h2>
+
+            <!-- Avatar Section -->
+            <div class="flex items-start space-x-6 mb-8">
+                <div class="relative">
+                    <div id="avatar-container"
+                        class="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden shadow-sm">
+                        <img id="current-avatar" src="" alt="Avatar" class="w-full h-full object-cover hidden">
+                        <svg id="default-avatar" class="w-12 h-12 text-gray-400 dark:text-gray-400" fill="currentColor"
+                            viewBox="0 0 24 24">
+                            <path
+                                d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                        </svg>
+                    </div>
+                    <button id="change-avatar-btn"
+                        class="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-500 hover:bg-blue-600 rounded-full flex items-center justify-center text-white transition-colors duration-200 shadow-lg">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z">
+                            </path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                    </button>
+                    <input type="file" id="avatar-input" accept="image/*" class="hidden">
+                </div>
+                <div class="flex-1">
+                    <h3 id="user-name-display" class="text-xl font-medium text-gray-900 dark:text-white mb-1"></h3>
+                    <p id="user-role-display" class="text-sm text-gray-500 dark:text-gray-400 mb-2"></p>
+                    <p class="text-sm text-gray-600 dark:text-gray-300">Nhấp vào biểu tượng camera để thay đổi avatar
+                    </p>
+                </div>
+            </div>
+
+            <!-- Account Info Display -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Name (Read-only) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Họ và tên
+                    </label>
+                    <div
+                        class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white">
+                        <span id="name-display"></span>
+                    </div>
+                </div>
+
+                <!-- Department (Read-only) -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Phòng ban
+                    </label>
+                    <div
+                        class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white">
+                        <span id="department-display"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Editable Fields Form -->
+            <form id="profile-form" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Email -->
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Email
+                        </label>
+                        <input type="email" id="email" name="email" placeholder="example@company.com"
+                            class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                    </div>
+
+                    <!-- Telegram ID -->
+                    <div>
+                        <label for="telegram_id"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Telegram ID
+                        </label>
+                        <input type="text" id="telegram_id" name="telegram_id" placeholder="@username hoặc ID số"
+                            class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
+                    <button type="button" id="cancel-btn"
+                        class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors duration-200">
+                        Hủy
+                    </button>
+                    <button type="submit" id="save-btn"
+                        class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Lưu thay đổi
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Security Section -->
+        <div
+            class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+            <h2 class="text-lg font-medium text-gray-900 dark:text-white mb-6">Bảo mật</h2>
+
+            <div class="space-y-4">
+                <!-- Change Password -->
+                <div class="flex items-start justify-between py-3 gap-4">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-white">Thay đổi mật khẩu</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Cập nhật mật khẩu để bảo mật tài khoản</p>
+                    </div>
+                    <div class="flex items-center flex-shrink-0">
+                        <button id="change-password-btn"
+                            class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors duration-200">
+                            Đổi mật khẩu
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Role Information -->
+                <div class="flex items-start justify-between py-3 border-t border-gray-200 dark:border-gray-700 gap-4">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-sm font-medium text-gray-900 dark:text-white">Vai trò</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">Quyền hạn hiện tại của tài khoản</p>
+                    </div>
+                    <div class="flex items-center flex-shrink-0">
+                        <span id="role-badge"
+                            class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors duration-200">
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="change-password-modal"
+        class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 backdrop-blur-sm transition-opacity opacity-0 pointer-events-none">
+        <div
+            class="w-full max-w-md max-h-[90vh] bg-white dark:bg-gray-800 rounded-2xl shadow-xl transform transition-all scale-95 mx-4">
+            <!-- Header -->
+            <div class="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-lg font-semibold text-gray-800 dark:text-white">Thay đổi mật khẩu</h2>
+                <button type="button" id="close-password-modal"
+                    class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-6">
+                <form id="change-password-form" class="space-y-4">
+                    <!-- Current Password -->
+                    <div>
+                        <label for="current-password"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Mật khẩu hiện tại <span class="text-red-500">*</span>
+                        </label>
+                        <input type="password" id="current-password" name="current_password" required
+                            class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                    </div>
+
+                    <!-- New Password -->
+                    <div>
+                        <label for="new-password"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Mật khẩu mới <span class="text-red-500">*</span>
+                        </label>
+                        <input type="password" id="new-password" name="new_password" required
+                            class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                    </div>
+
+                    <!-- Confirm New Password -->
+                    <div>
+                        <label for="confirm-password"
+                            class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Xác nhận mật khẩu mới <span class="text-red-500">*</span>
+                        </label>
+                        <input type="password" id="confirm-password" name="confirm_password" required
+                            class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200">
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex justify-end space-x-3 pt-6">
+                        <button type="button" id="cancel-password-btn"
+                            class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors duration-200">
+                            Hủy
+                        </button>
+                        <button type="submit" id="save-password-btn"
+                            class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Đổi mật khẩu
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay"
+        class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-6 flex items-center space-x-3">
+            <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+                viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <span class="text-gray-700 dark:text-gray-300">Đang xử lý...</span>
+        </div>
+    </div>
+
+    <script src="../static/js/utils/darkmode.js"></script>
+    <script type="module" src="../static/js/pages/settings.js"></script>
+</body>
+
+</html>

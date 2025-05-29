@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lịch chấm công | Hệ thống chấm công</title>
+    <link rel="icon" href="../static/images/icons/tracking.png" type="image/x-icon">
+    <link rel="stylesheet" href="../static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Custom styling for the calendar */
+        .macos-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+
+        .dark .macos-card {
+            background: #1f2937;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .macos-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            transform: translateY(-2px);
+        }
+
+        .dark .macos-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Chrome, Edge, Safari */
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            opacity: 0;
+            display: none;
+        }
+
+        /* Firefox */
+        input[type="date"]::-moz-calendar-picker-indicator {
+            opacity: 0;
+            display: none;
+        }
+
+        /* Safari/iOS - đã xử lý bằng appearance-none */
+        input[type="date"] {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
+    <div class="content-body max-w-7xl mx-auto px-4 py-6">
+
+        <!-- Back to Dashboard button -->
+        <a href="/dashboard"
+            class="flex items-center text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 mb-6">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                    clip-rule="evenodd" />
+            </svg>
+            <span>Quay lại Dashboard</span>
+        </a>
+
+        <!-- Header -->
+        <h1 class="text-2xl font-semibold text-gray-800 dark:text-white mb-4">Theo dõi chấm công</h1>
+
+        <!-- Attendance summary at the top -->
+        <div class="attendance-summary mb-6">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                <!-- Template card với icon luôn tròn -->
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div
+                            class="w-10 h-10 bg-blue-100 dark:bg-blue-900 flex items-center justify-center rounded-full">
+                            <i class="fas fa-calendar-alt text-blue-500 dark:text-blue-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate">Ngày làm việc</div>
+                        <div class="text-xl font-bold" id="workdayCount">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div
+                            class="w-10 h-10 bg-green-100 dark:bg-green-900 flex items-center justify-center rounded-full">
+                            <i class="fas fa-clipboard-check text-green-500 dark:text-green-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate">Đã điểm danh</div>
+                        <div class="text-xl font-bold" id="checkedDays">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div
+                            class="w-10 h-10 bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center rounded-full">
+                            <i class="fas fa-check-circle text-emerald-500 dark:text-emerald-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate">Đúng giờ</div>
+                        <div class="text-xl font-bold" id="onTimeCount">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div
+                            class="w-10 h-10 bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center rounded-full">
+                            <i class="fas fa-clock text-yellow-500 dark:text-yellow-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate" title="Đi muộn (8:10-8:30)">Đi
+                            muộn (8:10-8:30)</div>
+                        <div class="text-xl font-bold" id="lateCount">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div
+                            class="w-10 h-10 bg-amber-100 dark:bg-amber-900 flex items-center justify-center rounded-full">
+                            <i class="fas fa-clock text-amber-500 dark:text-amber-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate" title="Đi muộn (sau 8:30)">Đi
+                            muộn (sau 8:30)</div>
+                        <div class="text-xl font-bold" id="veryLateCount">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div
+                            class="w-10 h-10 bg-orange-100 dark:bg-orange-900 flex items-center justify-center rounded-full">
+                            <i class="fas fa-sign-out-alt text-orange-500 dark:text-orange-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate">Về sớm</div>
+                        <div class="text-xl font-bold" id="earlyLeaveCount">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div
+                            class="w-10 h-10 bg-pink-100 dark:bg-pink-900 flex items-center justify-center rounded-full">
+                            <i class="fas fa-user-times text-pink-500 dark:text-pink-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate">Vắng buổi sáng</div>
+                        <div class="text-xl font-bold" id="halfDayMorningCount">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div
+                            class="w-10 h-10 bg-purple-100 dark:bg-purple-900 flex items-center justify-center rounded-full">
+                            <i class="fas fa-user-times text-purple-500 dark:text-purple-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate">Vắng buổi chiều</div>
+                        <div class="text-xl font-bold" id="halfDayAfternoonCount">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div class="w-10 h-10 bg-red-100 dark:bg-red-900 flex items-center justify-center rounded-full">
+                            <i class="fas fa-times-circle text-red-500 dark:text-red-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate">Nghỉ</div>
+                        <div class="text-xl font-bold" id="absentCount">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 flex items-start h-full">
+                    <div class="flex-shrink-0 mr-3">
+                        <div
+                            class="w-10 h-10 bg-gray-100 dark:bg-gray-700 flex items-center justify-center rounded-full">
+                            <i class="fas fa-money-bill text-gray-500 dark:text-gray-400"></i>
+                        </div>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm text-gray-600 dark:text-gray-400 truncate">Tiền phạt</div>
+                        <div class="text-xl font-bold" id="fineAmount">0 VNĐ</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- Calendar HTML -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md mb-6">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                    <!-- Navigation + Today -->
+                    <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-4">
+                        <button
+                            class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white bg-gray-100 dark:bg-gray-700 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            id="prevMonth">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <h2 class="text-lg font-semibold min-w-[110px] text-center" id="currentMonth">
+                            Tháng 05/2025
+                        </h2>
+                        <button
+                            class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white bg-gray-100 dark:bg-gray-700 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                            id="nextMonth">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                        <button
+                            class="px-4 py-1.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+                            id="todayBtn">
+                            Hôm nay
+                        </button>
+                    </div>
+
+                    <!-- Legend -->
+                    <div class="flex flex-wrap items-center justify-center md:justify-end gap-x-4 gap-y-2">
+                        <div class="flex items-center gap-2">
+                            <div class="w-3.5 h-3.5 bg-green-500 rounded-full"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Đúng giờ</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3.5 h-3.5 bg-yellow-500 rounded-full"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Đi muộn</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3.5 h-3.5 bg-orange-500 rounded-full"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Về sớm</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3.5 h-3.5 bg-blue-500 rounded-full"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Vắng buổi sáng</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3.5 h-3.5 bg-purple-500 rounded-full"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Vắng buổi chiều</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-3.5 h-3.5 bg-red-500 rounded-full"></div>
+                            <span class="text-sm text-gray-600 dark:text-gray-400">Nghỉ</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-4">
+                <div class="grid grid-cols-7 mb-2">
+                    <div class="text-center font-medium text-gray-500 dark:text-gray-400">T2</div>
+                    <div class="text-center font-medium text-gray-500 dark:text-gray-400">T3</div>
+                    <div class="text-center font-medium text-gray-500 dark:text-gray-400">T4</div>
+                    <div class="text-center font-medium text-gray-500 dark:text-gray-400">T5</div>
+                    <div class="text-center font-medium text-gray-500 dark:text-gray-400">T6</div>
+                    <div class="text-center font-medium text-gray-500 dark:text-gray-400">T7</div>
+                    <div class="text-center font-medium text-gray-500 dark:text-gray-400">CN</div>
+                </div>
+
+                <!-- New calendar grid based on provided example -->
+                <div id="calendar-grid" class="grid grid-cols-7 gap-1 sm:gap-2">
+                    <!-- Calendar grid will be populated here -->
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Reports container -->
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md">
+            <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <h2 class="text-lg font-semibold">Các báo cáo của bạn</h2>
+                <button type="button"
+                    class="p-2 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors w-8 h-8 flex items-center justify-center"
+                    id="refreshReports" title="Làm mới">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+
+            <div class="p-4">
+                <div
+                    class="border-b border-gray-200 dark:border-gray-700 flex justify-start mb-4 gap-1 sm:overflow-x-auto sm:scrollbar-hide">
+                    <button type="button"
+                        class="flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:whitespace-nowrap border-b-2 border-blue-500 text-blue-500 font-medium text-sm sm:text-base truncate"
+                        data-report-type="all">Tất cả</button>
+                    <button type="button"
+                        class="flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:whitespace-nowrap border-b-2 border-transparent hover:text-blue-500 dark:hover:text-blue-400 text-sm sm:text-base truncate"
+                        data-report-type="incorrect_photo">Ảnh không đúng</button>
+                    <button type="button"
+                        class="flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:whitespace-nowrap border-b-2 border-transparent hover:text-blue-500 dark:hover:text-blue-400 text-sm sm:text-base truncate"
+                        data-report-type="machine_error">Lỗi máy</button>
+                    <button type="button"
+                        class="flex-1 sm:flex-initial px-2 sm:px-4 py-2 sm:whitespace-nowrap border-b-2 border-transparent hover:text-blue-500 dark:hover:text-blue-400 text-sm sm:text-base truncate"
+                        data-report-type="leave_request">Giấy phép</button>
+                </div>
+
+                <!-- Lọc trạng thái -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div class="relative">
+                        <select id="statusFilter"
+                            class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm min-w-0 pr-10 appearance-none"
+                            style="min-height: 40px;">
+                            <option value="all">Tất cả trạng thái</option>
+                            <option value="pending">Đang chờ xử lý</option>
+                            <option value="rejected">Đã từ chối</option>
+                            <option value="approved">Đã phê duyệt</option>
+                        </select>
+
+                        <!-- Mũi tên custom -->
+                        <div
+                            class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                                stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 items-center">
+                        <!-- Ô Từ ngày -->
+                        <div class="relative">
+                            <input type="date" id="fromDate"
+                                class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm min-w-0 pr-10 appearance-none"
+                                style="min-height: 40px;">
+                            <label for="fromDate"
+                                class="absolute -top-2 left-2 text-xs bg-white dark:bg-gray-800 px-1 text-gray-500 dark:text-gray-400">
+                                Từ ngày
+                            </label>
+                            <!-- Icon lịch có thể click -->
+                            <button type="button"
+                                onclick="document.getElementById('fromDate').showPicker?.() || document.getElementById('fromDate').focus();"
+                                class="absolute inset-y-0 right-0 flex items-center px-2 text-gray-500" tabindex="-1">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Ô Đến ngày -->
+                        <div class="relative">
+                            <input type="date" id="toDate"
+                                class="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm min-w-0 pr-10 appearance-none"
+                                style="min-height: 40px;">
+                            <label for="toDate"
+                                class="absolute -top-2 left-2 text-xs bg-white dark:bg-gray-800 px-1 text-gray-500 dark:text-gray-400">
+                                Đến ngày
+                            </label>
+                            <!-- Icon lịch có thể click -->
+                            <button type="button"
+                                onclick="document.getElementById('toDate').showPicker?.() || document.getElementById('toDate').focus();"
+                                class="absolute inset-y-0 right-0 flex items-center px-2 text-gray-500" tabindex="-1">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2"
+                                    viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Danh sách báo cáo -->
+                <div class="reports-list space-y-4 min-h-[300px]" id="reportsList">
+                    <!-- Nội dung sẽ được thêm bởi JavaScript -->
+                </div>
+
+                <!-- Phân trang -->
+                <div class="flex justify-between items-center mt-4">
+                    <button type="button"
+                        class="w-24 px-2 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg disabled:opacity-50 text-xs sm:text-sm flex items-center justify-center"
+                        id="prevPage" disabled>
+                        <i class="fas fa-chevron-left mr-1"></i> Trước
+                    </button>
+                    <span class="text-gray-600 dark:text-gray-400 text-xs sm:text-sm whitespace-nowrap">Trang <span
+                            id="currentPage">1</span> / <span id="totalPages">1</span></span>
+                    <button type="button"
+                        class="w-24 px-2 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg disabled:opacity-50 text-xs sm:text-sm flex items-center justify-center"
+                        id="nextPage" disabled>
+                        Sau <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <script src="../static/js/utils/darkmode.js"></script>
+    <script type="module" src="../static/js/pages/tracking.js"></script>
+    <script type="module" src="../static/js/utils/report.js"></script>
+
+</body>
+
+</html>
