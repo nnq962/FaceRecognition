@@ -8,8 +8,9 @@ import argparse
 import queue
 from gtts import gTTS
 import subprocess
-from utils.logger_config import LOGGER
 import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from utils.logger_config import LOGGER
 import yaml  # Thêm import yaml
 
 # Đường dẫn đến file cấu hình
