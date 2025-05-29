@@ -317,7 +317,7 @@ class InsightFaceDetector:
             # Lấy embeddings và truy xuất thông tin
             if all_cropped_faces_recognition:
                 all_embeddings = self.get_face_embeddings(all_cropped_faces_recognition)
-                user_infos = search_ids(embeddings=all_embeddings, threshold=0.5)
+                user_infos = search_ids(embeddings=all_embeddings, threshold=0.6)
             
             # Ghép kết quả
             results_per_image = []  # Danh sách kết quả theo từng ảnh
