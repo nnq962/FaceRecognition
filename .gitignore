@@ -18,4 +18,4 @@ models/
 users_data/
 logs/
 config.yaml
-user_data_deleted/
+users_data_deleted/

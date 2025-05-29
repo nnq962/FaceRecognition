@@ -474,7 +474,7 @@ class InsightFaceDetector:
             
             if user_id not in records_dict:
                 # Xử lý check-in mới
-                image_folder = f"user_data/{user_id}/attendance_photos/{today_date.replace('-', '_')}"
+                image_folder = f"users_data/{user_id}/attendance_photos/{today_date.replace('-', '_')}"
                 os.makedirs(image_folder, exist_ok=True)
 
                 check_in_image_path = f"{image_folder}/check_in.png"
@@ -512,7 +512,7 @@ class InsightFaceDetector:
                     goodbye_users.append(data["name"])
                     update_data["$set"]["goodbye_noti"] = True
                     # Lưu ảnh check-out
-                    image_folder = f"user_data/{user_id}/attendance_photos/{today_date.replace('-', '_')}"
+                    image_folder = f"users_data/{user_id}/attendance_photos/{today_date.replace('-', '_')}"
                     os.makedirs(image_folder, exist_ok=True)
                     check_out_image_path = f"{image_folder}/check_out.png"
                     img = data["image"].copy()

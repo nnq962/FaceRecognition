@@ -354,7 +354,7 @@ def add_user():
             "message": f"Error generating user ID: {str(e)}"
         }), 500
 
-    folder_path = f"user_data/{user_id}"
+    folder_path = f"users_data/{user_id}"
 
     # Gọi hàm generate_username có sẵn
     base_username = generate_username(data["name"])
@@ -573,7 +573,7 @@ def delete_user(user_id):
 
         name_slug = normalize_text(user.get("name", "unknown"))
         time_slug = config.get_vietnam_time().replace(":", "_").replace(" ", "_")
-        backup_dir = os.path.join(config.BASE_DIR, "user_data_deleted")
+        backup_dir = os.path.join(config.BASE_DIR, "users_data_deleted")
         os.makedirs(backup_dir, exist_ok=True)
 
         backup_folder = os.path.join(
