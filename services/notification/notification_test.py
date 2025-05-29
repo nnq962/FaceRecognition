@@ -3,7 +3,6 @@ File notification_test.py dùng để test kết nối và gửi thông báo qua
 """
 
 import argparse
-import json
 import sys
 import yaml
 from notification_server import send_notification

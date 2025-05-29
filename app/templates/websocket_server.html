@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Hệ thống theo dõi thông tin</title>
+    <link rel="icon" href="../static/images/icons/server.png" type="image/png">
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body class="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                Hệ thống theo dõi thông tin
+            </h1>
+            <p class="text-gray-600 dark:text-gray-400">
+                Kết nối và theo dõi dữ liệu real-time từ các phòng
+            </p>
+        </div>
+
+        <!-- Connection Panel -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Kết nối phòng
+            </h2>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <div class="flex-1">
+                    <input 
+                        type="text" 
+                        id="roomInput" 
+                        placeholder="Nhập ID phòng..."
+                        class="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    >
+                </div>
+                <button 
+                    id="connectBtn"
+                    class="px-6 py-3 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 touch-manipulation cursor-pointer select-none min-h-[48px] flex items-center justify-center"
+                >
+                    Kết nối
+                </button>
+            </div>
+        </div>
+
+        <!-- Status Panel -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-6">
+            <div class="flex items-center gap-3">
+                <div id="statusIndicator" class="w-3 h-3 rounded-full bg-red-500 transition-colors duration-300"></div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        Trạng thái kết nối
+                    </h3>
+                    <p id="status" class="text-gray-600 dark:text-gray-400">
+                        Chưa kết nối
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Display Panel -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg">
+            <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    Dữ liệu real-time
+                </h3>
+                <p class="text-gray-600 dark:text-gray-400 text-sm mt-1">
+                    Thông tin sẽ được cập nhật tự động khi có dữ liệu mới
+                </p>
+            </div>
+            
+            <div class="p-6">
+                <div 
+                    id="dataDisplay" 
+                    class="min-h-[300px] bg-gray-50 dark:bg-gray-900 rounded-xl p-4 font-mono text-sm text-gray-700 dark:text-gray-300 overflow-auto border border-gray-200 dark:border-gray-700 transition-all duration-300"
+                >
+                    <div class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+                        <div class="text-center">
+                            <div class="w-16 h-16 mx-auto mb-3 opacity-30">
+                                <svg fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                                </svg>
+                            </div>
+                            <p>Thông tin sẽ hiển thị ở đây khi có dữ liệu...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-8 text-gray-500 dark:text-gray-400 text-sm">
+            <p>WebSocket Server - Real-time Data Monitoring</p>
+        </div>
+    </div>
+
+    <script type="module" src="../static/js/pages/websocket_server.js"></script>
+</body>
+</html>

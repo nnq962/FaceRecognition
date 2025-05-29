@@ -1,0 +1,946 @@
+:root {
+    --primary-color: #0071e3;
+    --secondary-color: #f5f5f7;
+    --accent-color: #86c1ff;
+    --success-color: #34c759;
+    --danger-color: #ff3b30;
+    --warning-color: #ff9500;
+    --text-color: #1d1d1f;
+    --text-secondary: #86868b;
+    --border-color: #d2d2d7;
+    --dark-bg: #2c2c2c;
+    --dark-text: #f5f5f7;
+    --terminal-bg: #292a2d;
+    --terminal-text: #ffffff;
+    --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+body {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1800px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-gap: 20px;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.header h1 {
+    font-size: 24px;
+    font-weight: 500;
+}
+
+.main-content {
+    display: grid;
+    grid-template-columns: 470px 1fr;
+    grid-gap: 20px;
+}
+
+.process-control,
+.process-output,
+.process-list,
+.mac-card {
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    padding: 16px;
+}
+
+.process-control h2,
+.process-output h2,
+.process-list h2 {
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    color: var(--text-color);
+}
+
+.mac-card {
+    margin-bottom: 16px;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.card-title {
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.form-group {
+    margin-bottom: 12px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    font-size: 14px;
+    transition: border-color 0.3s;
+    background: var(--secondary-color);
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.3);
+}
+
+.sources-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: 44px;
+    /* cố định chiều cao 44px giống .options-grid */
+    grid-gap: 10px;
+    margin-bottom: 16px;
+}
+
+.source-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    box-sizing: border-box;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: var(--secondary-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: visible;
+    min-height: 44px;
+}
+
+/* Đảm bảo tất cả phần tử con bên trong source-item có cursor: pointer */
+.source-item * {
+    cursor: pointer;
+}
+
+/* 3. Khoảng cách giữa radio và label */
+.source-item input[type="checkbox"] {
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+/* 4. Style cho label */
+.source-item label {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    flex: 1;
+    /* chiếm hết phần còn lại */
+    white-space: nowrap;
+    /* không xuống dòng */
+}
+
+/* 5. Hover & selected giống option-item */
+.source-item:hover {
+    background-color: rgba(0, 113, 227, 0.1);
+    border-color: var(--primary-color);
+}
+
+.source-item.selected {
+    background-color: rgba(0, 113, 227, 0.2);
+    border-color: var(--primary-color);
+}
+
+/* Label bình thường nhạt */
+.source-item label {
+    color: var(--text-secondary);
+}
+
+/* Khi hover lên cả ô */
+.source-item:hover label,
+/* Khi đã tick (có class .selected trên .source-item) */
+.source-item.selected label {
+    color: var(--text-color);
+}
+
+.source-item.selected .source-label {
+    color: var(--text-color);
+}
+
+/* Bọc label chiếm hết .source-item, cho phép click toàn vùng */
+.source-label-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* khoảng cách checkbox ↔ text */
+    padding: 10px;
+    /* giống như trước */
+    cursor: pointer;
+    width: 100%;
+    /* chiếm hết ô */
+}
+
+/* Sửa đổi #1: Đảm bảo thông báo lỗi không xuống dòng */
+#sources-container p {
+    white-space: nowrap !important;
+    /* Đảm bảo không xuống dòng */
+    display: inline-block;
+    /* Hiển thị trên một dòng */
+}
+
+.options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-gap: 10px;
+    grid-auto-rows: 44px;
+    /* Cố định chiều cao ô */
+    overflow: visible;
+    /* Cho phép tooltip vượt ra ngoài */
+}
+
+.option-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background-color: var(--secondary-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 44px;
+    box-sizing: border-box;
+    overflow: visible;
+    /* Cho phép tooltip vượt ra ngoài */
+    z-index: 1;
+    /* Vị trí z-index ban đầu */
+}
+
+.option-item:hover {
+    background-color: rgba(0, 113, 227, 0.1);
+    border-color: var(--primary-color);
+    z-index: 10;
+    /* Tăng z-index khi hover */
+}
+
+.option-item.selected {
+    background-color: rgba(0, 113, 227, 0.2);
+    border-color: var(--primary-color);
+}
+
+/* Sửa đổi #2: Cập nhật cấu trúc bố cục cho option-item */
+.option-item {
+    display: flex;
+    align-items: center;
+}
+
+.option-checkbox {
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.option-label {
+    margin-right: auto;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.param-text {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: inherit;
+    color: var(--text-secondary);
+    margin: 0 5px;
+}
+
+.tooltip {
+    position: relative;
+    /* giữ relative để con absolute tính đúng */
+    display: inline-block;
+    /* hoặc flex, tuỳ bạn */
+    overflow: visible;
+    /* cho phép con vươn ra */
+    z-index: 1;
+    /* stacking context cơ bản */
+}
+
+.tooltip i {
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.option-item:hover .option-label,
+.option-item.selected .option-label,
+.option-item:hover .param-text,
+.option-item.selected .param-text {
+    color: var(--text-color);
+}
+
+.option-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn i {
+    margin-right: 8px;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #0062c4;
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #e02e24;
+}
+
+.btn-secondary {
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+    background-color: #e5e5ea;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.controls-column {
+    height: fit-content;
+}
+
+.terminal {
+    background-color: var(--terminal-bg);
+    color: var(--terminal-text);
+    /* Giảm padding-top xuống để văn bản sát cạnh trên */
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 14px;
+    line-height: 1.6;
+    height: 750px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+
+    /* Ép con nằm đầu khung */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.ansi-black, .ansi-red, .ansi-green, .ansi-yellow, .ansi-blue, 
+.ansi-magenta, .ansi-cyan, .ansi-white, .ansi-gray, 
+.ansi-lightred, .ansi-lightgreen, .ansi-lightyellow, 
+.ansi-lightblue, .ansi-lightmagenta, .ansi-lightcyan {
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* CSS cho các màu ANSI */
+.ansi-black {
+    color: #000000;
+}
+
+.ansi-red {
+    color: #ff5555;
+}
+
+.ansi-green {
+    color: #55ff55;
+}
+
+.ansi-yellow {
+    color: #ffff55;
+}
+
+.ansi-blue {
+    color: #5555ff;
+}
+
+.ansi-magenta {
+    color: #ff55ff;
+}
+
+.ansi-cyan {
+    color: #55ffff;
+}
+
+.ansi-white {
+    color: #ffffff;
+}
+
+.ansi-gray {
+    color: #555555;
+}
+
+.ansi-lightred {
+    color: #ff8888;
+}
+
+.ansi-lightgreen {
+    color: #88ff88;
+}
+
+.ansi-lightyellow {
+    color: #ffff88;
+}
+
+.ansi-lightblue {
+    color: #8888ff;
+}
+
+.ansi-lightmagenta {
+    color: #ff88ff;
+}
+
+.ansi-lightcyan {
+    color: #88ffff;
+}
+
+.terminal-line {
+    font-family: 'JetBrains Mono', monospace !important;
+    margin: 0;
+    padding: 1px 0;
+}
+
+/* Tạo hiệu ứng cuộn đẹp hơn cho terminal */
+.terminal::-webkit-scrollbar {
+    width: 8px;
+}
+
+.terminal::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 0 8px 8px 0;
+}
+
+.terminal::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.terminal::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Tùy chỉnh màu cho các loại log khác nhau */
+.log-error {
+    color: #ff5f5f;
+}
+
+.log-warning {
+    color: #ffaa33;
+}
+
+.log-success {
+    color: #33cc66;
+}
+
+.log-info {
+    color: #42a5f5;
+}
+
+.process-list-container {
+    margin-top: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.process-item {
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background-color: var(--secondary-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 4px solid transparent;
+}
+
+.process-item:hover {
+    background-color: #e5e5ea;
+}
+
+.process-item.active {
+    border-left-color: var(--primary-color);
+    background-color: rgba(0, 113, 227, 0.1);
+}
+
+.process-item.running {
+    border-left-color: var(--success-color);
+}
+
+.process-item.stopped {
+    border-left-color: var(--text-secondary);
+}
+
+.process-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+}
+
+.process-name {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.process-status {
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 12px;
+    color: white;
+}
+
+.status-running {
+    background-color: var(--success-color);
+}
+
+.status-stopped {
+    background-color: var(--text-secondary);
+}
+
+.process-details {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.process-command {
+    font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 11px;
+    max-width: 100%;
+    /* Thay đổi 3 thuộc tính sau */
+    overflow: visible;
+    /* thay vì hidden */
+    white-space: pre-wrap;
+    /* thay vì nowrap */
+    word-wrap: break-word;
+    /* thêm mới */
+    /* Bỏ text-overflow: ellipsis; vì không cần nữa */
+    margin-top: 4px;
+}
+
+.tooltip .tooltip-text {
+    visibility: hidden;
+    display: inline-block;
+    white-space: nowrap;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 6px 10px;
+    position: absolute;
+    z-index: 999;
+    /* rất cao để không bị che */
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 12px;
+}
+
+.tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Toast animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+}
+
+/* Responsive styles */
+@media (max-width: 900px) {
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Toast container */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+
+.toast {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    animation: fadeIn 0.3s;
+    display: flex;
+    align-items: center;
+    color: white;
+}
+
+.toast-success {
+    background-color: var(--success-color);
+}
+
+.toast-error {
+    background-color: var(--danger-color);
+}
+
+.toast-info {
+    background-color: var(--primary-color);
+}
+
+.option-label .param-text {
+    display: inline;
+    margin: 0 0px;
+    color: inherit;
+}
+
+.form-group>label {
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text-color);
+}
+
+
+/* 1. Đối với button chỉ chứa icon, loại bỏ margin-right */
+#refresh-btn i {
+    margin-right: 0 !important;
+}
+
+/* 2. Căn giữa icon ngang (nếu cần) */
+#refresh-btn {
+    display: flex;
+    align-items: center;
+    /* căn dọc */
+    justify-content: center;
+    /* căn ngang */
+    padding: 6px;
+    /* padding đều trái phải */
+}
+
+/* Ẩn checkbox native nếu bạn muốn custom, hoặc giữ hiển thị */
+.source-label-wrapper input[type="checkbox"] {
+    margin: 0;
+}
+
+
+/* Hiển thị Process Actions */
+.process-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Kiểu chung cho tất cả các nút trong process item */
+.btn-delete,
+.btn-restart,
+.btn-stop,
+.btn-edit {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Thêm hiệu ứng ripple cho nút */
+.btn-restart::after,
+.btn-delete::after,
+.btn-stop::after,
+.btn-edit::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0) 70%);
+    transform: scale(0);
+    opacity: 0;
+    transition: transform 0.5s, opacity 0.3s;
+}
+
+.btn-restart:active::after,
+.btn-delete:active::after,
+.btn-stop:active::after,
+.btn-edit:active::after {
+    transform: scale(3);
+    opacity: 0.3;
+    transition: 0s;
+}
+
+/* Kiểu riêng cho từng nút */
+.btn-restart {
+    color: var(--primary-color);
+    border: 1px solid rgba(0, 113, 227, 0.3);
+}
+
+.btn-restart:hover {
+    background-color: rgba(0, 113, 227, 0.1);
+    box-shadow: 0 2px 5px rgba(0, 113, 227, 0.2);
+    transform: translateY(-1px);
+}
+
+.btn-stop {
+    color: var(--warning-color, #ffc107);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+}
+
+.btn-stop:hover {
+    background-color: rgba(255, 193, 7, 0.1);
+    box-shadow: 0 2px 5px rgba(255, 193, 7, 0.2);
+    transform: translateY(-1px);
+}
+
+.btn-stop:disabled {
+    color: var(--text-secondary, #6c757d);
+    border-color: rgba(108, 117, 125, 0.3);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-stop:disabled:hover {
+    background-color: transparent;
+    box-shadow: none;
+    transform: none;
+}
+
+.btn-restart {
+    color: var(--primary-color);
+    border: 1px solid rgba(0, 113, 227, 0.3);
+}
+
+.btn-restart:hover {
+    background-color: rgba(0, 113, 227, 0.1);
+    box-shadow: 0 2px 5px rgba(0, 113, 227, 0.2);
+    transform: translateY(-1px);
+}
+
+.btn-delete {
+    color: var(--danger-color);
+    border: 1px solid rgba(255, 59, 48, 0.3);
+}
+
+.btn-delete:hover {
+    background-color: rgba(255, 59, 48, 0.1);
+    box-shadow: 0 2px 5px rgba(255, 59, 48, 0.2);
+    transform: translateY(-1px);
+}
+
+/* Hiệu ứng khi nhấn nút */
+.btn-restart:active,
+.btn-delete:active,
+.btn-stop:active {
+    transform: scale(0.96);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Chấm trạng thái */
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-left: 8px;
+    position: relative;
+}
+
+.dot-running {
+    background-color: var(--success-color);
+    box-shadow: 0 0 8px var(--success-color);
+    animation: pulse 1.5s infinite;
+}
+
+.dot-stopped {
+    background-color: var(--text-secondary);
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.15);
+}
+
+/* Animation cho trạng thái running */
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 6px rgba(40, 167, 69, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+
+/* Chế độ chỉnh sửa - nút Run */
+#run-btn.edit-mode {
+    background-color: var(--accent-color);
+    box-shadow: 0 2px 8px rgba(var(--accent-color-rgb), 0.4);
+    transform: translateY(-1px);
+}
+
+#run-btn.edit-mode:hover {
+
+    /* Highlight chế độ chỉnh sửa */
+    .edit-mode-active {
+        background-color: rgba(0, 113, 227, 0.05);
+        padding: 12px;
+        border-radius: 10px;
+        border: 2px dashed var(--primary-color);
+        margin-bottom: 16px;
+        box-shadow: 0 4px 15px rgba(0, 113, 227, 0.08);
+        transition: all 0.3s ease;
+    }
+
+    .edit-mode-active:hover {
+        background-color: rgba(0, 113, 227, 0.08);
+        box-shadow: 0 6px 20px rgba(0, 113, 227, 0.12);
+    }
+
+    box-shadow: 0 4px 12px rgba(var(--accent-color-rgb), 0.5);
+    transform: translateY(-2px);
+}
+
+#run-btn.edit-mode:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(var(--accent-color-rgb), 0.3);
+}
+
+/* Kiểu riêng cho button edit */
+.btn-edit {
+    color: var(--info-color, #17a2b8);
+    border: 1px solid rgba(23, 162, 184, 0.3);
+}
+
+.btn-edit:hover {
+    background-color: rgba(23, 162, 184, 0.1);
+    box-shadow: 0 2px 5px rgba(23, 162, 184, 0.2);
+    transform: translateY(-1px);
+}
+
+.btn-edit:disabled {
+    color: var(--text-secondary, #6c757d);
+    border-color: rgba(108, 117, 125, 0.3);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn-edit:disabled:hover {
+    background-color: transparent;
+    box-shadow: none;
+    transform: none;
+}
+
+/* Hiệu ứng khi nhấn button edit */
+.btn-edit:active {
+    transform: scale(0.96);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Nút đã vô hiệu hóa */
+.btn-primary.edit-mode.disabled-update {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Nút đã kích hoạt sau khi phát hiện thay đổi - sử dụng cùng màu với nút Chạy tiến trình */
+.btn-primary.edit-mode.active-update {
+    background-color: var(--primary-color) !important;
+    /* Sử dụng primary-color thay vì accent-color */
+    color: white;
+    box-shadow: 0 2px 8px rgba(0, 113, 227, 0.4);
+    opacity: 1;
+    cursor: pointer;
+    transform: translateY(-1px);
+}
+
+.btn-primary.edit-mode.active-update:hover {
+    background-color: #0062c4 !important;
+    /* Sử dụng cùng màu hover với nút chạy tiến trình */
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.5);
+}

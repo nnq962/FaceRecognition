@@ -1,4 +1,9 @@
 import requests
+import os
+import sys
+
+# Thêm project root vào sys.path để import utils
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from utils.logger_config import LOGGER
 from config import config
 

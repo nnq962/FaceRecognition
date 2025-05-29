@@ -1,19 +1,36 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import HTMLResponse
-from typing import Dict, List, Optional
-import uvicorn
+import os
+import sys
+import time
 import json
 import yaml
-import time
-from pydantic import BaseModel
-from utils.logger_config import LOGGER
-from fastapi.staticfiles import StaticFiles
 import argparse
-import sys
 
+from typing import Dict, List, Optional
+from pydantic import BaseModel
+import uvicorn
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+# Thêm project root vào sys.path để import utils
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from utils.logger_config import LOGGER
+
+# Đường dẫn static và templates tuyệt đối
+static_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'static'))
+templates_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'app', 'templates'))
+
+# Config
 CONFIG_FILE = "config.yaml"
+
+# Khởi tạo FastAPI app
 app = FastAPI(title="WebSocket Answer Distribution Server")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+# Khởi tạo Jinja2 templates
+templates = Jinja2Templates(directory=templates_path)
 
 # Model cho dữ liệu thông tin
 class ServerData(BaseModel):
@@ -93,112 +110,11 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# Trang HTML đơn giản cho khách truy cập
+# Trang HTML sử dụng template
 @app.get("/", response_class=HTMLResponse)
-async def get():
+async def get(request: Request):
     LOGGER.info("Client truy cập trang chủ")
-    html = """
-    <!DOCTYPE html>
-    <html>
-        <head>
-            <title>Hệ thống theo dõi thông tin</title>
-            <link rel="icon" href="/static/images/server.png" type="image/png">
-            <style>
-                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-                .container { max-width: 800px; margin: 0 auto; }
-                h1 { color: #333; }
-                #answers { margin-top: 20px; padding: 10px; border: 1px solid #ddd; min-height: 200px; }
-                #status { padding: 10px; background-color: #f4f4f4; margin-bottom: 10px; }
-                .roomSelector { margin-bottom: 20px; }
-                button { padding: 8px 16px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
-                button:hover { background-color: #45a049; }
-                input { padding: 8px; width: 200px; }
-            </style>
-            <script>
-                let ws = null;
-                
-                function connectToRoom() {
-                    const roomId = document.getElementById('roomInput').value.trim();
-                    if (!roomId) {
-                        alert('Vui lòng nhập ID phòng');
-                        return;
-                    }
-                    
-                    // Đóng kết nối cũ nếu có
-                    if (ws) {
-                        ws.close();
-                    }
-                    
-                    document.getElementById('status').innerHTML = 'Đang kết nối...';
-                    ws = new WebSocket(`ws://${window.location.host}/ws/${roomId}`);
-
-                    ws.onmessage = function(event) {
-                        try {
-                            const data = JSON.parse(event.data);
-                            
-                            // Hiển thị toàn bộ dữ liệu, không chỉ phần data
-                            document.getElementById('answers').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
-                            
-                            // Vẫn giữ lại logic xử lý theo loại nếu cần
-                            switch (data.type) {
-                                case "answers":
-                                    // Xử lý thông tin nếu cần
-                                    break;
-                                case "hand_raise":
-                                    // Xử lý giơ tay nếu cần
-                                    break;
-                                case "attendance":
-                                    // Xử lý điểm danh nếu cần
-                                    break;
-                                default:
-                                    console.log("Nhận dữ liệu:", data);
-                            }
-                        } catch (e) {
-                            console.error("Lỗi khi xử lý dữ liệu:", e);
-                            document.getElementById('answers').innerHTML = event.data;
-                        }
-                    };
-                    
-                    ws.onclose = function(event) {
-                        document.getElementById('status').innerHTML = 'Mất kết nối!';
-                    };
-                    
-                    ws.onopen = function(event) {
-                        document.getElementById('status').innerHTML = 'Đã kết nối đến phòng ' + roomId;
-                    };                    
-                }
-
-                function displayAnswers(answers) {
-                    // Hiển thị thông tin trong #answers
-                    document.getElementById('answers').innerHTML = '<pre>' + JSON.stringify(answers, null, 2) + '</pre>';
-                }
-
-                function updateHandRaiseStatus(handRaiseData) {
-                    // Cập nhật trạng thái giơ tay
-                    document.getElementById('answers').innerHTML = '<h3>Trạng thái giơ tay</h3><pre>' + JSON.stringify(handRaiseData, null, 2) + '</pre>';
-                }
-
-                function updateAttendance(attendanceData) {
-                    // Cập nhật thông tin điểm danh
-                    document.getElementById('answers').innerHTML = '<h3>Điểm danh</h3><pre>' + JSON.stringify(attendanceData, null, 2) + '</pre>';
-                }
-
-            </script>
-        </head>
-        <body>
-            <div class="container">
-                <h1>Hệ thống theo dõi thông tin</h1>
-                <div class="roomSelector">
-                    <input type="text" id="roomInput" placeholder="Nhập ID phòng...">
-                    <button onclick="connectToRoom()">Kết nối</button>
-                </div>
-                <div id="status">Chưa kết nối</div>
-                <div id="answers">Thông tin sẽ hiển thị ở đây...</div>
-            </div>
-        </body>
-    </html>
-    """
-    return html
+    return templates.TemplateResponse("websocket_server.html", {"request": request})
 
 # WebSocket endpoint cho clients
 @app.websocket("/ws/{room}")

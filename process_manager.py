@@ -17,8 +17,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = Flask(__name__)
-
+app = Flask(
+    __name__,
+    template_folder='app/templates',  # chỉ rõ thư mục template
+    static_folder='app/static'        # chỉ rõ thư mục static
+)
 
 # --- Đường dẫn chính ---
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
