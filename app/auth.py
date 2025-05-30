@@ -34,6 +34,7 @@ API_PERMISSIONS = {
     'view_avatar': ['user', 'admin', 'super_admin'],
     'get_user_data': ['admin', 'super_admin'],
     'view_face_photo': ['admin', 'super_admin'],
+    'update_user': ['admin', 'super_admin'],
     
     # Attendance data
     'get_attendance': ['user', 'admin', 'super_admin'],
