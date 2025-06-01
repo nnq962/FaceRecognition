@@ -288,7 +288,7 @@ def update_report_status(report_id):
         "admin_note": "Phản hồi từ quản lý (optional)"
     }
     
-    Đặc biệt: Nếu approve report machine_error có correct_time, sẽ tự động update attendance
+    Đặc biệt: Nếu approve report machine_error có error_time, sẽ tự động update attendance
     
     Returns:
         JSON response với kết quả cập nhật
@@ -358,7 +358,7 @@ def update_report_status(report_id):
         attendance_update_result = None
         if (new_status == "approved" and 
             report["report_type"] == "machine_error" and 
-            report.get("correct_time")):
+            report.get("error_time")):
             
             try:
                 attendance_update_result = update_attendance_for_machine_error(report)
@@ -409,6 +409,7 @@ def update_report_status(report_id):
             "status": "error",
             "message": f"Failed to update report: {str(e)}"
         }), 500
+
 
 # ------------------------------------------------------------
 @attendance_bp.route('/get_pending_reports_count', methods=['GET'])
@@ -597,6 +598,7 @@ def get_pending_reports_count():
             "message": f"Failed to retrieve pending report count: {str(e)}"
         }), 500
 
+
 # ------------------------------------------------------------
 @attendance_bp.route('/download_report_file/<user_id>/<filename>', methods=['GET'])
 def download_report_file(user_id, filename):
@@ -760,7 +762,7 @@ def create_report(user_id):
     2. machine_error (Báo lỗi máy chấm công):
        - error_type: Loại lỗi ("no_recognize", "wrong_time", "device_off", "other")
        - description: Mô tả chi tiết (optional)
-       - correct_time: Thời gian đúng HH:MM (optional)
+       - error_time: Thời gian lỗi ("morning", "afternoon", "allday") (required)
     
     3. leave_request (Gửi giấy tờ xin phép):
        - request_type: Loại giấy tờ ("late", "early_leave", "absent", "other")
@@ -832,6 +834,12 @@ def create_report(user_id):
                     "message": "Missing error_type"
                 }), 400
 
+            if 'error_time' not in data:
+                return jsonify({
+                    "status": "error",
+                    "message": "Missing error_time"
+                }), 400
+
             valid_error_types = ['no_recognize', 'wrong_time', 'device_off', 'other']
             if data.get('error_type') not in valid_error_types:
                 return jsonify({
@@ -839,9 +847,18 @@ def create_report(user_id):
                     "message": "Invalid error_type"
                 }), 400
 
+            # Validate error_time (now required)
+            error_time = data.get('error_time')
+            valid_error_times = ['morning', 'afternoon', 'allday']
+            if error_time not in valid_error_times:
+                return jsonify({
+                    "status": "error",
+                    "message": f"Invalid error_time. Valid values: {', '.join(valid_error_times)}"
+                }), 400
+
             report["error_type"] = data.get('error_type')
             report["description"] = data.get('description', '')
-            report["correct_time"] = data.get('correct_time', '')
+            report["error_time"] = error_time
 
         elif report_type == 'leave_request':
             if 'request_type' not in data:
@@ -919,7 +936,7 @@ def create_report(user_id):
         return jsonify({
             "status": "error",
             "message": f"Failed to process request: {str(e)}"
-        }), 500
+        }), 500  
 
 
 # ------------------------------------------------------------
@@ -1563,25 +1580,22 @@ def calculate_work_hours_new(attendance_data):
 def update_attendance_for_machine_error(report):
     """
     Cập nhật attendance record dựa trên thông tin từ machine_error report
-    - Đảm bảo correct_time được chuẩn hóa format
+    - Chuyển đổi error_time thành thời gian cụ thể và cập nhật attendance
     """
     try:
         user_id = report["user_id"]
         date = report["date"]
-        correct_time = report["correct_time"]
+        error_time = report["error_time"]
         
-        # Chuẩn hóa correct_time về format HH:MM:SS
-        correct_time_normalized = normalize_time_format(correct_time)
+        # Mapping error_time thành thời gian cụ thể
+        time_mapping = {
+            "morning": "08:00:00",      # 8h00
+            "afternoon": "17:30:00",    # 17h30
+            "allday": ["08:00:00", "17:30:00"]  # Cả 2 thời điểm
+        }
         
-        # Xác định loại time: check-in hoặc check-out
-        try:
-            from datetime import datetime, time
-            correct_time_obj = datetime.strptime(correct_time_normalized, "%H:%M:%S").time()
-            cutoff_time = time(8, 10)  # 08:10
-            
-            is_checkin = correct_time_obj <= cutoff_time
-        except ValueError:
-            raise Exception(f"Invalid correct_time format: {correct_time}")
+        if error_time not in time_mapping:
+            raise Exception(f"Invalid error_time: {error_time}")
         
         # Tìm attendance record hiện có
         attendance_filter = {
@@ -1591,22 +1605,44 @@ def update_attendance_for_machine_error(report):
         
         existing_attendance = all_room_logs.find_one(attendance_filter)
         
+        # Lấy thông tin user
+        user_info = user_collection.find_one({"user_id": user_id})
+        user_name = user_info.get("name", "Unknown User") if user_info else "Unknown User"
+        
+        results = []
+        
+        if error_time == "allday":
+            # Xử lý cả check-in và check-out
+            times_to_process = [
+                ("08:00:00", "check_in"),
+                ("17:30:00", "check_out")
+            ]
+        else:
+            # Xử lý một thời điểm
+            time_value = time_mapping[error_time]
+            time_type = "check_in" if error_time == "morning" else "check_out"
+            times_to_process = [(time_value, time_type)]
+        
         if existing_attendance:
             # Update attendance record hiện có
-            if is_checkin:
-                # Update check-in time với format đã chuẩn hóa
-                update_data = {
-                    "check_in_time": correct_time_normalized,
-                    "has_been_welcome": True
-                }
-                action = "updated_checkin"
-            else:
-                # Update check-out time với format đã chuẩn hóa
-                update_data = {
-                    "check_out_time": correct_time_normalized,
-                    "has_been_goodbye": True
-                }
-                action = "updated_checkout"
+            update_data = {}
+            
+            for time_value, time_type in times_to_process:
+                if time_type == "check_in":
+                    update_data.update({
+                        "check_in_time": time_value,
+                        "has_been_welcome": True
+                    })
+                else:
+                    update_data.update({
+                        "check_out_time": time_value,
+                        "has_been_goodbye": True
+                    })
+                
+                results.append({
+                    "action": f"updated_{time_type}",
+                    "time": time_value
+                })
             
             result = all_room_logs.update_one(
                 attendance_filter,
@@ -1615,10 +1651,10 @@ def update_attendance_for_machine_error(report):
             
             if result.modified_count > 0:
                 return {
-                    "action": action,
                     "user_id": user_id,
                     "date": date,
-                    "time_updated": correct_time_normalized,
+                    "error_time": error_time,
+                    "updates": results,
                     "record_existed": True
                 }
             else:
@@ -1626,9 +1662,6 @@ def update_attendance_for_machine_error(report):
                 
         else:
             # Tạo attendance record mới
-            user_info = user_collection.find_one({"user_id": user_id})
-            user_name = user_info.get("name", "Unknown User") if user_info else "Unknown User"
-            
             new_attendance = {
                 "date": date,
                 "user_id": user_id,
@@ -1638,28 +1671,32 @@ def update_attendance_for_machine_error(report):
                 "has_been_goodbye": False
             }
             
-            if is_checkin:
-                new_attendance.update({
-                    "check_in_time": correct_time_normalized,
-                    "check_in_image": "",
-                    "has_been_welcome": True
+            for time_value, time_type in times_to_process:
+                if time_type == "check_in":
+                    new_attendance.update({
+                        "check_in_time": time_value,
+                        "check_in_image": "",
+                        "has_been_welcome": True
+                    })
+                else:
+                    new_attendance.update({
+                        "check_out_time": time_value,
+                        "has_been_goodbye": True
+                    })
+                
+                results.append({
+                    "action": f"created_with_{time_type}",
+                    "time": time_value
                 })
-                action = "created_with_checkin"
-            else:
-                new_attendance.update({
-                    "check_out_time": correct_time_normalized,
-                    "has_been_goodbye": True
-                })
-                action = "created_with_checkout"
             
             result = all_room_logs.insert_one(new_attendance)
             
             if result.inserted_id:
                 return {
-                    "action": action,
                     "user_id": user_id,
                     "date": date,
-                    "time_updated": correct_time_normalized,
+                    "error_time": error_time,
+                    "updates": results,
                     "record_existed": False,
                     "new_record_id": str(result.inserted_id)
                 }

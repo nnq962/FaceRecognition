@@ -152,8 +152,13 @@ function showAttendanceModal(date, records) {
                                 <textarea id="errorDescription" name="errorDescription" rows="3" class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Mô tả chi tiết lỗi..."></textarea>
                             </div>
                             <div class="space-y-2">
-                                <label for="correctTime" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Thời gian đúng (nếu có):</label>
-                                <input type="time" id="correctTime" name="correctTime" class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                <label for="errorTime" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Thời gian lỗi:</label>
+                                <select id="errorTime" name="errorTime" class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">-- Chọn thời gian --</option>
+                                    <option value="morning">Buổi sáng</option>
+                                    <option value="afternoon">Buổi chiều</option>
+                                    <option value="allday">Cả ngày</option>
+                                </select>
                             </div>
                             <div class="flex justify-end space-x-3 pt-2">
                                 <button type="button" id="cancelMachineError" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">Hủy</button>
@@ -334,7 +339,7 @@ function initModalEvents() {
             const formData = {
                 errorType: document.getElementById('errorType').value,
                 errorDescription: document.getElementById('errorDescription').value,
-                correctTime: document.getElementById('correctTime').value
+                errorTime: document.getElementById('errorTime').value
             };
 
             // Kiểm tra dữ liệu bắt buộc
@@ -890,7 +895,7 @@ async function handleReportMachineError(userId, date, formData) {
             date: date,
             error_type: formData.errorType,
             description: formData.errorDescription || '',
-            correct_time: formData.correctTime || ''
+            error_time: formData.errorTime || ''
         };
 
         // Gửi báo cáo
