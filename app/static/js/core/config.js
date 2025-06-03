@@ -4,7 +4,7 @@
  */
 const config = {
   // Cấu hình API
-  apiBaseUrl: 'http://localhost:9621',
+  apiBaseUrl: 'https://edulive.nnq962.pro',
   
   // Các thiết lập hệ thống
   system: {
