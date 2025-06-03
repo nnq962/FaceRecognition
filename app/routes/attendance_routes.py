@@ -762,7 +762,7 @@ def create_report(user_id):
     2. machine_error (Báo lỗi máy chấm công):
        - error_type: Loại lỗi ("no_recognize", "wrong_time", "device_off", "other")
        - description: Mô tả chi tiết (optional)
-       - error_time: Thời gian lỗi ("morning", "afternoon", "allday") (required)
+       - error_time: Thời gian lỗi ("morning", "afternoon", "full_day") (required)
     
     3. leave_request (Gửi giấy tờ xin phép):
        - request_type: Loại giấy tờ ("late", "early_leave", "absent", "other")
@@ -849,7 +849,7 @@ def create_report(user_id):
 
             # Validate error_time (now required)
             error_time = data.get('error_time')
-            valid_error_times = ['morning', 'afternoon', 'allday']
+            valid_error_times = ['morning', 'afternoon', 'full_day']
             if error_time not in valid_error_times:
                 return jsonify({
                     "status": "error",
@@ -1591,7 +1591,7 @@ def update_attendance_for_machine_error(report):
         time_mapping = {
             "morning": "08:00:00",      # 8h00
             "afternoon": "17:30:00",    # 17h30
-            "allday": ["08:00:00", "17:30:00"]  # Cả 2 thời điểm
+            "full_day": ["08:00:00", "17:30:00"]  # Cả 2 thời điểm
         }
         
         if error_time not in time_mapping:
@@ -1611,7 +1611,7 @@ def update_attendance_for_machine_error(report):
         
         results = []
         
-        if error_time == "allday":
+        if error_time == "full_day":
             # Xử lý cả check-in và check-out
             times_to_process = [
                 ("08:00:00", "check_in"),

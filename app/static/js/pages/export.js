@@ -22,33 +22,30 @@ class AttendanceReportManager {
     init() {
         this.setupEventListeners();
         this.setDefaultMonth();
-        this.showEmptyState();
+        this.loadData();
     }
 
     setupEventListeners() {
-        // Month filter
+        // Month filter - tự động tải dữ liệu khi thay đổi
         const monthFilter = document.getElementById('monthFilter');
         if (monthFilter) {
             monthFilter.addEventListener('change', () => this.handleMonthChange());
         }
 
-        // User filter
+        // User filter - tự động áp dụng filter khi thay đổi
         const userFilter = document.getElementById('userFilter');
         if (userFilter) {
             userFilter.addEventListener('change', () => this.applyFilters());
         }
 
-        // Room filter
+        // Room filter - tự động áp dụng filter khi thay đổi
         const roomFilter = document.getElementById('roomFilter');
         if (roomFilter) {
             roomFilter.addEventListener('change', () => this.applyFilters());
         }
 
-        // Buttons
-        const applyBtn = document.getElementById('applyFiltersBtn');
-        if (applyBtn) {
-            applyBtn.addEventListener('click', () => this.loadData());
-        }
+        // Loại bỏ event listener cho apply button
+        // const applyBtn = document.getElementById('applyFiltersBtn');
 
         const resetBtn = document.getElementById('resetFiltersBtn');
         if (resetBtn) {
@@ -97,6 +94,7 @@ class AttendanceReportManager {
         if (monthFilter) {
             this.currentFilters.month = monthFilter.value;
             if (monthFilter.value) {
+                // Tự động tải dữ liệu khi thay đổi tháng
                 this.loadData();
             } else {
                 this.showEmptyState();
@@ -222,7 +220,8 @@ class AttendanceReportManager {
         if (roomFilter) roomFilter.value = '';
 
         this.setDefaultMonth();
-        this.applyFilters();
+        // Tự động tải lại dữ liệu sau khi reset
+        this.loadData();
         showToast('Thành công', 'Đã đặt lại bộ lọc', 'success');
     }
 

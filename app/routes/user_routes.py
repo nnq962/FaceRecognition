@@ -369,7 +369,7 @@ def add_user():
         "room_id": data["room_id"],
         "user_id": user_id,
         "username": username,
-        "password": hash_password("123"),
+        "password": hash_password("123456"),
         "telegram_id": data.get("telegram_id"),
         "email": data.get("email"),
         "role": requested_role,
@@ -1080,3 +1080,170 @@ def get_qr_code():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+
+
+
+
+
+
+# user_collection = config.user_collection
+
+# def preview_username_updates():
+#     """
+#     Preview tất cả các thay đổi username sẽ được thực hiện
+#     """
+#     print("=" * 80)
+#     print("PREVIEW: Username Updates")
+#     print("=" * 80)
+    
+#     # Lấy tất cả users
+#     users = list(user_collection.find({}, {"_id": 1, "name": 1, "username": 1}))
+    
+#     if not users:
+#         print("❌ Không tìm thấy user nào trong collection!")
+#         return
+    
+#     print(f"📊 Tổng số users: {len(users)}")
+#     print()
+    
+#     # Tạo danh sách username mới và check duplicates
+#     username_map = {}  # {user_id: new_username}
+#     username_counts = {}  # {base_username: count}
+    
+#     # Preview từng user
+#     print("📋 Chi tiết thay đổi:")
+#     print("-" * 80)
+#     print(f"{'STT':<4} {'Tên hiện tại':<25} {'Username cũ':<15} {'Username mới':<15}")
+#     print("-" * 80)
+    
+#     for idx, user in enumerate(users, 1):
+#         user_id = user["_id"]
+#         current_name = user.get("name", "")
+#         current_username = user.get("username", "")
+        
+#         # Tạo base username
+#         base_username = generate_username(current_name)
+        
+#         # Xử lý duplicate
+#         if base_username in username_counts:
+#             username_counts[base_username] += 1
+#             new_username = f"{base_username}{username_counts[base_username]}"
+#         else:
+#             username_counts[base_username] = 0
+#             new_username = base_username
+        
+#         username_map[user_id] = new_username
+        
+#         # Hiển thị thông tin
+#         status = "🔄" if current_username != new_username else "✅"
+#         print(f"{idx:<4} {current_name:<25} {current_username:<15} {new_username:<15} {status}")
+    
+#     print("-" * 80)
+    
+#     # Thống kê
+#     total_users = len(users)
+#     users_with_changes = sum(1 for user in users if user.get("username", "") != username_map[user["_id"]])
+#     users_without_changes = total_users - users_with_changes
+    
+#     print(f"\n📈 Thống kê:")
+#     print(f"   • Tổng số users: {total_users}")
+#     print(f"   • Users sẽ được update username: {users_with_changes}")
+#     print(f"   • Users không thay đổi: {users_without_changes}")
+#     print(f"   • Password sẽ được reset về '123456' cho TẤT CẢ users")
+    
+#     # Kiểm tra duplicate usernames
+#     duplicates = {k: v for k, v in username_counts.items() if v > 0}
+#     if duplicates:
+#         print(f"\n⚠️  Username trùng lặp (sẽ được đánh số):")
+#         for base, count in duplicates.items():
+#             print(f"   • {base}: {count + 1} users ({base}, {base}1, {base}2, ...)")
+    
+#     return username_map
+
+# def preview_password_updates():
+#     """
+#     Preview password updates
+#     """
+#     print("\n" + "=" * 80)
+#     print("PREVIEW: Password Updates")
+#     print("=" * 80)
+    
+#     total_users = user_collection.count_documents({})
+#     print(f"🔑 TẤT CẢ {total_users} users sẽ có password được reset về: '123456'")
+#     print("   (Password sẽ được hash bằng hàm hash_password)")
+    
+# def main():
+#     """
+#     Chạy preview toàn bộ
+#     """
+#     try:
+#         # Preview username changes
+#         username_map = preview_username_updates()
+        
+#         # Preview password changes  
+#         preview_password_updates()
+        
+#         print("\n" + "=" * 80)
+#         print("⚠️  LƯU Ý: Đây chỉ là PREVIEW - Chưa có thay đổi nào được thực hiện!")
+#         print("   Để thực hiện update thực sự, hãy chạy hàm execute_updates()")
+#         print("=" * 80)
+        
+#         return username_map
+        
+#     except Exception as e:
+#         print(f"❌ Lỗi khi preview: {e}")
+#         return None
+
+# def execute_updates(username_map=None):
+#     """
+#     Thực hiện update thực sự (chỉ chạy sau khi đã preview và xác nhận)
+#     """
+#     if username_map is None:
+#         print("❌ Vui lòng chạy preview trước!")
+#         return
+    
+#     confirm = input("\n🚨 BẠN CÓ CHẮC MUỐN THỰC HIỆN UPDATE? (yes/no): ").lower()
+#     if confirm != 'yes':
+#         print("❌ Đã hủy update!")
+#         return
+    
+#     print("\n🔄 Đang thực hiện update...")
+    
+#     try:
+#         success_count = 0
+#         error_count = 0
+        
+#         for user_id, new_username in username_map.items():
+#             try:
+#                 # Update username và password
+#                 result = user_collection.update_one(
+#                     {"_id": user_id},
+#                     {
+#                         "$set": {
+#                             "username": new_username,
+#                             "password": hash_password("123456")  # Bạn cần import hàm này
+#                         }
+#                     }
+#                 )
+                
+#                 if result.modified_count > 0:
+#                     success_count += 1
+#                 else:
+#                     print(f"⚠️  User {user_id} không được update (có thể đã giống rồi)")
+                    
+#             except Exception as e:
+#                 print(f"❌ Lỗi update user {user_id}: {e}")
+#                 error_count += 1
+        
+#         print(f"\n✅ Hoàn thành!")
+#         print(f"   • Thành công: {success_count} users")
+#         print(f"   • Lỗi: {error_count} users")
+        
+#     except Exception as e:
+#         print(f"❌ Lỗi nghiêm trọng: {e}")
+
+
+# username_map = main()
+    
+#     # Uncomment dòng dưới để thực hiện update thực sự sau khi preview
+# execute_updates(username_map)

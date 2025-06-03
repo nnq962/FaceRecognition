@@ -83,23 +83,41 @@ def remove_accents(input_str):
 
 def generate_username(full_name: str) -> str:
     """
-    Tạo username từ họ tên:
-    - Lấy 2 từ cuối
-    - Loại bỏ dấu tiếng Việt
-    - Chuyển sang chữ thường
-    - Loại bỏ ký tự không phải a-z
+    Tạo username từ họ tên theo format: tên + viết tắt họ và tên đệm
+    Ví dụ: 
+    - Nguyễn Văn Anh -> anhnv
+    - Nguyễn Trung Lâm -> lamnt  
+    - Nguyễn Đại -> dain
+    - Nguyễn Thị Thuỳ An -> anntt
     """
     if not full_name or not isinstance(full_name, str):
         return ""
-
+    
     parts = full_name.strip().split()
-    last_two = parts[-2:] if len(parts) >= 2 else parts
-    combined = ''.join(last_two)
-
-    # Dùng hàm remove_accents của bạn
-    no_accents = remove_accents(combined)
-    username = re.sub(r'[^a-z]', '', no_accents.lower())  # Chỉ giữ chữ thường a-z
-
+    
+    if len(parts) == 0:
+        return ""
+    elif len(parts) == 1:
+        # Chỉ có 1 từ thì dùng luôn từ đó
+        name = parts[0]
+        initials = ""
+    else:
+        # Tên là từ cuối cùng
+        name = parts[-1]
+        # Viết tắt từ các từ trước đó (họ và tên đệm)
+        initials = ''.join([part[0] for part in parts[:-1]])
+    
+    # Loại bỏ dấu tiếng Việt
+    name_no_accents = remove_accents(name)
+    initials_no_accents = remove_accents(initials)
+    
+    # Chuyển sang chữ thường và loại bỏ ký tự không phải a-z
+    clean_name = re.sub(r'[^a-z]', '', name_no_accents.lower())
+    clean_initials = re.sub(r'[^a-z]', '', initials_no_accents.lower())
+    
+    # Kết hợp tên + viết tắt
+    username = clean_name + clean_initials
+    
     return username
 
 

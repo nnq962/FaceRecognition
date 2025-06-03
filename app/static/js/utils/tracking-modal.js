@@ -157,7 +157,7 @@ function showAttendanceModal(date, records) {
                                     <option value="">-- Chọn thời gian --</option>
                                     <option value="morning">Buổi sáng</option>
                                     <option value="afternoon">Buổi chiều</option>
-                                    <option value="allday">Cả ngày</option>
+                                    <option value="full_day">Cả ngày</option>
                                 </select>
                             </div>
                             <div class="flex justify-end space-x-3 pt-2">
