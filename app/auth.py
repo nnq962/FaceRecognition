@@ -45,6 +45,7 @@ API_PERMISSIONS = {
     'rebuild_all_users_embeddings': ['super_admin'],
     'get_qr_code': ['admin', 'super_admin'],
     'view_attendance_photo': ['user', 'admin', 'super_admin'],
+    'get_feedbacks': ['admin', 'super_admin'],
 
     # Camera
     'get_cameras': ['admin', 'super_admin'],

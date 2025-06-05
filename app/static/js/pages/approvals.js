@@ -111,7 +111,18 @@ class ReportsApproval {
         }
     }
 
-
+    formatErrorTime(time) {
+        switch (time) {
+            case 'morning':
+                return 'Buổi sáng';
+            case 'afternoon':
+                return 'Buổi chiều';
+            case 'full_day':
+                return 'Cả ngày';
+            default:
+                return time; // fallback nếu không match
+        }
+    }
 
     /**
      * Tải danh sách báo cáo từ API
@@ -136,6 +147,7 @@ class ReportsApproval {
             }
 
             const response = await API.getReports(params);
+            console.log(response);
 
             if (response.status === 'success') {
                 this.reports = response.data.reports;
@@ -371,11 +383,11 @@ class ReportsApproval {
                         <span class="text-xs font-medium text-gray-500 dark:text-gray-300 mr-1.5">Ngày tạo:</span>
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300">${createdDate}</span>
                     </div>
-                    ${report.correct_time ? `
+                    ${report.error_time ? `
                     <div class="flex items-center">
-                        <span class="text-xs font-medium text-gray-500 dark:text-gray-300 mr-1.5">Giờ chính xác:</span>
+                        <span class="text-xs font-medium text-gray-500 dark:text-gray-300 mr-1.5">Thời gian lỗi:</span>
                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
-                            ${report.correct_time}
+                            ${this.formatErrorTime(report.error_time)}
                         </span>
                     </div>
                     ` : ''}

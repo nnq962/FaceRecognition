@@ -238,7 +238,7 @@ def get_reports():
                 
             elif report["report_type"] == "machine_error":
                 formatted_report["error_type"] = report.get("error_type", "")
-                formatted_report["correct_time"] = report.get("correct_time", "")
+                formatted_report["error_time"] = report.get("error_time", "")
                 
             elif report["report_type"] == "leave_request":
                 formatted_report["request_type"] = report.get("request_type", "")
