@@ -72,6 +72,12 @@ class InsightFaceDetector:
         self.aruco_detector = cv2.aruco.ArucoDetector(self.arucoDict, self.arucoParams)
         self.hand_state_counters = {}  # Đếm số lần liên tiếp phát hiện cùng một trạng thái
         self.hand_state_threshold = 5  # Số lần tối thiểu để xác nhận trạng thái mới
+        self.qr_state_counters = {}  # Đếm số lần liên tiếp phát hiện cùng một trạng thái
+        self.qr_state_threshold = 5  # Số lần tối thiểu để xác nhận trạng thái mới
+
+        self.qr_candidate_results = {}  # Lưu kết quả ứng viên đang được đếm
+        self.qr_last_detection_time = {}  # Thời gian phát hiện gần nhất cho mỗi camera
+        self.qr_reset_timeout = 10.0  # 10 giây không phát hiện thì reset
 
         if media_manager is not None:
             self.dataset = media_manager.get_dataloader()
@@ -161,57 +167,139 @@ class InsightFaceDetector:
 
         return results
     
-    def detect_face_masks(self, image):
-        mask_count = face_mask_detection.inference(image, target_shape=(360, 360))
-        if mask_count:
-            self.mask_detected_frames += 1
-        else:
-            self.mask_detected_frames = 0
-        if self.mask_detected_frames >= self.mask_thresh:
-            self.mask_detected_frames = 0
-            if self.notification:
-                send_notification(
-                    message="Vui lòng tháo khẩu trang", 
-                    host=self.host, 
-                    control_port=self.noti_control_port,
-                    secret_key=self.noti_secret_key
-                )
-            else:
-                LOGGER.info("Vui lòng tháo khẩu trang")
+    # def detect_face_masks(self, image):
+    #     mask_count = face_mask_detection.inference(image, target_shape=(360, 360))
+    #     if mask_count:
+    #         self.mask_detected_frames += 1
+    #     else:
+    #         self.mask_detected_frames = 0
+    #     if self.mask_detected_frames >= self.mask_thresh:
+    #         self.mask_detected_frames = 0
+    #         if self.notification:
+    #             send_notification(
+    #                 message="Vui lòng tháo khẩu trang", 
+    #                 host=self.host, 
+    #                 control_port=self.noti_control_port,
+    #                 secret_key=self.noti_secret_key
+    #             )
+    #         else:
+    #             LOGGER.info("Vui lòng tháo khẩu trang")
 
     def detect_qr_code(self, image, index):
         """
-        Detects QR codes in the given image and sends a notification if a new QR code is detected.
-        Args:
-            image (numpy.ndarray): The input image in which to detect QR codes. 
-                       It should be a valid numpy array representing the image.
-            index (int): The index of the image, used to determine the corresponding camera name.
-        Behavior:
-            - Uses the `get_aruco_marker` method to detect QR codes in the image.
-            - Compares the detected QR code with previously detected results for the corresponding camera.
-            - If a new QR code is detected, updates the previous results and sends a notification 
-              containing the timestamp, camera name, and QR code data.
-        Note:
-            - The camera name is determined based on the index `i` and whether the input is from a webcam or a photo.
-    
+        Detects QR codes with stability threshold to avoid flickering results.
+        Only updates state after detecting the same result 5 consecutive times.
+        Resets counter after 10 seconds of no detection.
         """
-        qr_result = self.get_aruco_marker(image)
+        current_time = time.time()
         camera_id = config.camera_ids[index] if self.webcam else "Photo"
-        previous_kq = self.previous_qr_results.get(camera_id, [])
-
-        if qr_result and qr_result != previous_kq:
-            self.previous_qr_results[camera_id] = qr_result  # Cập nhật kết quả mới
-            send_data_to_server(
-                data_type="qr_code",
-                payload=qr_result,
-                room_id=self.room_id,
-                server_address=self.data2ws_url,
-                    meta={
-                        "camera_id": camera_id,
-                        "source": "classroom_system",
-                        "version": "2.0"
-                    }
-            )
+        
+        # Get current QR detection results
+        qr_result = self.get_aruco_marker(image)
+        
+        # Initialize tracking data for this camera if not exists
+        if camera_id not in self.qr_state_counters:
+            self.qr_state_counters[camera_id] = {}
+            self.qr_candidate_results[camera_id] = {}
+            self.qr_last_detection_time[camera_id] = current_time
+        
+        # Check if we should reset due to timeout (no detection for 10 seconds)
+        if current_time - self.qr_last_detection_time[camera_id] > self.qr_reset_timeout:
+            self._reset_camera_counters(camera_id)
+        
+        # If no QR codes detected in current frame
+        if not qr_result:
+            return
+            
+        # Update last detection time
+        self.qr_last_detection_time[camera_id] = current_time
+        
+        # Get current confirmed results for this camera
+        current_confirmed = self.previous_qr_results.get(camera_id, {})
+        
+        # Track newly stabilized markers in this frame
+        newly_stabilized_markers = {}
+        
+        # Process each detected marker
+        for marker_id, answer in qr_result.items():
+            if self._process_marker_detection(camera_id, marker_id, answer, current_confirmed):
+                newly_stabilized_markers[marker_id] = answer
+        
+        # Clean up counters for markers that are no longer detected
+        self._cleanup_missing_markers(camera_id, qr_result)
+        
+        # Send all newly stabilized markers for this camera in one request
+        if newly_stabilized_markers:
+            self._send_stabilized_results(camera_id, newly_stabilized_markers)
+    
+    def _process_marker_detection(self, camera_id, marker_id, answer, current_confirmed):
+        """Process detection of a single marker. Returns True if marker becomes stable."""
+        current_confirmed_answer = current_confirmed.get(marker_id)
+        
+        # If this is the same as already confirmed result, reset counter
+        if answer == current_confirmed_answer:
+            self.qr_state_counters[camera_id][marker_id] = 0
+            self.qr_candidate_results[camera_id][marker_id] = answer
+            return False
+        
+        # If this is a new candidate answer
+        candidate_answer = self.qr_candidate_results[camera_id].get(marker_id)
+        
+        if answer == candidate_answer:
+            # Same candidate as before, increment counter
+            self.qr_state_counters[camera_id][marker_id] += 1
+        else:
+            # New candidate answer, reset counter
+            self.qr_state_counters[camera_id][marker_id] = 1
+            self.qr_candidate_results[camera_id][marker_id] = answer
+        
+        # Check if we've reached the threshold
+        if self.qr_state_counters[camera_id][marker_id] >= self.qr_state_threshold:
+            # Update confirmed results
+            if camera_id not in self.previous_qr_results:
+                self.previous_qr_results[camera_id] = {}
+            
+            self.previous_qr_results[camera_id][marker_id] = answer
+            
+            # Reset counter after confirmation
+            self.qr_state_counters[camera_id][marker_id] = 0
+            
+            return True  # This marker just became stable
+        
+        return False
+    
+    def _send_stabilized_results(self, camera_id, stabilized_markers):
+        """Send all stabilized markers for this camera in one request"""
+        send_data_to_server(
+            data_type="qr_code",
+            payload=stabilized_markers,  # Send all stabilized markers at once
+            room_id=self.room_id,
+            server_address=self.data2ws_url,
+            meta={
+                "camera_id": camera_id,
+                "source": "classroom_system",
+                "version": "2.1",
+                "description": "Stable QR code detection with threshold filtering",
+                "markers_count": len(stabilized_markers)
+            }
+        )
+    
+    def _cleanup_missing_markers(self, camera_id, current_results):
+        """Clean up counters for markers that are no longer detected"""
+        detected_markers = set(current_results.keys()) if current_results else set()
+        tracked_markers = set(self.qr_state_counters[camera_id].keys())
+        
+        # Remove counters for markers that are no longer detected
+        for marker_id in tracked_markers - detected_markers:
+            if marker_id in self.qr_state_counters[camera_id]:
+                del self.qr_state_counters[camera_id][marker_id]
+            if marker_id in self.qr_candidate_results[camera_id]:
+                del self.qr_candidate_results[camera_id][marker_id]
+    
+    def _reset_camera_counters(self, camera_id):
+        """Reset all counters for a specific camera due to timeout"""
+        self.qr_state_counters[camera_id] = {}
+        self.qr_candidate_results[camera_id] = {}
 
     def detect_raise_hand(self, frame, bbox, user_id, camera_id):
         if user_id == "Unknown":
