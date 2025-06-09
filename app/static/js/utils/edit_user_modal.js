@@ -129,9 +129,9 @@ class EditUserModal {
                                                 </svg>
                                                 <p class="mb-1 text-sm text-gray-500 dark:text-gray-400"><span
                                                         class="font-semibold">Nhấp để tải ảnh</span> hoặc kéo và thả</p>
-                                                <p class="text-xs text-gray-500 dark:text-gray-400">JPG, JPEG, PNG (Tối đa 10MB)</p>
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">JPG, JPEG, PNG, HEIC (Tối đa 10MB)</p>
                                             </div>
-                                            <input id="dropzone-file" type="file" class="hidden" multiple accept=".jpg,.jpeg,.png" />
+                                            <input id="dropzone-file" type="file" class="hidden" multiple accept=".jpg,.jpeg,.png,.heic" />
                                         </label>
                                     </div>
 
@@ -265,8 +265,8 @@ class EditUserModal {
     // Validate file
     validateFile(file) {
         // Check file type
-        if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
-            showToast('Lỗi', 'Chỉ chấp nhận file JPG, JPEG, PNG', 'error');
+        if (!['image/jpeg', 'image/jpg', 'image/png', 'image/heic'].includes(file.type)) {
+            showToast('Lỗi', 'Chỉ chấp nhận file JPG, JPEG, PNG, HEIC', 'error');
             return false;
         }
 
