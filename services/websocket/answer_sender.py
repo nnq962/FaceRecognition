@@ -5,7 +5,7 @@ import sys
 # Thêm project root vào sys.path để import utils
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from utils.logger_config import LOGGER
-from config import config
+from database_config import config
 
 def send_data_to_server(data_type, payload, room_id, server_address="http://localhost:3000", meta=None):
     """

@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from config import config
+from database_config import config
 import os
 from annoy import AnnoyIndex
 import faiss
@@ -18,7 +18,7 @@ elif current_os == "Linux":
     pass
 
 
-def search_ids(embeddings, top_k=1, threshold=0.5):
+def search_ids(class_id, embeddings, top_k=1, threshold=0.5):
     """
     Tìm kiếm ID và độ tương đồng trong cơ sở dữ liệu dựa trên một mảng embeddings, với ngưỡng độ tương đồng.
 
@@ -31,19 +31,21 @@ def search_ids(embeddings, top_k=1, threshold=0.5):
         list: Danh sách kết quả, với mỗi phần tử là một dictionary hoặc None nếu không có kết quả hợp lệ.
     """
     # Kiểm tra file tồn tại trước khi load
-    if not os.path.exists(config.faiss_file):
-        LOGGER.warning(f"Missing Faiss index file: {config.faiss_file}")
+    faiss_index_path = os.path.join(config.faiss_data_folder, str(class_id), "face_index.faiss")
+    if not os.path.exists(faiss_index_path):
+        LOGGER.warning(f"Missing Faiss index file: {faiss_index_path}")
         return [None] * len(embeddings)
 
-    if not os.path.exists(config.faiss_mapping_file):
-        LOGGER.warning(f"Missing mapping file: {config.faiss_mapping_file}")
+    faiss_mapping_path = os.path.join(config.faiss_data_folder, str(class_id), "face_index_mapping.pkl")
+    if not os.path.exists(faiss_mapping_path):
+        LOGGER.warning(f"Missing mapping file: {faiss_mapping_path}")
         return [None] * len(embeddings)
 
     # Load FAISS index
-    index = faiss.read_index(config.faiss_file)
+    index = faiss.read_index(faiss_index_path)
 
     # Load ánh xạ index -> ID
-    with open(config.faiss_mapping_file, "rb") as f:
+    with open(faiss_mapping_path, "rb") as f:
         index_to_id = pickle.load(f)
 
     # Chuyển đổi embeddings thành dạng float32
@@ -56,9 +58,9 @@ def search_ids(embeddings, top_k=1, threshold=0.5):
     for query_idx in range(len(query_embeddings)):
         query_results = [
             {
-                "user_id": index_to_id[idx]["user_id"],
+                "id": index_to_id[idx]["id"],
                 "name": index_to_id[idx]["name"],
-                "room_id": index_to_id[idx]["room_id"],
+                "type": index_to_id[idx]["type"],
                 "similarity": float(similarity)
             }
             for idx, similarity in zip(I[query_idx], D[query_idx])
@@ -248,7 +250,7 @@ def crop_and_align_faces(img, bboxes, keypoints, conf_threshold=0.5, image_size=
     
     return cropped_faces
 
-def process_image(image_path, detector):
+def get_embedding(image_path, detector):
     """
     Trích xuất embedding từ hình ảnh.
 
@@ -276,11 +278,11 @@ def process_image(image_path, detector):
 
         if num_faces == 0:
             message = "No face detected in this image."
-            LOGGER.warning(message)
+            # LOGGER.warning(message)
             return None, message
         elif num_faces > 1:
             message = f"Multiple faces detected in this image ({num_faces} faces)."
-            LOGGER.warning(message)
+            # LOGGER.warning(message)
             return None, message
 
         # Gọi hàm crop_and_align_faces với khuôn mặt đầu tiên
@@ -294,7 +296,7 @@ def process_image(image_path, detector):
 
         if not cropped_faces:
             message = "No face passed the confidence threshold."
-            LOGGER.warning(message)
+            # LOGGER.warning(message)
             return None, message
 
         # Trích xuất embedding
@@ -304,7 +306,7 @@ def process_image(image_path, detector):
 
     except Exception as e:
         message = f"Failed to process {image_path}: {str(e)}"
-        LOGGER.error(message)
+        # LOGGER.error(message)
         return None, message
     
 def crop_faces_for_emotion(frame, bboxes, conf_threshold=0.5):

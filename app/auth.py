@@ -6,7 +6,7 @@ import bcrypt
 import os
 import hashlib
 from utils.logger_config import LOGGER
-from config import config
+from database_config import config
 
 # Lấy collection từ config
 user_collection = config.user_collection

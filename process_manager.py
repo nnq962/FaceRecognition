@@ -9,7 +9,7 @@ import os
 import time
 import yaml  # Thay đổi từ json sang yaml
 import re
-from config import config
+from database_config import config
 import cv2
 from unidecode import unidecode
 from utils.logger_config import LOGGER

@@ -39,7 +39,7 @@ if not app.config['INTERNAL_TOKEN'] and ENV == 'production':
     LOGGER.warning("INTERNAL_TOKEN not set in production environment")
 
 # Kết nối MongoDB từ config
-from config import config
+from database_config import config
 reports_collection = config.reports_collection
 user_collection = config.user_collection
 

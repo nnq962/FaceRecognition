@@ -18,6 +18,3 @@ def generate_aruco_marker(dictionary_name: str, marker_id: int, size: int):
     marker_image = np.zeros((size, size, 1), dtype=np.uint8)
     cv2.aruco.generateImageMarker(aruco_dict, marker_id, size, marker_image, 1)
     return marker_image[:, :, 0]
-
-
-

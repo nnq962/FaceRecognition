@@ -21,23 +21,15 @@ class Config:
     port = os.getenv("MONGODB_PORT")
     database = os.getenv("MONGODB_DATABASE")
 
-    init_database = False
-    vram_limit_for_FER = 2
-    camera_ids = []
-
     # Đường dẫn tới thư mục lưu ảnh
     BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
     model_urls = {
-    "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
-    "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2"
+        "det_10g.onnx": "https://drive.google.com/uc?id=1j47suEUpM6oNAgNvI5YnaLSeSnh1m45X",
+        "w600k_r50.onnx": "https://drive.google.com/uc?id=1JKwOYResiJf7YyixHCizanYmvPrl1bP2"
     }
 
-    ann_file = "ann_data/face_index.ann"
-    mapping_file = "ann_data/annoy_mapping.npy"
-    faiss_file = "faiss_data/face_index.faiss"
-    faiss_mapping_file = "faiss_data/faiss_mapping.pkl"
-    vector_dim = 512
+    faiss_data_folder = "faiss_data"
     
     # Tạo MONGO_URI linh hoạt
     if user and password:
@@ -54,29 +46,10 @@ class Config:
 
     database = client["face_recognition"]
 
-    # Các collection
-    user_collection = database["users"]
-    admin_collection = database["edulive_admins"]
-    camera_collection = database["cameras"]
-    reports_collection = database["reports"]
-    feedbacks_collection = database["feedbacks"]
-
     def __init__(self):
         self.update_path = self.find_file_in_anaconda("degradations.py")
         # self.update_import(file_path=self.update_path)
         self.prepare_models(model_urls=self.model_urls, save_dir="models")
-
-    def get_rtsp_by_id(self, camera_id):
-        camera = self.camera_collection.find_one(
-            {"camera_id": camera_id},
-            {"RTSP": 1, "_id": 0}
-        )
-        return camera["RTSP"] if camera else None
-    
-    def get_camera_name_by_id(self, camera_id):
-        # Tìm document theo _id
-        camera = self.camera_collection.find_one({"camera_id": camera_id}, {"name": 1, "_id": 0})
-        return camera["name"] if camera else None
 
     def get_vietnam_time(self):
         vietnam_now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
@@ -166,49 +139,6 @@ class Config:
                     LOGGER.info(f"Model '{model_name}' downloaded successfully")
                 except Exception as e:
                     LOGGER.error(f"Failed to download model '{model_name}': {e}")
-
-    def process_camera_input(self, sources):
-        """
-        Xử lý đầu vào camera từ danh sách nguồn ["WEBCAM", "CAM1", "CAM2"]
-
-        Args:
-            sources (List[str]): danh sách nguồn camera (ví dụ: ["WEBCAM", "CAM1", "CAM2"])
-
-        Returns:
-            str: '0' nếu chỉ có webcam, hoặc 'device.txt' nếu nhiều nguồn
-        """
-        if not isinstance(sources, list):
-            raise ValueError("Sources phải là danh sách (list)")
-
-        camera_sources = []
-
-        for id in sources:
-            id = id.strip().upper()
-            if id == "WEBCAM":
-                self.camera_ids.append(id)
-                camera_sources.append("0")
-                LOGGER.info("Camera initialized: WEBCAM [ID: 0]")
-            else:
-                # Truy vấn RTSP từ MongoDB
-                camera_doc = self.camera_collection.find_one({"camera_id": id})
-                if not camera_doc:
-                    raise ValueError(f"Không tìm thấy camera_id '{id}' trong MongoDB")
-                rtsp_url = camera_doc["RTSP"]
-                camera_sources.append(rtsp_url)
-                self.camera_ids.append(id)
-                LOGGER.info(f"Camera initialized: {id} [RTSP: {rtsp_url}]")
-
-        # Nếu chỉ có 1 camera → trả về luôn (dùng cho webcam hoặc 1 RTSP)
-        if len(camera_sources) == 1:
-            return camera_sources[0]
-
-        # Nếu có nhiều → ghi ra file
-        with open("device.txt", "w") as f:
-            for cam in camera_sources:
-                f.write(f"{cam}\n")
-
-        LOGGER.info(f"Created device.txt file with {len(camera_sources)} camera sources")
-        return "device.txt"
 
 # Tạo instance `config` để sử dụng trong toàn bộ project
 config = Config()

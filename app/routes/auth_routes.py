@@ -11,7 +11,7 @@ from app.auth import (
     update_session_activity
 )
 from datetime import timedelta
-from config import config
+from database_config import config
 
 # Lấy collection từ config
 user_collection = config.user_collection

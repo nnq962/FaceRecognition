@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 import cv2
-from config import config
+from database_config import config
 from app.auth import login_required, role_required
 import utils.onvif_camera_tools as onvif_camera_tools
 

@@ -1,11 +1,11 @@
 from flask import Blueprint, request, jsonify, send_file, g, current_app, session
 import os
 import shutil
-from config import config
+from database_config import config
 from app import auth, generate_aruco_marker
 from app.auth import login_required, role_required, hash_password, check_password
 from app.tools import build_faiss_index, generate_username
-from utils.insightface_utils import process_image
+from insightface_utils import get_embedding
 from insightface_detector import InsightFaceDetector
 import unicodedata
 import pillow_heif
@@ -739,7 +739,7 @@ def upload_photo(user_id):
                     "message": "Photo already exists"
                 }), 400
             
-            face_embedding, processing_message = process_image(file_path, detector)
+            face_embedding, processing_message = get_embedding(file_path, detector)
             if face_embedding is None:
                 os.remove(file_path)
                 return jsonify({

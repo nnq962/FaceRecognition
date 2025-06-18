@@ -8,8 +8,8 @@ import unicodedata
 import sys
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import config
-from utils.insightface_utils import process_image
+from database_config import config
+from insightface_utils import get_embedding
 from utils.logger_config import LOGGER
 from insightface_detector import InsightFaceDetector
 
@@ -42,7 +42,7 @@ def generate_all_user_embeddings():
             if os.path.isfile(file_path):
                 try:
                     # Gọi hàm xử lý để lấy face embedding và thông báo
-                    face_embedding, processing_message = process_image(file_path, detector)
+                    face_embedding, processing_message = get_embedding(file_path, detector)
 
                     if face_embedding is not None:
                         face_embeddings.append({
@@ -169,7 +169,7 @@ def build_faiss_index():
             if embedding and isinstance(embedding, list):
                 try:
                     # Kiểm tra vector embedding hợp lệ
-                    if len(embedding) < 128:  # Giả sử chiều vector là 128, điều chỉnh theo thực tế
+                    if len(embedding) < 512:  # Giả sử chiều vector là 512, điều chỉnh theo thực tế
                         LOGGER.warning(f"Bỏ qua embedding không hợp lệ của user {user_id}: độ dài {len(embedding)}")
                         continue
                         

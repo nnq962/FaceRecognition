@@ -10,10 +10,10 @@ ort.set_default_logger_severity(3)
 
 from utils.plots import Annotator
 from face_emotion import FaceEmotion
-from utils.insightface_utils import normalize_embeddings, crop_and_align_faces, crop_faces_for_emotion, search_ids, crop_image
+from insightface_utils import normalize_embeddings, crop_and_align_faces, crop_faces_for_emotion, search_ids, crop_image
 from hand_raise_detector import get_raising_hand
 from services.websocket.answer_sender import send_data_to_server
-from config import config
+from database_config import config
 from qr_code.utils_qr import ARUCO_DICT, detect_aruco_answers
 from services.notification.notification_server import send_notification
 # import face_mask_detection
@@ -32,17 +32,18 @@ class InsightFaceDetector:
                 qr_code=False,
                 face_mask=False,
                 notification=False,
-                room_id=None,
+                class_id=None,
                 host=None,
                 data2ws_url=None,
                 noti_control_port=None,
-                noti_secret_key=None
+                noti_secret_key=None,
                 ):
                 
         self.det_model_path = os.path.expanduser("models/det_10g.onnx")
         self.rec_model_path = os.path.expanduser("models/w600k_r50.onnx")
         self.det_model = None
         self.rec_model = None
+        self.camera_ids = None
 
         self.face_recognition = face_recognition
         self.face_emotion = face_emotion
@@ -52,12 +53,12 @@ class InsightFaceDetector:
         self.raise_hand = raise_hand
         self.face_mask = face_mask
         self.notification = notification
-        self.room_id = room_id
+        self.class_id = class_id
         self.data2ws_url = data2ws_url
         self.noti_control_port = noti_control_port
         self.noti_secret_key = noti_secret_key
         self.host = host
-        self.log_collection = config.database[f"{self.room_id}_logs"] if self.room_id else config.database["all_room_logs"]
+        self.log_collection = config.database[f"{self.class_id}_logs"] if self.class_id else config.database["all_room_logs"]
 
         self.previous_qr_results = {}
         self.previous_hand_states = {}
@@ -93,7 +94,7 @@ class InsightFaceDetector:
 
         if self.raise_hand:
             if self.webcam:
-                for camera_id in config.camera_ids:
+                for camera_id in self.camera_ids:
                     self.previous_hand_states[camera_id] = {}
             else:
                 self.previous_hand_states["Photo"] = {}
@@ -102,6 +103,34 @@ class InsightFaceDetector:
             self.fer = FaceEmotion()
 
         self.load_model()
+        print("-" * 100)
+        LOGGER.info("Khởi tạo InsightFaceDetector thành công.")
+        print("-" * 100)
+
+    def update_media_manager(self, media_manager):
+        self.media_manager = media_manager
+        self.dataset = media_manager.get_dataloader()
+        self.save_dir = media_manager.get_save_directory()
+        self.view_img = media_manager.view_img
+        self.line_thickness = media_manager.line_thickness
+        self.webcam = media_manager.webcam
+        self.save_img = media_manager.save_img
+        self.save = media_manager.save
+        self.save_crop = media_manager.save_crop
+        self.vid_path = media_manager.vid_path
+        self.vid_writer = media_manager.vid_writer
+
+        # Cập nhật lại hand states nếu raise_hand đang bật
+        if self.raise_hand:
+            self.previous_hand_states.clear()
+            if self.webcam:
+                for camera_id in self.camera_ids:
+                    self.previous_hand_states[camera_id] = {}
+            else:
+                self.previous_hand_states["Photo"] = {}
+
+    def update_camera_ids(self, camera_ids):
+        self.camera_ids = camera_ids
 
     def load_model(self):
         """Load detection and recognition models"""
@@ -192,7 +221,7 @@ class InsightFaceDetector:
         Resets counter after 10 seconds of no detection.
         """
         current_time = time.time()
-        camera_id = config.camera_ids[index] if self.webcam else "Photo"
+        camera_id = self.camera_ids[index] if self.webcam else "Photo"
         
         # Get current QR detection results
         qr_result = self.get_aruco_marker(image)
@@ -273,7 +302,7 @@ class InsightFaceDetector:
         send_data_to_server(
             data_type="qr_code",
             payload=stabilized_markers,  # Send all stabilized markers at once
-            room_id=self.room_id,
+            class_id=self.class_id,
             server_address=self.data2ws_url,
             meta={
                 "camera_id": camera_id,
@@ -341,7 +370,7 @@ class InsightFaceDetector:
                 payload={
                     user_id: "up" if new_hand_raised else "down"
                 },
-                room_id=self.room_id,
+                class_id=self.class_id,
                 server_address=self.data2ws_url,
                 meta={
                     "camera_id": camera_id,
@@ -405,7 +434,7 @@ class InsightFaceDetector:
             # Lấy embeddings và truy xuất thông tin
             if all_cropped_faces_recognition:
                 all_embeddings = self.get_face_embeddings(all_cropped_faces_recognition)
-                user_infos = search_ids(embeddings=all_embeddings, threshold=0.6)
+                user_infos = search_ids(class_id=self.class_id, embeddings=all_embeddings, threshold=0.4)
             
             # Ghép kết quả
             results_per_image = []  # Danh sách kết quả theo từng ảnh
@@ -419,9 +448,9 @@ class InsightFaceDetector:
                     {
                         "bbox": bbox[:4],
                         "conf": bbox[4],
-                        "user_id": user_info["user_id"] if user_info else "Unknown",
+                        "id": user_info["id"] if user_info else "Unknown",
                         "name": user_info["name"] if user_info else "Unknown",
-                        "room_id": user_info["room_id"] if user_info else "Unknown",
+                        "type": user_info["type"] if user_info else "",
                         "similarity": f"{user_info['similarity'] * 100:.2f}%" if user_info else "",
                         "emotion": "Unknown" if user_info is None else emotion
                     }
@@ -446,16 +475,16 @@ class InsightFaceDetector:
                 save_path = str(self.save_dir / p.name) if (self.save or self.save_crop) else None
                 imc = im0.copy() if self.save_crop or should_export else None
                 annotator = Annotator(im0, line_width=self.line_thickness)
-                camera_id = config.camera_ids[img_index] if self.webcam else "Photo"
+                camera_id = self.camera_ids[img_index] if self.webcam else "Photo"
                 
                 # Duyệt qua từng khuôn mặt trong ảnh
                 for result in results:
                     bbox = result["bbox"]
                     conf = result["conf"]
                     name = result["name"]
+                    type = result["type"]
                     similarity = result["similarity"]
-                    user_id = result["user_id"]
-                    room_id = result["room_id"]
+                    user_id = result["id"]
                     emotion = result["emotion"]
 
                     # Kiểm tra giơ tay
@@ -464,36 +493,23 @@ class InsightFaceDetector:
 
                     # Nếu cần export dữ liệu, thu thập thông tin
                     if should_export and user_id != "Unknown":
-                        if self.room_id is not None:
-                            # Kiểm tra user có thuộc phòng này không
-                            if room_id == self.room_id:
-                                export_data_list.append({
-                                    "user_id": user_id,
-                                    "name": name, 
-                                    "time": current_time_short,
-                                    "emotion": emotion,
-                                    "camera_id": camera_id,
-                                    "image": imc,  # Lưu ảnh để dùng cho check-in nếu cần
-                                    "bbox": bbox   # Lưu bbox để vẽ hình chữ nhật trên ảnh check-in
-                                })
-                        else:
-                            # Nếu không có room_id, thu thập dữ liệu tất cả user
-                            export_data_list.append({
-                                "user_id": user_id,
-                                "name": name,
-                                "time": current_time_short,
-                                "emotion": emotion,
-                                "camera_id": camera_id,
-                                "image": imc,
-                                "bbox": bbox
-                            })
+                        export_data_list.append({
+                            "user_id": user_id,
+                            "name": name,
+                            "type": type,
+                            "time": current_time_short,
+                            "emotion": emotion,
+                            "camera_id": camera_id,
+                            "image": imc,
+                            "bbox": bbox
+                        })
 
                     if self.save_img or self.save_crop or self.view_img:
                         label = None
                         if self.face_emotion:
-                            label = f"{user_id} {similarity} | {emotion}"
+                            label = f"{type} {user_id} {similarity} | {emotion}"
                         elif self.face_recognition:
-                            label = f"{user_id} {similarity}"
+                            label = f"{type} {user_id} {similarity}"
 
                         color = (0, int(255 * conf), int(255 * (1 - conf)))
                         annotator.box_label(bbox, label, color=color)
@@ -526,7 +542,9 @@ class InsightFaceDetector:
             
             # Lưu dữ liệu vào MongoDB
             if should_export and export_data_list:
-                self._process_attendance_data(export_data_list, today_date, current_time_short, self.notification)
+                # self._process_attendance_data(export_data_list, today_date, current_time_short, self.notification)
+                # TODO: Xử lý dữ liệu check-in
+                LOGGER.warning("Chưa xử lý lưu dữ liệu")
                 start_time = time.time()
                             
         # Đảm bảo release sau khi xử lý tất cả các khung hình

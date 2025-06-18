@@ -6,7 +6,7 @@ import os
 from bson.objectid import ObjectId
 
 import pymongo
-from config import config
+from database_config import config
 from app.auth import login_required, role_required
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 import mimetypes

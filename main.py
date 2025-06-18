@@ -1,11 +1,13 @@
 import argparse
 import os
 import yaml
-from config import config
+from database_config import config
 from insightface_detector import InsightFaceDetector
 from media_manager import MediaManager
 from utils.logger_config import LOGGER
-from app import build_faiss_index
+from sync import Sync
+from speaker_recognition.speaker_recognition import SpeakerRecognition
+
 
 def load_config(config_name):
     """Load and validate configuration from config.yaml"""
@@ -47,8 +49,7 @@ def main():
     main_config = load_config(args.config)
     
     # Trích xuất thông tin
-    room_id = main_config.get("room_id")
-    camera_ids = main_config.get("camera_ids", [])
+    class_id = main_config.get("class_id")
     features = main_config.get("features", {})
     
     # Lấy các giá trị từ features với giá trị mặc định
@@ -63,26 +64,16 @@ def main():
     noti_secret_key = main_config.get("noti_secret_key")
     
     # Log cấu hình đã tải
-    LOGGER.info(f"Room ID: {room_id}")
-    LOGGER.info(f"Camera IDs: {camera_ids}")
+    print("-" * 100)
+    LOGGER.info(f"Class ID: {class_id}")
     LOGGER.info(f"Host: {host}")
     LOGGER.info(f"WebSocket Port: {websocket_port}")
     LOGGER.info(f"Notification Control Port: {noti_control_port}")
     LOGGER.info(f"Data2WS URL: {data2ws_url}")
-    
-    # Xử lý danh sách camera đầu vào
-    sources = config.process_camera_input(camera_ids)
-    
-    # Khởi tạo các thành phần
-    media_manager = MediaManager(
-        source=sources,
-        save=save,
-        view_img=view_img,
-        line_thickness=line_thickness
-    )
-    
-    detector = InsightFaceDetector(
-        media_manager=media_manager,
+    print("-" * 100)
+
+    face_recognizer = InsightFaceDetector(
+        media_manager=None,
         face_recognition=features.get("face_recognition", False),
         face_emotion=features.get("face_emotion", False),
         face_mask=features.get("face_mask", False),
@@ -91,15 +82,31 @@ def main():
         export_data=features.get("export_data", False),
         time_to_save=time_to_save,
         notification=features.get("notification", False),
-        room_id=room_id,
         host=host,
         data2ws_url=data2ws_url,
         noti_control_port=noti_control_port,
         noti_secret_key=noti_secret_key,
+        class_id=class_id
     )
-    
-    detector.run_inference()
+
+    speaker_recognizer = SpeakerRecognition()
+
+    sync = Sync(face_recognizer=face_recognizer, speaker_recognizer=speaker_recognizer)
+
+    # Khởi tạo các thành phần
+    media_manager = MediaManager(
+        source=sync.camera_sources,
+        save=save,
+        view_img=view_img,
+        line_thickness=line_thickness
+    )
+
+    print("-" * 100)
+    face_recognizer.update_media_manager(media_manager)
+    face_recognizer.update_camera_ids(sync.camera_ids)
+
+    LOGGER.info("Đang chạy inference...")
+    face_recognizer.run_inference()
 
 if __name__ == "__main__":
-    build_faiss_index()
     main()

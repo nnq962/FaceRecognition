@@ -1,4 +1,4 @@
-from config import config
+from database_config import config
 import argparse
 from media_manager import MediaManager
 import cv2
