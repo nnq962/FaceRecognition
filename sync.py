@@ -13,6 +13,102 @@ import pickle
 from insightface_utils import get_embedding
 from utils.onvif_camera_tools import get_camera_rtsp_url
 import shutil
+from typing import Dict, Optional
+
+
+
+api_response = {
+    "result": True,
+    "data": {
+        "list_classes": [
+            {
+                "id": 19,
+                "class_name": "Lớp 2",
+                "year_name": "2025",
+                "auto_attendance_check": True,
+                "school_id": 10,
+                "co_teacher_id": 17,
+                "co_teacher_first_name": "Phan",
+                "co_teacher_middle_name": "Hữu",
+                "co_teacher_last_name": "Toại",
+                "main_teacher_id": 17,
+                "main_teacher_first_name": "Phan",
+                "main_teacher_middle_name": "Hữu",
+                "main_teacher_last_name": "Toại",
+                "board_checkin": False,
+                "time_attendances": [
+                    {"start_time": "08:00:00", "end_time": "12:00:00"},
+                    {"start_time": "12:00:00", "end_time": "13:00:00"}
+                ]
+            },
+            {
+                "id": 4,
+                "class_name": "Lớp 2",
+                "year_name": "2025",
+                "auto_attendance_check": True,
+                "school_id": 10,
+                "co_teacher_id": 33,
+                "co_teacher_first_name": "M",
+                "co_teacher_middle_name": "V",
+                "co_teacher_last_name": "D",
+                "main_teacher_id": 17,
+                "main_teacher_first_name": "Phan",
+                "main_teacher_middle_name": "Hữu",
+                "main_teacher_last_name": "Toại",
+                "board_checkin": False,
+                "time_attendances": [
+                    {"start_time": "14:00:00", "end_time": "15:00:00"}
+                ]
+            },
+            {
+                "id": 7,
+                "class_name": "Vu Minh Quang (TEST PARENTS - MVD MARKED)",
+                "year_name": "2030",
+                "auto_attendance_check": False,
+                "school_id": 10,
+                "co_teacher_id": 17,
+                "co_teacher_first_name": "Phan",
+                "co_teacher_middle_name": "Hữu",
+                "co_teacher_last_name": "Toại",
+                "main_teacher_id": 17,
+                "main_teacher_first_name": "Phan",
+                "main_teacher_middle_name": "Hữu",
+                "main_teacher_last_name": "Toại",
+                "board_checkin": False,
+                "time_attendances": [
+                    {"start_time": "15:00:00", "end_time": "19:00:00"},
+                    {"start_time": "19:30:00", "end_time": "21:00:00"}
+                ]
+            }
+        ],
+        "list_hardware": {
+            "cameras": [
+                {
+                    "id": 1,
+                    "name": "Camera T2 1",
+                    "mac_address": "a8:31:62:c0:3b:2a",
+                    "ip": "192.168.1.40",
+                    "username": "admin",
+                    "password": "L2B92F47"
+                }
+            ],
+            "boards": [
+                {
+                    "id": 3,
+                    "name": "Bảng 2",
+                    "board_id": "Bảng"
+                },
+                {
+                    "id": 2,
+                    "name": "Bảng 1",
+                    "board_id": "BOARD11111"
+                }
+            ]
+        }
+    }
+}
+
+
 
 class Sync:
     """
@@ -21,43 +117,87 @@ class Sync:
     - Đồng bộ học sinh các lớp
     - Đồng bộ thiết bị
     """
-    def __init__(self, face_recognizer=None, speaker_recognizer=None):
+    def __init__(self, face_recognizer=None, speaker_recognizer=None, server_id=None):
         self.api = api
         self.config = config
         self.face_recognizer = face_recognizer
         self.speaker_recognizer = speaker_recognizer
-        self.server_id = "MC12321"
+        self.server_id = server_id
         self.list_cameras = []
         self.camera_ids = []
         self.camera_sources = None
+        self.schedule = None
 
-        # Xử lý đồng bộ
+        # Remome it
+        self.schedule = self.create_schedule(api_response)
+
+    def sync_all(self):
+        """
+        Đồng bộ toàn bộ giáo viên và các lớp học
+        """
         self.sync_staffs()
         self.sync_classes()
 
     def sync_classes(self):
+        print("-" * 100)
+        LOGGER.info(f"Đang đồng bộ lớp học từ server_id: {self.server_id}")
         response = self.api.get_classes(self.server_id)
 
         # Nếu không có dữ liệu thì log rồi dừng chương trình
         if not response.get("data"):
             LOGGER.warning("Không lấy được danh sách lớp từ API.")
             raise RuntimeError("Không có dữ liệu lớp từ API.")
-
-        print("-" * 100)
-        self._get_list_cameras(response["data"])
-        print("-" * 100)
         
+        # Tạo lịch sử dụng
+        print("-" * 80)
+        LOGGER.info(f"Đang tạo lịch sử dụng từ server_id: {self.server_id}")
+        self.schedule = self.create_schedule(api_response)
+        # TODO: sử dụng data thật từ API
+
         class_list = response["data"].get("list_classes", [])
+        hardware_data = response["data"].get("list_hardware", {})
+
+        # Tách cameras và boards từ hardware_data
+        cameras = hardware_data.get("cameras", [])
+        boards = hardware_data.get("boards", [])
+
+        # Tạo RTSP URL cho cameras
+        print("-" * 80)
+        LOGGER.info(f"Đang đồng bộ camera từ server_id: {self.server_id}")
+        self._get_list_cameras(cameras)
+        print("-" * 80)
 
         if not class_list:
             LOGGER.warning("Không có lớp học nào trong dữ liệu API.")
             raise RuntimeError("Danh sách lớp trống.")
+        
+        if not cameras and not boards:
+            LOGGER.warning("Không có thiết bị nào trong dữ liệu API.")
+            raise RuntimeError("Danh sách thiết bị trống.")
+        
+        # Lưu dữ liệu mới vào MongoDB (xoá dữ liệu cũ trước)
+        try:
+            # Xoá toàn bộ dữ liệu cũ trong collection
+            config.list_classes.delete_many({})
+            config.list_cameras.delete_many({})
+            config.list_boards.delete_many({})
 
-        LOGGER.info(f"Phát hiện {len(class_list)} lớp học từ API.")
+            # Lưu dữ liệu mới vào collection
+            if class_list:
+                config.list_classes.insert_many(class_list)
+            if cameras:
+                config.list_cameras.insert_many(cameras)
+            if boards:
+                config.list_boards.insert_many(boards)
+        
+            LOGGER.info("Đã cập nhật dữ liệu lớp học vào MongoDB.")
+        except Exception as e:
+            LOGGER.error(f"Lỗi khi lưu dữ liệu vào MongoDB: {str(e)}")
+            raise RuntimeError(f"Lỗi MongoDB: {str(e)}")
 
         for class_data in class_list:
             class_id = class_data["id"]
-            print("-" * 100)
+            print("-" * 80)
             LOGGER.info(f"Đang đồng bộ lớp {class_id}...")
             self.sync_class(class_id)
             self.build_faiss_index(class_id)
@@ -400,7 +540,7 @@ class Sync:
             str: RTSP nếu chỉ có 1 camera, hoặc "device.txt" nếu nhiều
         """
         try:
-            self.list_cameras = data.get("list_hardware", {}).get("cameras", [])
+            self.list_cameras = data
             camera_sources = []
 
             if not self.list_cameras:
@@ -423,9 +563,6 @@ class Sync:
                 camera_sources.append(cam["RTSP"])
                 LOGGER.info(f"Đã lấy RTSP cho camera {cam['name']} [ID: {cam['id']}] [RTSP: {cam['RTSP']}]")
 
-            if len(camera_sources) == 1:
-                self.camera_sources = camera_sources[0]
-
             with open("device.txt", "w") as f:
                 for rtsp in camera_sources:
                     f.write(f"{rtsp}\n")
@@ -437,6 +574,11 @@ class Sync:
             LOGGER.error(f"Lỗi khi xử lý danh sách camera: {e}")
 
     def sync_staffs(self):
+        """
+        Đồng bộ staffs từ API vào MongoDB
+        1. Lấy danh sách staffs từ API
+        
+        """
         response = self.api.get_staffs(self.server_id)
         if not response["data"]:
             LOGGER.warning(f"Không có staff nào trong server_id: {self.server_id}")
@@ -466,7 +608,7 @@ class Sync:
         # Xử lý từng staff trong API
         for staff in api_data:
             staff_id = staff.get("id")
-            print("-" * 100)
+            print("-" * 80)
             LOGGER.info(f"Đang đồng bộ staff {staff_id}")
 
             existing = existing_map.get(staff_id)
@@ -576,6 +718,7 @@ class Sync:
             except Exception as e:
                 LOGGER.error(f"Error deleting staffs: {e}")
 
+        print("-" * 80)
         LOGGER.info(
             f"Synced staffs → Added: {added_count}, Updated: {updated_count}, Deleted: {deleted_count}"
         )
@@ -591,3 +734,144 @@ class Sync:
             return True, message
         else:
             return False, message
+
+    def create_schedule(self, api_data: Dict) -> Dict:
+        """
+        Tạo lịch sử dụng từ dữ liệu API
+        
+        Args:
+            api_data: Dữ liệu trả về từ API với format:
+            {
+                "result": true,
+                "data": {
+                    "list_classes": [...],
+                    "list_hardware": {...}
+                }
+            }
+        
+        Returns:
+            Dict: Lịch sử dụng với format đã định nghĩa
+        """
+        
+        # Khởi tạo cấu trúc lịch
+        schedule = {
+            "schedule_id": f"schedule_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "generated_at": datetime.now().isoformat(),
+            "school_id": None,
+            "active_periods": [],
+            "current_active": None,
+            "next_active": None
+        }
+        
+        # Kiểm tra dữ liệu đầu vào
+        if not api_data.get("result") or not api_data.get("data"):
+            return schedule
+        
+        data = api_data["data"]
+        list_classes = data.get("list_classes", [])
+        
+        # Lấy school_id từ class đầu tiên
+        if list_classes:
+            schedule["school_id"] = list_classes[0].get("school_id")
+        
+        # Tạo danh sách active_periods từ tất cả classes
+        active_periods = []
+        
+        for class_info in list_classes:
+            class_id = class_info["id"]
+            time_attendances = class_info.get("time_attendances", [])
+            
+            for time_slot in time_attendances:
+                start_time = time_slot["start_time"]
+                end_time = time_slot["end_time"]
+                
+                # Tạo period
+                period = {
+                    "period_id": f"{class_id}_{start_time}_{end_time}",
+                    "class_id": class_id,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "auto_attendance_check": class_info.get("auto_attendance_check", False),
+                    "board_checkin": class_info.get("board_checkin", False),
+                    "is_active": False
+                }
+                
+                active_periods.append(period)
+        
+        # Sắp xếp periods theo thời gian
+        active_periods.sort(key=lambda x: x["start_time"])
+        
+        # Gán vào schedule
+        schedule["active_periods"] = active_periods
+        
+        # Cập nhật trạng thái active
+        schedule = self.update_active_status(schedule)
+        
+        return schedule
+
+
+    def update_active_status(self, schedule: Dict) -> Dict:
+        """
+        Cập nhật trạng thái active cho schedule dựa trên thời gian hiện tại
+        
+        Args:
+            schedule: Lịch sử dụng
+            
+        Returns:
+            Dict: Lịch đã được cập nhật trạng thái
+        """
+        current_time = datetime.now().strftime("%H:%M:%S")
+        
+        # Reset tất cả periods
+        for period in schedule["active_periods"]:
+            period["is_active"] = False
+        
+        # Tìm current_active
+        current_active = None
+        for period in schedule["active_periods"]:
+            if period["start_time"] <= current_time <= period["end_time"]:
+                period["is_active"] = True
+                current_active = {
+                    "period_id": period["period_id"],
+                    "class_id": period["class_id"],
+                    "start_time": period["start_time"],
+                    "end_time": period["end_time"],
+                    "auto_attendance_check": period["auto_attendance_check"],
+                    "board_checkin": period["board_checkin"]
+                }
+                break
+        
+        schedule["current_active"] = current_active
+        
+        # Tìm next_active
+        next_active = None
+        for period in schedule["active_periods"]:
+            if period["start_time"] > current_time:
+                next_active = {
+                    "period_id": period["period_id"],
+                    "class_id": period["class_id"],
+                    "start_time": period["start_time"],
+                    "end_time": period["end_time"],
+                    "auto_attendance_check": period["auto_attendance_check"],
+                    "board_checkin": period["board_checkin"]
+                }
+                break
+        
+        schedule["next_active"] = next_active
+        
+        return schedule
+
+
+    def get_current_class_id(self, schedule: Dict) -> Optional[int]:
+        """
+        Lấy class_id của lớp đang active
+        
+        Args:
+            schedule: Lịch sử dụng
+            
+        Returns:
+            Optional[int]: class_id nếu có lớp đang active, None nếu không
+        """
+        if schedule.get("current_active"):
+            return schedule["current_active"]["class_id"]
+        return None

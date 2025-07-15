@@ -45,6 +45,9 @@ class Config:
         LOGGER.error(f"MongoDB connection failed: {e}")
 
     database = client["face_recognition"]
+    list_classes = database["list_classes"]
+    list_cameras = database["list_cameras"]
+    list_boards = database["list_boards"]
 
     def __init__(self):
         self.update_path = self.find_file_in_anaconda("degradations.py")

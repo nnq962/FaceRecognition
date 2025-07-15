@@ -31,12 +31,12 @@ class InsightFaceDetector:
                 raise_hand=False,
                 qr_code=False,
                 face_mask=False,
-                notification=False,
-                class_id=None,
                 host=None,
                 data2ws_url=None,
+                notification=False,
                 noti_control_port=None,
                 noti_secret_key=None,
+                is_running=True,
                 ):
                 
         self.det_model_path = os.path.expanduser("models/det_10g.onnx")
@@ -44,6 +44,11 @@ class InsightFaceDetector:
         self.det_model = None
         self.rec_model = None
         self.camera_ids = None
+        self.log_collection = None
+        self.auto_attendance_check = None
+        self.board_checkin = None
+        self.class_id = None
+        self.is_running = is_running
 
         self.face_recognition = face_recognition
         self.face_emotion = face_emotion
@@ -53,19 +58,16 @@ class InsightFaceDetector:
         self.raise_hand = raise_hand
         self.face_mask = face_mask
         self.notification = notification
-        self.class_id = class_id
         self.data2ws_url = data2ws_url
         self.noti_control_port = noti_control_port
         self.noti_secret_key = noti_secret_key
         self.host = host
-        self.log_collection = config.database[f"{self.class_id}_logs"] if self.class_id else config.database["all_room_logs"]
 
         self.previous_qr_results = {}
         self.previous_hand_states = {}
         self.mask_thresh = 30
         self.mask_detected_frames = 0
         self.hand_detected_frames = 0
-        self.count = 0
         self.previous_aruco_marker_states = None
         self.arucoDictType = ARUCO_DICT.get("DICT_5X5_100", None)
         self.arucoDict = cv2.aruco.getPredefinedDictionary(self.arucoDictType)
@@ -107,7 +109,7 @@ class InsightFaceDetector:
         LOGGER.info("Khởi tạo InsightFaceDetector thành công.")
         print("-" * 100)
 
-    def update_media_manager(self, media_manager):
+    def update_media_manager(self, media_manager, camera_ids):
         self.media_manager = media_manager
         self.dataset = media_manager.get_dataloader()
         self.save_dir = media_manager.get_save_directory()
@@ -119,6 +121,7 @@ class InsightFaceDetector:
         self.save_crop = media_manager.save_crop
         self.vid_path = media_manager.vid_path
         self.vid_writer = media_manager.vid_writer
+        self.camera_ids = camera_ids
 
         # Cập nhật lại hand states nếu raise_hand đang bật
         if self.raise_hand:
@@ -129,8 +132,12 @@ class InsightFaceDetector:
             else:
                 self.previous_hand_states["Photo"] = {}
 
-    def update_camera_ids(self, camera_ids):
-        self.camera_ids = camera_ids
+    def update_class_info(self, class_id, auto_attendance_check, board_checkin):
+        """Update class information"""
+        self.class_id = class_id
+        self.log_collection = config.database[f"{self.class_id}_logs"]
+        self.auto_attendance_check = auto_attendance_check
+        self.board_checkin = board_checkin
 
     def load_model(self):
         """Load detection and recognition models"""
@@ -379,16 +386,39 @@ class InsightFaceDetector:
                 }
             )
 
+    def mock_board_checkin(self, frame, bbox, user_id, camera_id):
+        """Hàm liên quan đến bảng"""
+        pass
+
     def run_inference(self):
         """
         Run inference on images/video and display results
         """
+        LOGGER.debug(f"Is running: {self.is_running}")
+        if not self.is_running:
+            return
+        
+        LOGGER.debug(f"View img: {self.view_img}")
+        LOGGER.debug(f"Save img: {self.save_img}")
+        LOGGER.debug(f"Save crop: {self.save_crop}")
+        LOGGER.debug(f"Line thickness: {self.line_thickness}")  
+        LOGGER.debug(f"Is running: {self.is_running}")
+        LOGGER.debug(f"Face recognition: {self.face_recognition}")
+        LOGGER.debug(f"Face emotion: {self.face_emotion}")
+        LOGGER.debug(f"Raise hand: {self.raise_hand}")
+        LOGGER.debug(f"QR code: {self.qr_code}")
+        LOGGER.debug(f"Export data: {self.export_data}")
+        LOGGER.debug(f"Time to save: {self.time_to_save}")
+        LOGGER.debug(f"Notification: {self.notification}")
+        
         windows = []
         start_time = time.time()
 
         for path, im0s, vid_cap, s in self.dataset:
             # Phát hiện khuôn mặt
             pred = self.get_face_detects(im0s)
+
+            LOGGER.debug(f"Pred: {pred}")
 
             face_counts = []  # Lưu số lượng khuôn mặt trong từng ảnh để ghép lại sau này
             all_cropped_faces_recognition = []  # Danh sách chứa toàn bộ khuôn mặt đã crop (dạng phẳng) cho xác minh
@@ -430,6 +460,8 @@ class InsightFaceDetector:
             # Lấy cảm xúc các khuôn mặt
             if all_cropped_faces_emotion:
                 user_emotions = self.fer.get_emotions(all_cropped_faces_emotion)
+
+            LOGGER.debug(f"Continue")
         
             # Lấy embeddings và truy xuất thông tin
             if all_cropped_faces_recognition:
@@ -541,8 +573,8 @@ class InsightFaceDetector:
                         self._save_video(img_index, save_path, vid_cap, im0)
             
             # Lưu dữ liệu vào MongoDB
-            if should_export and export_data_list:
-                # self._process_attendance_data(export_data_list, today_date, current_time_short, self.notification)
+            if should_export and export_data_list and self.auto_attendance_check:
+                # self._process_data(export_data_list, today_date, current_time_short, self.notification)
                 # TODO: Xử lý dữ liệu check-in
                 LOGGER.warning("Chưa xử lý lưu dữ liệu")
                 start_time = time.time()
@@ -550,7 +582,7 @@ class InsightFaceDetector:
         # Đảm bảo release sau khi xử lý tất cả các khung hình
         self._release_writers()
     
-    def _process_attendance_data(self, export_data_list, today_date, current_time_short, notification_enabled=False):
+    def _process_data(self, export_data_list, today_date, current_time_short, notification_enabled=False):
         if not export_data_list:
             return
         
@@ -641,26 +673,27 @@ class InsightFaceDetector:
                 LOGGER.error(f"MongoDB bulk_write error: {e}")
         
         # Gửi thông báo
-        if notification_enabled:
-            for name in welcome_users:
-                send_notification(
-                    message=f"Xin chào {name}",
-                    host=self.host,
-                    control_port=self.noti_control_port,
-                    secret_key=self.noti_secret_key
-                )
-            for name in goodbye_users:
-                send_notification(
-                    message=f"Chào tạm biệt {name}",
-                    host=self.host,
-                    control_port=self.noti_control_port,
-                    secret_key=self.noti_secret_key
-                )
-        else:
-            if welcome_users:
-                LOGGER.info(f"Xin chào {', '.join(welcome_users)}")
-            if goodbye_users:
-                LOGGER.info(f"Chào tạm biệt {', '.join(goodbye_users)}")
+        # if notification_enabled:
+        #     for name in welcome_users:
+        #         # TODO: SAU NÀY SẼ THAY THẾ BẰNG BẢNG
+        #         send_notification(
+        #             message=f"Xin chào {name}",
+        #             host=self.host,
+        #             control_port=self.noti_control_port,
+        #             secret_key=self.noti_secret_key
+        #         )
+        #     for name in goodbye_users:
+        #         send_notification(
+        #             message=f"Chào tạm biệt {name}",
+        #             host=self.host,
+        #             control_port=self.noti_control_port,
+        #             secret_key=self.noti_secret_key
+        #         )
+        # else:
+        #     if welcome_users:
+        #         LOGGER.info(f"Xin chào {', '.join(welcome_users)}")
+        #     if goodbye_users:
+        #         LOGGER.info(f"Chào tạm biệt {', '.join(goodbye_users)}")
                 
         # Xóa danh sách đã xử lý
         export_data_list.clear()
